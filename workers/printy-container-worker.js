@@ -27,7 +27,12 @@ export class PrintyContainer extends Container {
 
 export default {
   async fetch(request, env) {
-    const container = env.PRINTY_CONTAINER.getByName("printy-main-v2");
+    const container = env.PRINTY_CONTAINER.getByName("printy-main-v3");
+    await container.startAndWaitForPorts(3000, {
+      instanceGetTimeoutMS: 30_000,
+      portReadyTimeoutMS: 90_000,
+      waitInterval: 1_000,
+    });
     return container.fetch(request);
   },
 };
