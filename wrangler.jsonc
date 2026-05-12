@@ -1,45 +1,58 @@
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "printy",
-  "main": "workers/printy-container-worker.js",
-  "compatibility_date": "2026-05-12",
-  "workers_dev": true,
-  "preview_urls": true,
-  "routes": [
-    {
-      "pattern": "printy.smileon.app/*",
-      "zone_name": "smileon.app"
-    }
-  ],
-  "observability": {
-    "enabled": true
-  },
-  "containers": [
-    {
-      "class_name": "PrintyContainer",
-      "image": "./Dockerfile",
-      "instance_type": "basic",
-      "max_instances": 1
-    }
-  ],
-  "durable_objects": {
-    "bindings": [
-      {
-        "name": "PRINTY_CONTAINER",
-        "class_name": "PrintyContainer"
-      }
-    ]
-  },
-  "migrations": [
-    {
-      "tag": "v1",
-      "new_sqlite_classes": ["PrintyContainer"]
-    }
-  ],
-  "vars": {
-    "PGSSLMODE": "require",
-    "OPENAI_IMAGE_MODEL": "gpt-image-2",
-    "OPENAI_REFERENCE_ANALYSIS_MODEL": "gpt-4.1-mini",
-    "PRINTY_ALLOW_INSECURE_COOKIES": "false"
-  }
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "printy",
+	"main": ".open-next/worker.js",
+	"compatibility_date": "2026-05-12",
+	"compatibility_flags": [
+		"nodejs_compat",
+		"global_fetch_strictly_public"
+	],
+	"workers_dev": true,
+	"preview_urls": true,
+	"routes": [
+		{
+			"pattern": "printy.smileon.app/*",
+			"zone_name": "smileon.app"
+		}
+	],
+	"assets": {
+		"directory": ".open-next/assets",
+		"binding": "ASSETS"
+	},
+	"services": [
+		{
+			"binding": "WORKER_SELF_REFERENCE",
+			"service": "printy"
+		}
+	],
+	"observability": {
+		"enabled": true
+	},
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_sqlite_classes": [
+				"PrintyContainer"
+			]
+		},
+		{
+			"tag": "v2-remove-printy-container",
+			"deleted_classes": [
+				"PrintyContainer"
+			]
+		}
+	],
+	"vars": {
+		"PGSSLMODE": "require",
+		"OPENAI_IMAGE_MODEL": "gpt-image-2",
+		"OPENAI_REFERENCE_ANALYSIS_MODEL": "gpt-4.1-mini",
+		"PRINTY_ALLOW_INSECURE_COOKIES": "false",
+		"PRINTY_RUNTIME": "cloudflare-worker"
+	},
+	"hyperdrive": [
+		{
+			"binding": "HYPERDRIVE",
+			"id": "51f209038ad44e0585cfc68c2031f8f3"
+		}
+	]
 }

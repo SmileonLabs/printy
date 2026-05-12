@@ -3,7 +3,6 @@ import "server-only";
 import { randomUUID } from "crypto";
 import { mkdir, readdir, readFile, stat, unlink, writeFile } from "fs/promises";
 import path from "path";
-import sharp from "sharp";
 import type { PoolClient } from "pg";
 import { queryDb, withDbClient } from "@/lib/server/db";
 import type { LogoReferenceImageAnalysis } from "@/lib/types";
@@ -547,6 +546,7 @@ function removeEnclosedWhiteComponents(data: Buffer, width: number, height: numb
 
 async function makeGeneratedLogoBackgroundTransparent(bytes: Uint8Array) {
   try {
+    const sharp = (await import("sharp")).default;
     const { data, info } = await sharp(bytes).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
     const pixelCount = info.width * info.height;
     const backgroundColor = estimateEdgeBackgroundColor(data, info.width, info.height);

@@ -5,6 +5,10 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:worker": "opennextjs-cloudflare build",
+    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "deploy:native": "wrangler deploy --config wrangler.native.jsonc",
+    "preview:worker": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "start": "next start",
     "lint": "eslint . --max-warnings=0",
     "smoke:docker-prepress": "node ops/smoke/docker-prepress-smoke.mjs",
@@ -14,8 +18,10 @@
     "db:backfill-uploaded-file-blobs": "node scripts/backfill-uploaded-file-blobs.mjs"
   },
   "dependencies": {
+    "@opennextjs/cloudflare": "^1.19.9",
     "@pdf-lib/fontkit": "^1.1.1",
     "@tailwindcss/postcss": "latest",
+    "chromium-bidi": "^0.5.24",
     "next": "^15.5.18",
     "openai": "^6.35.0",
     "pdf-lib": "^1.17.1",
@@ -44,6 +50,7 @@
     "globals": "^16.5.0",
     "tailwindcss": "latest",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.50.0"
+    "typescript-eslint": "^8.50.0",
+    "wrangler": "^4.90.1"
   }
 }

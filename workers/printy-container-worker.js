@@ -25,8 +25,39 @@ export class PrintyContainer extends Container {
   };
 }
 
+function shouldUseNativeContainer(pathname) {
+  return (
+    pathname === "/api/logos/vectorize" ||
+    pathname === "/api/admin/templates/print-shop-pdf" ||
+    /^\/api\/templates\/[^/]+\/business-card-pdf$/.test(pathname) ||
+    /^\/api\/admin\/templates\/[^/]+\/print-shop-pdf$/.test(pathname)
+  );
+}
+
+function proxyToMainWorker(request, env) {
+  const mainWorkerOrigin = env.PRINTY_MAIN_WORKER_ORIGIN?.trim();
+
+  if (!mainWorkerOrigin) {
+    return new Response("Main Worker origin is not configured.", { status: 502 });
+  }
+
+  const targetUrl = new URL(request.url);
+  const origin = new URL(mainWorkerOrigin);
+  targetUrl.protocol = origin.protocol;
+  targetUrl.hostname = origin.hostname;
+  targetUrl.port = origin.port;
+
+  return fetch(new Request(targetUrl, request));
+}
+
 export default {
   async fetch(request, env) {
+    const url = new URL(request.url);
+
+    if (!shouldUseNativeContainer(url.pathname)) {
+      return proxyToMainWorker(request, env);
+    }
+
     const container = env.PRINTY_CONTAINER.getByName("printy-main-v3");
     await container.startAndWaitForPorts(3000, {
       instanceGetTimeoutMS: 30_000,

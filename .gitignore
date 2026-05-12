@@ -1,5 +1,7 @@
 node_modules/
 .next/
+.open-next/
+.wrangler/
 out/
 
 .env*
@@ -11,6 +13,7 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 *.log
+*.log.err
 *.err.log
 *.tsbuildinfo
 
