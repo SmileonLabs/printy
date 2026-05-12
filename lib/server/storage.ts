@@ -637,6 +637,17 @@ export async function saveGeneratedLogoBytes(bytes: Uint8Array): Promise<Generat
       size: toNumber(row.size),
     };
   } catch (error) {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("Generated logo metadata registration skipped", { errorName: error instanceof Error ? error.name : "UnknownError" });
+
+      return {
+        id,
+        publicUrl,
+        contentType: "image/png",
+        size: logoBytes.byteLength,
+      };
+    }
+
     await unlink(filePath).catch(() => undefined);
     throw error;
   }

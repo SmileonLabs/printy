@@ -153,9 +153,23 @@ function mergeById<T extends { id: string }>(localItems: T[], serverItems: T[]) 
   return Array.from(merged.values());
 }
 
+function mergeByIdWithServerPriority<T extends { id: string }>(localItems: T[], serverItems: T[]) {
+  const merged = new Map<string, T>();
+
+  for (const item of localItems) {
+    merged.set(item.id, item);
+  }
+
+  for (const item of serverItems) {
+    merged.set(item.id, item);
+  }
+
+  return Array.from(merged.values());
+}
+
 export function mergeBrandWorkspaces(localWorkspace: BrandWorkspace, serverWorkspace: BrandWorkspace): BrandWorkspace {
   return {
-    brands: mergeById(localWorkspace.brands, serverWorkspace.brands),
+    brands: mergeByIdWithServerPriority(localWorkspace.brands, serverWorkspace.brands),
     savedGeneratedLogoOptions: mergeById(localWorkspace.savedGeneratedLogoOptions, serverWorkspace.savedGeneratedLogoOptions),
     businessCardDrafts: mergeById(localWorkspace.businessCardDrafts, serverWorkspace.businessCardDrafts),
     orders: mergeById(localWorkspace.orders, serverWorkspace.orders),

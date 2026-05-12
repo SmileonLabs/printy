@@ -1,7 +1,12 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
+import nextEnv from "@next/env";
 import { Client } from "pg";
+
+const { loadEnvConfig } = nextEnv;
+
+loadEnvConfig(process.cwd());
 
 const businessCardProductId = "business-card";
 const templateFilePath = path.join(process.cwd(), "data", "business-card-templates.json");

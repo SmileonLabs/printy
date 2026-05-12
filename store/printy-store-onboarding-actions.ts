@@ -91,13 +91,14 @@ export function createPrintyOnboardingActions(set: PrintyStoreSet, get: PrintySt
       const draft = state.ensureBusinessCardDraft();
       const current = get();
       const existingBrand = current.brands.find((brand) => brand.id === draft.brandId || brand.name === state.brandDraft.name);
+      const brandSelectedLogoId = existingBrand?.selectedLogoId ?? state.selectedLogoId;
       const nextBrand: Brand = {
         id: existingBrand?.id ?? makeId("brand", current.brands.length),
         name: state.brandDraft.name,
         category: state.brandDraft.category,
         designRequest: state.brandDraft.designRequest.trim(),
-        selectedLogoId: state.selectedLogoId,
-        logoIds: Array.from(new Set([state.selectedLogoId, ...(existingBrand?.logoIds ?? [])])),
+        selectedLogoId: brandSelectedLogoId,
+        logoIds: Array.from(new Set([brandSelectedLogoId, state.selectedLogoId, ...(existingBrand?.logoIds ?? [])])),
         members: existingBrand?.members.length ? existingBrand.members : [state.memberDraft],
         createdAt: existingBrand?.createdAt ?? "방금 생성",
         assets: existingBrand ? Math.max(existingBrand.assets, 4) : 4,

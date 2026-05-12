@@ -9,6 +9,7 @@ const maxReferenceImageSize = 5 * 1024 * 1024;
 const uploadRateLimitWindowMs = 10 * 60 * 1000;
 const uploadRateLimitMaxRequests = 3;
 const uploadRateLimitBuckets = new Map<string, { count: number; resetAt: number }>();
+const unavailableResponse = { reason: "참고 이미지 저장소를 사용할 수 없어요. DATABASE_URL 설정과 DB 마이그레이션을 확인해 주세요." };
 
 function readContentType(file: File): "image/png" | "image/jpeg" | undefined {
   return file.type === "image/png" || file.type === "image/jpeg" ? file.type : undefined;
@@ -50,9 +51,15 @@ function isUploadRateLimited(clientKey: string) {
 }
 
 export async function GET() {
-  const images = await listLogoReferenceImages();
+  try {
+    const images = await listLogoReferenceImages();
 
-  return NextResponse.json({ images: images.map(toReferenceImage) });
+    return NextResponse.json({ images: images.map(toReferenceImage) });
+  } catch (error) {
+    console.warn("Logo reference image sync skipped", { errorName: error instanceof Error ? error.name : "UnknownError" });
+
+    return NextResponse.json({ images: [] });
+  }
 }
 
 export async function POST(request: Request) {
@@ -78,8 +85,14 @@ export async function POST(request: Request) {
   }
 
   const bytes = new Uint8Array(await file.arrayBuffer());
-  const analysis = await analyzeLogoReferenceImage(bytes, contentType, "user");
-  const image = await saveLogoReferenceImageBytes(bytes, contentType, file.name, analysis);
+  try {
+    const analysis = await analyzeLogoReferenceImage(bytes, contentType, "user");
+    const image = await saveLogoReferenceImageBytes(bytes, contentType, file.name, analysis);
 
-  return NextResponse.json({ image: toReferenceImage(image) }, { status: 201 });
+    return NextResponse.json({ image: toReferenceImage(image) }, { status: 201 });
+  } catch (error) {
+    console.warn("Logo reference image upload failed", { errorName: error instanceof Error ? error.name : "UnknownError" });
+
+    return NextResponse.json(unavailableResponse, { status: 503 });
+  }
 }

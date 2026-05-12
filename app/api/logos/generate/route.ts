@@ -30,7 +30,14 @@ const unknownUpstreamReason = "이미지 생성 중 원인을 알 수 없는 오
 const rateLimitWindowMs = 10 * 60 * 1000;
 const rateLimitMaxRequests = 5;
 const rateLimitBuckets = new Map<string, { count: number; resetAt: number }>();
-const openAIImageModel = "gpt-image-2";
+const defaultOpenAIImageModel = "gpt-image-2";
+const supportedOpenAIImageModels = new Set(["gpt-image-2", "gpt-image-2-2026-04-21", "gpt-image-1.5", "gpt-image-1", "gpt-image-1-mini"]);
+
+function readOpenAIImageModel() {
+  const configuredModel = process.env.OPENAI_IMAGE_MODEL?.trim();
+
+  return configuredModel && supportedOpenAIImageModels.has(configuredModel) ? configuredModel : defaultOpenAIImageModel;
+}
 
 type OpenAIImageOperation = "images.generate" | "images.edit";
 
@@ -43,8 +50,9 @@ type HeaderGetter = {
 type SafeOpenAIErrorLog = {
   failureKind: UpstreamFailureKind;
   operation: OpenAIImageOperation;
-  model: typeof openAIImageModel;
+  model: string;
   errorName: string;
+  message?: string;
   status?: number;
   code?: string;
   type?: string;
@@ -109,6 +117,18 @@ function readErrorName(error: unknown) {
   return "UnknownError";
 }
 
+function readErrorMessage(error: unknown) {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message.slice(0, 500);
+  }
+
+  if (isRecord(error)) {
+    return readSafeString(error, "message")?.slice(0, 500);
+  }
+
+  return undefined;
+}
+
 function unwrapUpstreamCause(error: unknown) {
   return error instanceof LogoGenerationUpstreamError ? error.upstreamCause : error;
 }
@@ -158,7 +178,7 @@ function readSafeOpenAIErrorLog(error: unknown, classification: UpstreamFailureC
   const metadata: SafeOpenAIErrorLog = {
     failureKind: classification.failureKind,
     operation,
-    model: openAIImageModel,
+    model: readOpenAIImageModel(),
     errorName: readErrorName(cause),
   };
 
@@ -167,6 +187,7 @@ function readSafeOpenAIErrorLog(error: unknown, classification: UpstreamFailureC
   }
 
   metadata.status = readSafeNumber(cause, "status");
+  metadata.message = readErrorMessage(cause);
   metadata.code = readSafeString(cause, "code");
   metadata.type = readSafeString(cause, "type");
   metadata.requestID = readSafeString(cause, "requestID");
@@ -399,7 +420,7 @@ function makeOpenAILogo(imageUrl: string, plan: LogoGenerationPlan, index: numbe
 async function generateOpenAILogo(client: OpenAI, plan: LogoGenerationPlan, index: number) {
   try {
     const response = await client.images.generate({
-      model: openAIImageModel,
+      model: readOpenAIImageModel(),
       prompt: plan.prompt,
       n: 1,
       size: "1024x1024",
@@ -429,7 +450,7 @@ async function generateOpenAIReferenceLogo(client: OpenAI, plan: LogoGenerationP
   try {
     const forcedInstructions = referenceImage.analysis?.forcedInstructions?.trim();
     const response = await client.images.edit({
-      model: openAIImageModel,
+      model: readOpenAIImageModel(),
       image: await toFile(referenceImage.bytes, referenceImage.contentType === "image/png" ? "reference.png" : "reference.jpg", { type: referenceImage.contentType }),
       prompt: `${plan.prompt}\n\nUse the provided reference image only for visual direction such as mood, color, composition, and style. Do not copy protected logos, marks, characters, text, or distinctive artwork from the reference. Create a new original logo for this brand.${forcedInstructions ? `\n\nMandatory style requirements from admin: ${forcedInstructions}` : ""}`,
       n: 1,
@@ -473,7 +494,7 @@ async function generateOpenAIRevisionLogo(client: OpenAI, plan: LogoGenerationPl
 
   try {
     const response = await client.images.edit({
-      model: openAIImageModel,
+      model: readOpenAIImageModel(),
       image,
       prompt: plan.prompt,
       n: 1,
@@ -512,7 +533,7 @@ export async function POST(request: Request) {
     const log: SafeOpenAIErrorLog = {
       failureKind: "auth_config",
       operation,
-      model: openAIImageModel,
+      model: readOpenAIImageModel(),
       errorName: "MissingOpenAIConfiguration",
     };
 

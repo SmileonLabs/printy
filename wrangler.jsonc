@@ -1,0 +1,45 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "printy",
+  "main": "workers/printy-container-worker.js",
+  "compatibility_date": "2026-05-12",
+  "workers_dev": true,
+  "preview_urls": true,
+  "routes": [
+    {
+      "pattern": "printy.smileon.app/*",
+      "zone_name": "smileon.app"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  },
+  "containers": [
+    {
+      "class_name": "PrintyContainer",
+      "image": "./Dockerfile",
+      "instance_type": "basic",
+      "max_instances": 1
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "PRINTY_CONTAINER",
+        "class_name": "PrintyContainer"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["PrintyContainer"]
+    }
+  ],
+  "vars": {
+    "PGSSLMODE": "require",
+    "OPENAI_IMAGE_MODEL": "gpt-image-2",
+    "OPENAI_REFERENCE_ANALYSIS_MODEL": "gpt-4.1-mini",
+    "PRINTY_ALLOW_INSECURE_COOKIES": "false"
+  }
+}
