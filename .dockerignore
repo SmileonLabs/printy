@@ -1,0 +1,16 @@
+.env*
+!.env.example
+!.env.docker.example
+.git
+.next
+node_modules
+npm-debug.log*
+Dockerfile
+compose.yaml
+data/*
+public/uploads/admin/business-card-backgrounds/*
+ops/color/*.icc
+ops/color/*.icm
+ops/color/*.ICC
+ops/color/*.ICM
+ops/preflight/vendor/*

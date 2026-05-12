@@ -1,0 +1,179 @@
+@import url("https://fonts.googleapis.com/css2?family=Gowun+Dodum&family=Noto+Sans+KR:wght@400;500;600;700;800;900&display=swap");
+@import "tailwindcss";
+
+:root {
+  --color-ink: #111827;
+  --color-muted: #667085;
+  --color-soft: #98a2b3;
+  --color-line: #e8eef7;
+  --color-canvas: #f5f9ff;
+  --color-surface: #ffffff;
+  --color-surface-blue: #eef6ff;
+  --color-primary: #1677ff;
+  --color-primary-strong: #075dcb;
+  --color-primary-soft: #d9ebff;
+  --color-success: #17a56b;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+  --font-body: "Noto Sans KR", "Apple SD Gothic Neo", sans-serif;
+  --font-display: "Gowun Dodum", "Noto Sans KR", sans-serif;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --radius-pill: 14px;
+  --shadow-soft: 0 14px 35px rgba(22, 119, 255, 0.1);
+  --shadow-card: 0 18px 48px rgba(16, 24, 40, 0.08);
+  --shadow-floating: 0 22px 70px rgba(16, 24, 40, 0.16);
+  --transition-fast: 160ms ease;
+  --transition-smooth: 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--color-canvas);
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  color: var(--color-ink);
+  background:
+    radial-gradient(circle at 20% 0%, rgba(22, 119, 255, 0.12), transparent 30%),
+    linear-gradient(180deg, #f8fbff 0%, #edf5ff 100%);
+  font-family: var(--font-body);
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  border: 0;
+}
+
+@theme inline {
+  --color-ink: var(--color-ink);
+  --color-muted: var(--color-muted);
+  --color-soft: var(--color-soft);
+  --color-line: var(--color-line);
+  --color-canvas: var(--color-canvas);
+  --color-surface: var(--color-surface);
+  --color-surface-blue: var(--color-surface-blue);
+  --color-primary: var(--color-primary);
+  --color-primary-strong: var(--color-primary-strong);
+  --color-primary-soft: var(--color-primary-soft);
+  --color-success: var(--color-success);
+  --color-warning: var(--color-warning);
+  --color-danger: var(--color-danger);
+  --font-sans: var(--font-body);
+  --font-display: var(--font-display);
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+  --radius-pill: var(--radius-pill);
+  --shadow-soft: var(--shadow-soft);
+  --shadow-card: var(--shadow-card);
+  --shadow-floating: var(--shadow-floating);
+}
+
+.phone-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.phone-scroll {
+  scrollbar-width: none;
+}
+
+.grain::before {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  content: "";
+  opacity: 0.22;
+  background-image: linear-gradient(rgba(255, 255, 255, 0.45) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.45) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+.safe-bottom {
+  padding-bottom: max(var(--space-5), env(safe-area-inset-bottom));
+}
+
+@keyframes float-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pulse-dot {
+  0%, 100% {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes logo-progress {
+  0% {
+    left: -42%;
+    width: 32%;
+  }
+  50% {
+    left: 28%;
+    width: 62%;
+  }
+  100% {
+    left: 108%;
+    width: 32%;
+  }
+}
+
+.animate-float-in {
+  animation: float-in 480ms var(--transition-smooth) both;
+}
+
+.loading-orbit {
+  animation: orbit 1300ms linear infinite;
+}
+
+.pulse-dot {
+  animation: pulse-dot 900ms ease-in-out infinite;
+}
+
+.logo-generation-track {
+  position: relative;
+}
+
+.logo-generation-bar {
+  position: absolute;
+  left: -42%;
+  width: 32%;
+  animation: logo-progress 1500ms var(--transition-smooth) infinite;
+}

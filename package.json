@@ -1,0 +1,44 @@
+{
+  "name": "printy",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint . --max-warnings=0",
+    "smoke:docker-prepress": "node ops/smoke/docker-prepress-smoke.mjs",
+    "db:migrate": "node scripts/migrate.mjs",
+    "db:import-admin-data": "node scripts/import-admin-template-data.mjs",
+    "db:backfill-uploaded-files": "node scripts/backfill-uploaded-files.mjs"
+  },
+  "dependencies": {
+    "@pdf-lib/fontkit": "^1.1.1",
+    "@tailwindcss/postcss": "latest",
+    "next": "latest",
+    "openai": "^6.35.0",
+    "pdf-lib": "^1.17.1",
+    "pg": "^8.20.0",
+    "playwright-core": "^1.59.1",
+    "react": "latest",
+    "react-dom": "latest",
+    "sharp": "^0.34.5",
+    "zustand": "latest"
+  },
+  "overrides": {
+    "next": {
+      "postcss": "8.5.14"
+    }
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "latest",
+    "@types/node": "latest",
+    "@types/pg": "^8.20.0",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "eslint": "latest",
+    "eslint-config-next": "latest",
+    "tailwindcss": "latest",
+    "typescript": "latest"
+  }
+}

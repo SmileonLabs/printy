@@ -1,0 +1,56 @@
+services:
+  postgres:
+    image: postgres:16-bookworm
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-printy}
+      POSTGRES_USER: ${POSTGRES_USER:-printy}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-printy_password}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - printy-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  printy:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:-postgresql://printy:printy_password@postgres:5432/printy}
+      PRINTY_ALLOW_INSECURE_COOKIES: ${PRINTY_ALLOW_INSECURE_COOKIES:-1}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
+      KAKAO_CLIENT_ID: ${KAKAO_CLIENT_ID:-}
+      KAKAO_CLIENT_SECRET: ${KAKAO_CLIENT_SECRET:-}
+      KAKAO_REDIRECT_URI: ${KAKAO_REDIRECT_URI:-}
+      PRINTY_ADMIN_CONTACTS: ${PRINTY_ADMIN_CONTACTS:-}
+      PRINTY_ADMIN_TOKEN: ${PRINTY_ADMIN_TOKEN:-}
+      PRINTY_GHOSTSCRIPT_PATH: /usr/bin/gs
+      PRINTY_QPDF_PATH: /usr/bin/qpdf
+      PRINTY_CMYK_ICC_PATH: ${PRINTY_CMYK_ICC_PATH:-/opt/printy/color/ISOcoated_v2_bas.ICC}
+      PRINTY_PREFLIGHT_COMMAND: ${PRINTY_PREFLIGHT_COMMAND:-}
+      PRINTY_PREFLIGHT_ARGS: ${PRINTY_PREFLIGHT_ARGS:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - printy-data:/app/data
+      - printy-background-uploads:/app/public/uploads/admin/business-card-backgrounds
+      - ./ops/color:/opt/printy/color-overrides:ro
+      - ./ops/preflight:/opt/printy/preflight:ro
+    restart: unless-stopped
+
+volumes:
+  printy-postgres:
+  printy-data:
+  printy-background-uploads:
