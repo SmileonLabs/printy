@@ -10,7 +10,8 @@
     "smoke:docker-prepress": "node ops/smoke/docker-prepress-smoke.mjs",
     "db:migrate": "node scripts/migrate.mjs",
     "db:import-admin-data": "node scripts/import-admin-template-data.mjs",
-    "db:backfill-uploaded-files": "node scripts/backfill-uploaded-files.mjs"
+    "db:backfill-uploaded-files": "node scripts/backfill-uploaded-files.mjs",
+    "db:backfill-uploaded-file-blobs": "node scripts/backfill-uploaded-file-blobs.mjs"
   },
   "dependencies": {
     "@pdf-lib/fontkit": "^1.1.1",

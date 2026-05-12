@@ -27,7 +27,7 @@ export class PrintyContainer extends Container {
 
 export default {
   async fetch(request, env) {
-    const container = env.PRINTY_CONTAINER.getByName("printy-main");
+    const container = env.PRINTY_CONTAINER.getByName("printy-main-v2");
     return container.fetch(request);
   },
 };

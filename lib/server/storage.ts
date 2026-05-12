@@ -209,6 +209,49 @@ function toNumber(value: string | number) {
   return typeof value === "number" ? value : Number(value);
 }
 
+async function writeUploadedFileBlob(uploadedFileId: string, bytes: Uint8Array) {
+  await queryDb(
+    `
+      insert into uploaded_file_blobs (uploaded_file_id, bytes)
+      values ($1, $2)
+      on conflict (uploaded_file_id)
+      do update set bytes = excluded.bytes, updated_at = now()
+    `,
+    [uploadedFileId, Buffer.from(bytes)],
+  );
+}
+
+async function readUploadedFileBlob(bucket: string, purpose: string, objectKey: string): Promise<Uint8Array | undefined> {
+  const result = await queryDb<{ bytes: Buffer }>(
+    `
+      select blob.bytes
+      from uploaded_file_blobs blob
+      join uploaded_files file on file.id = blob.uploaded_file_id
+      where file.bucket = $1 and file.purpose = $2 and file.object_key = $3
+    `,
+    [bucket, purpose, objectKey],
+  );
+  const bytes = result.rows[0]?.bytes;
+
+  return bytes ? new Uint8Array(bytes) : undefined;
+}
+
+async function uploadedFileBytesExist(bucket: string, purpose: string, objectKey: string, directory: string) {
+  try {
+    const stats = await stat(path.join(directory, objectKey));
+
+    if (stats.isFile()) {
+      return true;
+    }
+  } catch (error) {
+    if (!isMissingFileError(error)) {
+      throw error;
+    }
+  }
+
+  return (await readUploadedFileBlob(bucket, purpose, objectKey)) !== undefined;
+}
+
 type BackgroundColor = {
   red: number;
   green: number;
@@ -595,6 +638,7 @@ export async function saveBusinessCardBackgroundBytes(bytes: Uint8Array, content
     );
 
     const row = result.rows[0];
+    await writeUploadedFileBlob(row.id, bytes);
 
     return {
       id: row.id,
@@ -604,6 +648,34 @@ export async function saveBusinessCardBackgroundBytes(bytes: Uint8Array, content
     };
   } catch (error) {
     await unlink(filePath).catch(() => undefined);
+    throw error;
+  }
+}
+
+export async function readBusinessCardBackgroundBytesByFileName(fileName: string): Promise<{ bytes: Uint8Array; contentType: "image/png" | "image/jpeg" | "image/webp" } | undefined> {
+  if (!isBusinessCardBackgroundObjectKey(fileName)) {
+    return undefined;
+  }
+
+  try {
+    const bytes = await readFile(path.join(uploadDirectory, fileName));
+
+    return { bytes, contentType: readStoredContentType(fileName.endsWith(".png") ? "image/png" : fileName.endsWith(".webp") ? "image/webp" : "image/jpeg") };
+  } catch (error) {
+    if (isMissingFileError(error)) {
+      const result = await queryDb<{ content_type: string }>(
+        `
+          select content_type
+          from uploaded_files
+          where bucket = $1 and purpose = $2 and object_key = $3
+        `,
+        [businessCardBackgroundBucket, businessCardBackgroundPurpose, fileName],
+      );
+      const bytes = await readUploadedFileBlob(businessCardBackgroundBucket, businessCardBackgroundPurpose, fileName);
+
+      return bytes ? { bytes, contentType: readStoredContentType(result.rows[0]?.content_type ?? "image/jpeg") } : undefined;
+    }
+
     throw error;
   }
 }
@@ -629,6 +701,7 @@ export async function saveGeneratedLogoBytes(bytes: Uint8Array): Promise<Generat
       [id, generatedLogoBucket, objectKey, publicUrl, "image/png", logoBytes.byteLength, generatedLogoPurpose],
     );
     const row = result.rows[0];
+    await writeUploadedFileBlob(row.id, logoBytes);
 
     return {
       id: row.id,
@@ -673,6 +746,7 @@ export async function saveLogoReferenceImageBytes(bytes: Uint8Array, contentType
       [id, logoReferenceBucket, objectKey, publicUrl, contentType, bytes.byteLength, logoReferencePurpose],
     );
     const row = result.rows[0];
+    await writeUploadedFileBlob(row.id, bytes);
     await writeLogoReferenceAnalysis(objectKey, analysis);
 
     return {
@@ -701,8 +775,8 @@ export async function listLogoReferenceImages(): Promise<LogoReferenceImageStore
     [logoReferenceBucket, logoReferencePurpose],
   );
 
-  return Promise.all(
-    result.rows.map(async (row) => ({
+  const images = await Promise.all<LogoReferenceImageStoredFile | undefined>(
+    result.rows.map(async (row): Promise<LogoReferenceImageStoredFile | undefined> => ((await uploadedFileBytesExist(logoReferenceBucket, logoReferencePurpose, row.object_key, logoReferenceUploadDirectory)) ? {
       id: row.id,
       name: row.object_key,
       publicUrl: row.public_url,
@@ -710,8 +784,10 @@ export async function listLogoReferenceImages(): Promise<LogoReferenceImageStore
       size: toNumber(row.size),
       createdAt: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString(),
       analysis: await readLogoReferenceAnalysis(row.object_key),
-    })),
+    } : undefined)),
   );
+
+  return images.filter((image): image is LogoReferenceImageStoredFile => image !== undefined);
 }
 
 export async function readLogoReferenceImageBytesById(id: string): Promise<{ bytes: Uint8Array; contentType: "image/png" | "image/jpeg"; analysis?: LogoReferenceImageAnalysis } | undefined> {
@@ -729,7 +805,9 @@ export async function readLogoReferenceImageBytesById(id: string): Promise<{ byt
     return { bytes: await readFile(path.join(logoReferenceUploadDirectory, row.object_key)), contentType: row.content_type === "image/png" ? "image/png" : "image/jpeg", analysis: await readLogoReferenceAnalysis(row.object_key) };
   } catch (error) {
     if (isMissingFileError(error)) {
-      return undefined;
+      const bytes = await readUploadedFileBlob(logoReferenceBucket, logoReferencePurpose, row.object_key);
+
+      return bytes ? { bytes, contentType: row.content_type === "image/png" ? "image/png" : "image/jpeg", analysis: await readLogoReferenceAnalysis(row.object_key) } : undefined;
     }
 
     throw error;
@@ -783,7 +861,9 @@ export async function readLogoReferenceImageBytesByFileName(fileName: string): P
     return { bytes: await readFile(path.join(logoReferenceUploadDirectory, fileName)), contentType: logoReferenceContentTypeFromObjectKey(fileName) };
   } catch (error) {
     if (isMissingFileError(error)) {
-      return undefined;
+      const bytes = await readUploadedFileBlob(logoReferenceBucket, logoReferencePurpose, fileName);
+
+      return bytes ? { bytes, contentType: logoReferenceContentTypeFromObjectKey(fileName) } : undefined;
     }
 
     throw error;
@@ -821,7 +901,7 @@ export async function readGeneratedLogoBytesByPublicUrl(publicUrl: string): Prom
     return await readFile(path.join(generatedLogoUploadDirectory, objectKey));
   } catch (error) {
     if (isMissingFileError(error)) {
-      return undefined;
+      return readUploadedFileBlob(generatedLogoBucket, generatedLogoPurpose, objectKey);
     }
 
     throw error;
