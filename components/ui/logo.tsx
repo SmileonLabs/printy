@@ -16,7 +16,7 @@ export function PrintyBrandLogo({ size = "md", showWordmark = true }: PrintyBran
     lg: { width: 200, height: 73 },
   }[size];
 
-  return <Image src="/printy_logo.png" alt="Printy" width={sizes.width} height={sizes.height} className="h-auto w-auto shrink-0 object-contain" data-wordmark-visible={showWordmark} priority />;
+  return <Image src="/printy_logo.png" alt="Printy" width={sizes.width} height={sizes.height} className="shrink-0 object-contain" style={{ width: sizes.width, height: "auto" }} data-wordmark-visible={showWordmark} priority />;
 }
 
 export function LogoMark({ logo, size = "md" }: { logo: ResolvedLogoOption; size?: "sm" | "md" | "lg" | "xl" }) {

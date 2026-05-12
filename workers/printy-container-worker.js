@@ -27,6 +27,7 @@ export class PrintyContainer extends Container {
 
 function shouldUseNativeContainer(pathname) {
   return (
+    pathname === "/api/logos/generate" ||
     pathname === "/api/logos/vectorize" ||
     pathname === "/api/admin/templates/print-shop-pdf" ||
     /^\/api\/templates\/[^/]+\/business-card-pdf$/.test(pathname) ||
