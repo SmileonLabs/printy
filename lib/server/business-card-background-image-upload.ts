@@ -2,6 +2,7 @@ import "server-only";
 
 import { listReferencedAdminBusinessCardBackgroundImageUrls } from "@/lib/server/business-card-template-store";
 import { deleteBusinessCardBackgroundFileByPublicUrl, deleteOrphanBusinessCardBackgroundFiles, saveBusinessCardBackgroundBytes } from "@/lib/server/storage";
+import type { UploadedFormFile } from "@/lib/server/uploaded-form-file";
 
 const maxBackgroundImageBytes = 5 * 1024 * 1024;
 
@@ -47,7 +48,7 @@ function matchesMagicBytes(bytes: Uint8Array, contentType: SupportedImageType) {
   return false;
 }
 
-export async function saveBusinessCardBackgroundImage(file: File): Promise<BusinessCardBackgroundImageUpload> {
+export async function saveBusinessCardBackgroundImage(file: UploadedFormFile): Promise<BusinessCardBackgroundImageUpload> {
   const contentType = readImageType(file.type);
 
   if (!contentType) {

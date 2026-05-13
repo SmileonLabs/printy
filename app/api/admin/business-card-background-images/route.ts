@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { isAdminRequestAuthenticated } from "@/lib/server/admin-auth";
 import { BackgroundImageUploadError, deleteBusinessCardBackgroundImageFile, saveBusinessCardBackgroundImage, type BusinessCardBackgroundImageUpload } from "@/lib/server/business-card-background-image-upload";
 import { cleanupUnusedManagedBusinessCardBackgrounds, createManagedBusinessCardBackground, deleteManagedBusinessCardBackground, listManagedBusinessCardBackgroundsWithUsage, updateManagedBusinessCardBackground } from "@/lib/server/business-card-background-store";
+import { isUploadedFormFile, readUploadedFormFileName } from "@/lib/server/uploaded-form-file";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -110,7 +111,7 @@ export async function POST(request: Request) {
 
   const file = formData.get("file");
 
-  if (!(file instanceof File)) {
+  if (!isUploadedFormFile(file)) {
     return NextResponse.json({ reason: "업로드할 이미지 파일을 선택해 주세요." }, { status: 400 });
   }
 
@@ -120,7 +121,7 @@ export async function POST(request: Request) {
     upload = await saveBusinessCardBackgroundImage(file);
     const background = await createManagedBusinessCardBackground({
       ...upload,
-      name: readOptionalFormString(formData, "name", maxBackgroundNameLength) ?? readOptionalFormString(formData, "title", maxBackgroundNameLength) ?? file.name,
+      name: readOptionalFormString(formData, "name", maxBackgroundNameLength) ?? readOptionalFormString(formData, "title", maxBackgroundNameLength) ?? readUploadedFormFileName(file, "Business card background"),
       tags: readTags(formData),
     });
 

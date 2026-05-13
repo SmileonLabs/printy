@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { analyzeLogoReferenceImage } from "@/lib/server/logo-reference-analysis";
 import { listLogoReferenceImages, saveLogoReferenceImageBytes } from "@/lib/server/storage";
+import { isUploadedFormFile, readUploadedFormFileName, type UploadedFormFile } from "@/lib/server/uploaded-form-file";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,7 +12,7 @@ const uploadRateLimitMaxRequests = 3;
 const uploadRateLimitBuckets = new Map<string, { count: number; resetAt: number }>();
 const unavailableResponse = { reason: "참고 이미지 저장소를 사용할 수 없어요. DATABASE_URL 설정과 DB 마이그레이션을 확인해 주세요." };
 
-function readContentType(file: File): "image/png" | "image/jpeg" | undefined {
+function readContentType(file: UploadedFormFile): "image/png" | "image/jpeg" | undefined {
   return file.type === "image/png" || file.type === "image/jpeg" ? file.type : undefined;
 }
 
@@ -70,7 +71,7 @@ export async function POST(request: Request) {
   const formData = await request.formData().catch(() => undefined);
   const file = formData?.get("file");
 
-  if (!(file instanceof File)) {
+  if (!isUploadedFormFile(file)) {
     return NextResponse.json({ reason: "업로드할 참고 이미지를 선택해 주세요." }, { status: 400 });
   }
 
@@ -87,7 +88,7 @@ export async function POST(request: Request) {
   const bytes = new Uint8Array(await file.arrayBuffer());
   try {
     const analysis = await analyzeLogoReferenceImage(bytes, contentType, "user");
-    const image = await saveLogoReferenceImageBytes(bytes, contentType, file.name, analysis);
+    const image = await saveLogoReferenceImageBytes(bytes, contentType, readUploadedFormFileName(file, "reference-image"), analysis);
 
     return NextResponse.json({ image: toReferenceImage(image) }, { status: 201 });
   } catch (error) {

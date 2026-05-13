@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { analyzeLogoReferenceImage } from "@/lib/server/logo-reference-analysis";
 import { isAdminRequestAuthenticated } from "@/lib/server/admin-auth";
 import { deleteLogoReferenceImage, listLogoReferenceImages, saveLogoReferenceImageBytes, updateLogoReferenceImageForcedInstructions } from "@/lib/server/storage";
+import { isUploadedFormFile, readUploadedFormFileName, type UploadedFormFile } from "@/lib/server/uploaded-form-file";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,7 +13,7 @@ function unauthorizedResponse() {
   return NextResponse.json({ authenticated: false }, { status: 401 });
 }
 
-function readContentType(file: File): "image/png" | "image/jpeg" | undefined {
+function readContentType(file: UploadedFormFile): "image/png" | "image/jpeg" | undefined {
   return file.type === "image/png" || file.type === "image/jpeg" ? file.type : undefined;
 }
 
@@ -38,7 +39,7 @@ export async function POST(request: Request) {
   const formData = await request.formData().catch(() => undefined);
   const file = formData?.get("file");
 
-  if (!(file instanceof File)) {
+  if (!isUploadedFormFile(file)) {
     return NextResponse.json({ reason: "업로드할 참고 이미지를 선택해 주세요." }, { status: 400 });
   }
 
@@ -54,7 +55,7 @@ export async function POST(request: Request) {
 
   const bytes = new Uint8Array(await file.arrayBuffer());
   const analysis = await analyzeLogoReferenceImage(bytes, contentType, "admin");
-  const image = await saveLogoReferenceImageBytes(bytes, contentType, file.name, analysis);
+  const image = await saveLogoReferenceImageBytes(bytes, contentType, readUploadedFormFileName(file, "reference-image"), analysis);
 
   return NextResponse.json({ image: toReferenceImage(image) }, { status: 201 });
 }
