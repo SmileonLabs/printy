@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import Image from "next/image";
+import { useState } from "react";
 import { BrandDetail } from "@/components/printy/dashboard/brand-detail";
 import { resolveLogoFromState } from "@/components/printy/logo/logo-state";
 import { AppButton, ProgressHeader, SoftCard } from "@/components/ui";
@@ -90,12 +91,13 @@ export function DashboardSectionHeader({ title, action, onAction, className = ""
 }
 
 export function BrandCard({ brand, onOpen }: { brand: Brand; onOpen: () => void }) {
+  const [imageFailed, setImageFailed] = useState(false);
   const logo = usePrintyStore((state) => resolveLogoFromState(state, brand.selectedLogoId));
 
   return (
     <button className="group relative min-h-44 overflow-hidden rounded-lg border border-line bg-[#f3f4f6] p-4 text-left shadow-card transition duration-200 hover:-translate-y-0.5" type="button" onClick={onOpen}>
-      {"imageUrl" in logo ? (
-        <Image src={logo.imageUrl} alt="" fill sizes="(max-width: 430px) 50vw, 190px" className="object-contain p-3 opacity-100 transition duration-300 group-hover:scale-105" unoptimized aria-hidden="true" />
+      {"imageUrl" in logo && !imageFailed ? (
+        <Image src={logo.imageUrl} alt="" fill sizes="(max-width: 430px) 50vw, 190px" className="object-contain p-3 opacity-100 transition duration-300 group-hover:scale-105" unoptimized aria-hidden="true" onError={() => setImageFailed(true)} />
       ) : (
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_12%,rgba(255,255,255,0.8)_0%,transparent_44%),linear-gradient(135deg,#f8fafc_0%,#e5e7eb_100%)]" aria-hidden="true">
           <div className="absolute inset-0 grid place-items-center opacity-80 transition duration-300 group-hover:scale-105">
