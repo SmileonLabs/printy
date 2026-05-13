@@ -15,15 +15,7 @@
       "zone_name": "smileon.app"
     },
     {
-      "pattern": "printy.smileon.app/api/admin/logo-reference-images*",
-      "zone_name": "smileon.app"
-    },
-    {
-      "pattern": "printy.smileon.app/api/admin/business-card-background-images*",
-      "zone_name": "smileon.app"
-    },
-    {
-      "pattern": "printy.smileon.app/api/admin/templates/*",
+      "pattern": "printy.smileon.app/api/admin/*",
       "zone_name": "smileon.app"
     },
     {
