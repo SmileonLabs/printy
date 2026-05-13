@@ -27,9 +27,15 @@ export class PrintyContainer extends Container {
 
 function shouldUseNativeContainer(pathname) {
   return (
+    pathname === "/api/logo-reference-images" ||
+    pathname === "/api/admin/logo-reference-images" ||
+    pathname === "/api/admin/business-card-background-images" ||
     pathname === "/api/logos/generate" ||
     pathname === "/api/logos/vectorize" ||
     pathname === "/api/admin/templates/print-shop-pdf" ||
+    /^\/uploads\/logo-reference-images\/[^/]+$/.test(pathname) ||
+    /^\/uploads\/generated-logos\/[^/]+$/.test(pathname) ||
+    /^\/uploads\/admin\/business-card-backgrounds\/[^/]+$/.test(pathname) ||
     /^\/api\/templates\/[^/]+\/business-card-pdf$/.test(pathname) ||
     /^\/api\/admin\/templates\/[^/]+\/print-shop-pdf$/.test(pathname)
   );

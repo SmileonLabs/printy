@@ -11,11 +11,35 @@
       "zone_name": "smileon.app"
     },
     {
+      "pattern": "printy.smileon.app/api/logo-reference-images*",
+      "zone_name": "smileon.app"
+    },
+    {
+      "pattern": "printy.smileon.app/api/admin/logo-reference-images*",
+      "zone_name": "smileon.app"
+    },
+    {
+      "pattern": "printy.smileon.app/api/admin/business-card-background-images*",
+      "zone_name": "smileon.app"
+    },
+    {
       "pattern": "printy.smileon.app/api/admin/templates/*",
       "zone_name": "smileon.app"
     },
     {
       "pattern": "printy.smileon.app/api/logos/*",
+      "zone_name": "smileon.app"
+    },
+    {
+      "pattern": "printy.smileon.app/uploads/logo-reference-images/*",
+      "zone_name": "smileon.app"
+    },
+    {
+      "pattern": "printy.smileon.app/uploads/generated-logos/*",
+      "zone_name": "smileon.app"
+    },
+    {
+      "pattern": "printy.smileon.app/uploads/admin/business-card-backgrounds/*",
       "zone_name": "smileon.app"
     }
   ],

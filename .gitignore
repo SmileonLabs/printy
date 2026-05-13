@@ -6,6 +6,7 @@ out/
 
 .env*
 !.env.example
+!.env.*.example
 !.env.docker.example
 
 npm-debug.log*
@@ -19,6 +20,7 @@ pnpm-debug.log*
 
 vectorizer-master/
 vectorizer-master.zip
+backups/
 
 data/*
 !data/.gitkeep

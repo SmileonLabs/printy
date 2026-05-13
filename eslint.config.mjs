@@ -4,7 +4,7 @@ import tseslint from "typescript-eslint";
 
 const eslintConfig = [
   {
-    ignores: [".next/**", ".open-next/**", "out/**", "build/**", "next-env.d.ts"],
+    ignores: [".next/**", ".open-next/**", "out/**", "build/**", "backups/**", "vectorizer-master/**", "next-env.d.ts"],
   },
   {
     languageOptions: {
