@@ -156,6 +156,28 @@ async function writeLogoReferenceAnalysis(objectKey: string, analysis: LogoRefer
   await writeFile(logoReferenceAnalysisPath(objectKey), JSON.stringify(analysis, null, 2));
 }
 
+async function writeFileCacheBestEffort(directory: string, filePath: string, bytes: Uint8Array, label: string) {
+  try {
+    await mkdir(directory, { recursive: true });
+    await writeFile(filePath, bytes);
+  } catch (error) {
+    console.warn(`${label} file cache write skipped`, { errorName: error instanceof Error ? error.name : "UnknownError" });
+  }
+}
+
+async function writeLogoReferenceAnalysisBestEffort(objectKey: string, analysis: LogoReferenceImageAnalysis | undefined) {
+  if (!analysis) {
+    return;
+  }
+
+  try {
+    await mkdir(logoReferenceUploadDirectory, { recursive: true });
+    await writeLogoReferenceAnalysis(objectKey, analysis);
+  } catch (error) {
+    console.warn("Logo reference analysis cache write skipped", { errorName: error instanceof Error ? error.name : "UnknownError" });
+  }
+}
+
 async function readLogoReferenceAnalysis(objectKey: string) {
   try {
     const raw = await readFile(logoReferenceAnalysisPath(objectKey), "utf8");
@@ -618,38 +640,29 @@ function toStoredFile(row: UploadedFileRow): BusinessCardBackgroundStoredFile {
 }
 
 export async function saveBusinessCardBackgroundBytes(bytes: Uint8Array, contentType: WritableBusinessCardBackgroundContentType): Promise<BusinessCardBackgroundStoredFile & { contentType: WritableBusinessCardBackgroundContentType }> {
-  await mkdir(uploadDirectory, { recursive: true });
-
   const id = `uploaded-file-${randomUUID()}`;
   const objectKey = `${randomUUID()}.${extensionForContentType(contentType)}`;
   const publicUrl = toPublicUrl(objectKey);
   const filePath = path.join(uploadDirectory, objectKey);
+  const result = await queryDb<UploadedFileRow>(
+    `
+      insert into uploaded_files (id, bucket, object_key, public_url, content_type, size, purpose)
+      values ($1, $2, $3, $4, $5, $6, $7)
+      returning id, object_key, public_url, content_type, size
+    `,
+    [id, businessCardBackgroundBucket, objectKey, publicUrl, contentType, bytes.byteLength, businessCardBackgroundPurpose],
+  );
 
-  await writeFile(filePath, bytes);
+  const row = result.rows[0];
+  await writeUploadedFileBlob(row.id, bytes);
+  await writeFileCacheBestEffort(uploadDirectory, filePath, bytes, "Business card background");
 
-  try {
-    const result = await queryDb<UploadedFileRow>(
-      `
-        insert into uploaded_files (id, bucket, object_key, public_url, content_type, size, purpose)
-        values ($1, $2, $3, $4, $5, $6, $7)
-        returning id, object_key, public_url, content_type, size
-      `,
-      [id, businessCardBackgroundBucket, objectKey, publicUrl, contentType, bytes.byteLength, businessCardBackgroundPurpose],
-    );
-
-    const row = result.rows[0];
-    await writeUploadedFileBlob(row.id, bytes);
-
-    return {
-      id: row.id,
-      publicUrl: row.public_url,
-      contentType,
-      size: toNumber(row.size),
-    };
-  } catch (error) {
-    await unlink(filePath).catch(() => undefined);
-    throw error;
-  }
+  return {
+    id: row.id,
+    publicUrl: row.public_url,
+    contentType,
+    size: toNumber(row.size),
+  };
 }
 
 export async function readBusinessCardBackgroundBytesByFileName(fileName: string): Promise<{ bytes: Uint8Array; contentType: "image/png" | "image/jpeg" | "image/webp" } | undefined> {
@@ -681,15 +694,12 @@ export async function readBusinessCardBackgroundBytesByFileName(fileName: string
 }
 
 export async function saveGeneratedLogoBytes(bytes: Uint8Array): Promise<GeneratedLogoStoredFile> {
-  await mkdir(generatedLogoUploadDirectory, { recursive: true });
   const logoBytes = await makeGeneratedLogoBackgroundTransparent(bytes);
 
   const id = `uploaded-file-${randomUUID()}`;
   const objectKey = `${randomUUID()}.png`;
   const publicUrl = generatedLogoPublicUrlFromObjectKey(objectKey);
   const filePath = path.join(generatedLogoUploadDirectory, objectKey);
-
-  await writeFile(filePath, logoBytes);
 
   try {
     const result = await queryDb<UploadedFileRow>(
@@ -702,6 +712,7 @@ export async function saveGeneratedLogoBytes(bytes: Uint8Array): Promise<Generat
     );
     const row = result.rows[0];
     await writeUploadedFileBlob(row.id, logoBytes);
+    await writeFileCacheBestEffort(generatedLogoUploadDirectory, filePath, logoBytes, "Generated logo");
 
     return {
       id: row.id,
@@ -721,47 +732,37 @@ export async function saveGeneratedLogoBytes(bytes: Uint8Array): Promise<Generat
       };
     }
 
-    await unlink(filePath).catch(() => undefined);
     throw error;
   }
 }
 
 export async function saveLogoReferenceImageBytes(bytes: Uint8Array, contentType: "image/png" | "image/jpeg", name: string, analysis?: LogoReferenceImageAnalysis): Promise<LogoReferenceImageStoredFile> {
-  await mkdir(logoReferenceUploadDirectory, { recursive: true });
-
   const id = `uploaded-file-${randomUUID()}`;
   const objectKey = `${randomUUID()}.${logoReferenceExtensionForContentType(contentType)}`;
   const publicUrl = logoReferencePublicUrlFromObjectKey(objectKey);
   const filePath = path.join(logoReferenceUploadDirectory, objectKey);
+  const result = await queryDb<UploadedFileRow>(
+    `
+      insert into uploaded_files (id, bucket, object_key, public_url, content_type, size, purpose)
+      values ($1, $2, $3, $4, $5, $6, $7)
+      returning id, object_key, public_url, content_type, size, created_at
+    `,
+    [id, logoReferenceBucket, objectKey, publicUrl, contentType, bytes.byteLength, logoReferencePurpose],
+  );
+  const row = result.rows[0];
+  await writeUploadedFileBlob(row.id, bytes);
+  await writeFileCacheBestEffort(logoReferenceUploadDirectory, filePath, bytes, "Logo reference image");
+  await writeLogoReferenceAnalysisBestEffort(objectKey, analysis);
 
-  await writeFile(filePath, bytes);
-
-  try {
-    const result = await queryDb<UploadedFileRow>(
-      `
-        insert into uploaded_files (id, bucket, object_key, public_url, content_type, size, purpose)
-        values ($1, $2, $3, $4, $5, $6, $7)
-        returning id, object_key, public_url, content_type, size, created_at
-      `,
-      [id, logoReferenceBucket, objectKey, publicUrl, contentType, bytes.byteLength, logoReferencePurpose],
-    );
-    const row = result.rows[0];
-    await writeUploadedFileBlob(row.id, bytes);
-    await writeLogoReferenceAnalysis(objectKey, analysis);
-
-    return {
-      id: row.id,
-      name,
-      publicUrl: row.public_url,
-      contentType,
-      size: toNumber(row.size),
-      createdAt: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString(),
-      analysis,
-    };
-  } catch (error) {
-    await unlink(filePath).catch(() => undefined);
-    throw error;
-  }
+  return {
+    id: row.id,
+    name,
+    publicUrl: row.public_url,
+    contentType,
+    size: toNumber(row.size),
+    createdAt: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString(),
+    analysis,
+  };
 }
 
 export async function listLogoReferenceImages(): Promise<LogoReferenceImageStoredFile[]> {

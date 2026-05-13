@@ -27,6 +27,7 @@ const upstreamInvalidRequestReason = "OpenAI가 요청 형식을 거절했어요
 const upstreamTimeoutReason = "OpenAI 응답이 지연됐어요. 잠시 후 다시 시도해 주세요.";
 const upstreamServerReason = "OpenAI 서버 응답이 불안정해요. 잠시 후 다시 시도해 주세요.";
 const unknownUpstreamReason = "이미지 생성 중 원인을 알 수 없는 오류가 발생했어요. 잠시 후 다시 시도해 주세요.";
+const internalStorageReason = "로고 이미지는 생성됐지만 내부 저장 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.";
 const rateLimitWindowMs = 10 * 60 * 1000;
 const rateLimitMaxRequests = 5;
 const rateLimitBuckets = new Map<string, { count: number; resetAt: number }>();
@@ -80,6 +81,16 @@ class LogoGenerationInvalidRequestError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "LogoGenerationInvalidRequestError";
+  }
+}
+
+class LogoGenerationInternalStorageError extends Error {
+  readonly storageCause: unknown;
+
+  constructor(message: string, storageCause: unknown) {
+    super(message);
+    this.name = "LogoGenerationInternalStorageError";
+    this.storageCause = storageCause;
   }
 }
 
@@ -418,6 +429,8 @@ function makeOpenAILogo(imageUrl: string, plan: LogoGenerationPlan, index: numbe
 }
 
 async function generateOpenAILogo(client: OpenAI, plan: LogoGenerationPlan, index: number) {
+  let imageData: string | undefined;
+
   try {
     const response = await client.images.generate({
       model: readOpenAIImageModel(),
@@ -429,14 +442,20 @@ async function generateOpenAILogo(client: OpenAI, plan: LogoGenerationPlan, inde
     const image = response.data?.[0];
 
     if (image?.b64_json) {
-      const storedImage = await saveGeneratedLogoBytes(Buffer.from(image.b64_json, "base64"));
-
-      return makeOpenAILogo(storedImage.publicUrl, plan, index);
+      imageData = image.b64_json;
+    } else {
+      throw new Error("OpenAI image generation returned no image data.");
     }
-
-    throw new Error("OpenAI image generation returned no image data.");
   } catch (error) {
     throw new LogoGenerationUpstreamError("OpenAI image generation failed.", error);
+  }
+
+  try {
+    const storedImage = await saveGeneratedLogoBytes(Buffer.from(imageData, "base64"));
+
+    return makeOpenAILogo(storedImage.publicUrl, plan, index);
+  } catch (error) {
+    throw new LogoGenerationInternalStorageError("Generated logo storage failed.", error);
   }
 }
 
@@ -447,8 +466,10 @@ async function generateOpenAIReferenceLogo(client: OpenAI, plan: LogoGenerationP
     throw new LogoGenerationInvalidRequestError("Logo reference image is missing or unreadable.");
   }
 
+  const forcedInstructions = referenceImage.analysis?.forcedInstructions?.trim();
+  let imageData: string | undefined;
+
   try {
-    const forcedInstructions = referenceImage.analysis?.forcedInstructions?.trim();
     const response = await client.images.edit({
       model: readOpenAIImageModel(),
       image: await toFile(referenceImage.bytes, referenceImage.contentType === "image/png" ? "reference.png" : "reference.jpg", { type: referenceImage.contentType }),
@@ -460,18 +481,24 @@ async function generateOpenAIReferenceLogo(client: OpenAI, plan: LogoGenerationP
     const editedImage = response.data?.[0];
 
     if (editedImage?.b64_json) {
-      const storedImage = await saveGeneratedLogoBytes(Buffer.from(editedImage.b64_json, "base64"));
-
-      return makeOpenAILogo(storedImage.publicUrl, plan, index);
+      imageData = editedImage.b64_json;
+    } else {
+      throw new Error("OpenAI reference image edit returned no image data.");
     }
-
-    throw new Error("OpenAI reference image edit returned no image data.");
   } catch (error) {
     if (error instanceof LogoGenerationInvalidRequestError) {
       throw error;
     }
 
     throw new LogoGenerationUpstreamError("OpenAI reference image edit failed.", error);
+  }
+
+  try {
+    const storedImage = await saveGeneratedLogoBytes(Buffer.from(imageData, "base64"));
+
+    return makeOpenAILogo(storedImage.publicUrl, plan, index);
+  } catch (error) {
+    throw new LogoGenerationInternalStorageError("Generated reference logo storage failed.", error);
   }
 }
 
@@ -492,6 +519,8 @@ async function generateOpenAIRevisionLogo(client: OpenAI, plan: LogoGenerationPl
     throw new LogoGenerationInvalidRequestError("Logo revision source image is missing or unreadable.");
   }
 
+  let imageData: string | undefined;
+
   try {
     const response = await client.images.edit({
       model: readOpenAIImageModel(),
@@ -504,18 +533,24 @@ async function generateOpenAIRevisionLogo(client: OpenAI, plan: LogoGenerationPl
     const editedImage = response.data?.[0];
 
     if (editedImage?.b64_json) {
-      const storedImage = await saveGeneratedLogoBytes(Buffer.from(editedImage.b64_json, "base64"));
-
-      return makeOpenAILogo(storedImage.publicUrl, plan, index);
+      imageData = editedImage.b64_json;
+    } else {
+      throw new Error("OpenAI image edit returned no image data.");
     }
-
-    throw new Error("OpenAI image edit returned no image data.");
   } catch (error) {
     if (error instanceof LogoGenerationInvalidRequestError) {
       throw error;
     }
 
     throw new LogoGenerationUpstreamError("OpenAI image edit failed.", error);
+  }
+
+  try {
+    const storedImage = await saveGeneratedLogoBytes(Buffer.from(imageData, "base64"));
+
+    return makeOpenAILogo(storedImage.publicUrl, plan, index);
+  } catch (error) {
+    throw new LogoGenerationInternalStorageError("Generated revision logo storage failed.", error);
   }
 }
 
@@ -567,6 +602,12 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof LogoGenerationInvalidRequestError) {
       return NextResponse.json({ reason: invalidRequestReason }, { status: 400 });
+    }
+
+    if (error instanceof LogoGenerationInternalStorageError) {
+      console.error("Logo generation internal storage failed", { errorName: error.storageCause instanceof Error ? error.storageCause.name : "UnknownError" });
+
+      return NextResponse.json({ reason: internalStorageReason }, { status: 503 });
     }
 
     const classification = classifyUpstreamFailure(error);
