@@ -66,7 +66,44 @@ export function shouldShowHomeForPersistedGuest(state: Partial<PrintyState>) {
 
 export const printyStorePersistOptions = {
   name: PRINTY_STORE_STORAGE_KEY,
+  version: 1,
   storage: createJSONStorage<Partial<PrintyState>>(() => localStorage),
+  migrate: (persistedState, version) => {
+    if (!isPersistedPrintyState(persistedState)) {
+      return {};
+    }
+
+    if (version >= 1) {
+      return persistedState;
+    }
+
+    return {
+      currentStep: "home",
+      onboardingComplete: false,
+      activeTab: "home",
+      brandView: "list",
+      activeBrandSection: "style",
+      brandDraft: persistedState.brandDraft,
+      logoGenerationMode: persistedState.logoGenerationMode,
+      selectedLogoReferenceImageId: persistedState.selectedLogoReferenceImageId,
+      orderOptions: persistedState.orderOptions,
+      selectedPaymentMethod: persistedState.selectedPaymentMethod,
+      users: [],
+      authSession: undefined,
+      isAuthenticated: false,
+      savedGeneratedLogoOptions: [],
+      brands: [],
+      businessCardDrafts: [],
+      orders: [],
+      selectedLogoId: undefined,
+      selectedBrandId: undefined,
+      activeBusinessCardDraftId: undefined,
+      lastOrderId: undefined,
+      selectedBusinessCardMemberIds: [],
+      brandWorkspaceHasPendingLocalChanges: false,
+      brandWorkspaceOwnerUserId: undefined,
+    } satisfies Partial<PrintyState>;
+  },
   partialize: (state) => {
     const persistBrandWorkspaceArrays = shouldPersistBrandWorkspaceArrays(state);
 
