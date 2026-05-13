@@ -66,14 +66,14 @@ export function shouldShowHomeForPersistedGuest(state: Partial<PrintyState>) {
 
 export const printyStorePersistOptions = {
   name: PRINTY_STORE_STORAGE_KEY,
-  version: 1,
+  version: 2,
   storage: createJSONStorage<Partial<PrintyState>>(() => localStorage),
   migrate: (persistedState, version) => {
     if (!isPersistedPrintyState(persistedState)) {
       return {};
     }
 
-    if (version >= 1) {
+    if (version >= 2) {
       return persistedState;
     }
 
