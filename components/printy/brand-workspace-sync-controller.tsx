@@ -62,6 +62,7 @@ export function BrandWorkspaceSyncController() {
   const savedGeneratedLogoOptions = usePrintyStore((state) => state.savedGeneratedLogoOptions);
   const businessCardDrafts = usePrintyStore((state) => state.businessCardDrafts);
   const orders = usePrintyStore((state) => state.orders);
+  const brandWorkspaceHasPendingLocalChanges = usePrintyStore((state) => state.brandWorkspaceHasPendingLocalChanges);
   const brandWorkspaceOwnerUserId = usePrintyStore((state) => state.brandWorkspaceOwnerUserId);
   const syncBrandWorkspace = usePrintyStore((state) => state.syncBrandWorkspace);
   const acknowledgeBrandWorkspaceSave = usePrintyStore((state) => state.acknowledgeBrandWorkspaceSave);
@@ -88,8 +89,12 @@ export function BrandWorkspaceSyncController() {
         }
 
         const localWorkspace = readLocalWorkspace();
-        const canUploadLocalWorkspace = brandWorkspaceOwnerUserId === undefined || brandWorkspaceOwnerUserId === syncedUserId;
-        const canonicalWorkspace = canUploadLocalWorkspace && hasBrandWorkspaceData(localWorkspace) ? await saveBrandWorkspace(mergeBrandWorkspaces(localWorkspace, serverWorkspace)) : serverWorkspace;
+        const localWorkspaceHasData = hasBrandWorkspaceData(localWorkspace);
+        const serverWorkspaceHasData = hasBrandWorkspaceData(serverWorkspace);
+        const localWorkspaceBelongsToUser = brandWorkspaceOwnerUserId === syncedUserId;
+        const canClaimLocalWorkspace = brandWorkspaceOwnerUserId === undefined && brandWorkspaceHasPendingLocalChanges && !serverWorkspaceHasData;
+        const canUploadLocalWorkspace = localWorkspaceBelongsToUser || canClaimLocalWorkspace;
+        const canonicalWorkspace = canUploadLocalWorkspace && localWorkspaceHasData ? await saveBrandWorkspace(mergeBrandWorkspaces(localWorkspace, serverWorkspace)) : serverWorkspace;
 
         if (isActive) {
           lastSavedSignaturesRef.current.set(syncedUserId, createBrandWorkspaceSignature(canonicalWorkspace));
@@ -110,7 +115,7 @@ export function BrandWorkspaceSyncController() {
     return () => {
       isActive = false;
     };
-  }, [isAuthenticated, userId, brandWorkspaceOwnerUserId, syncBrandWorkspace]);
+  }, [isAuthenticated, userId, brandWorkspaceHasPendingLocalChanges, brandWorkspaceOwnerUserId, syncBrandWorkspace]);
 
   useEffect(() => {
     if (!isAuthenticated || !userId || !initialSyncedUserIdsRef.current.has(userId) || savingUserIdsRef.current.has(userId)) {
