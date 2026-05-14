@@ -378,6 +378,7 @@ export type PrintTemplate = {
 export type BrandAsset = {
   id: string;
   brandId: string;
+  logoId?: string;
   sectionId: BrandDetailSectionId;
   productId: string;
   title: string;

@@ -43,8 +43,8 @@ export function LogoSelectionScreen() {
             onClick={() => selectLogo(logo.id)}
           >
             <div className="grid gap-3">
-              <div className="grid min-h-[240px] place-items-center overflow-hidden rounded-md bg-[linear-gradient(135deg,var(--color-surface-blue)_0%,var(--color-surface)_100%)] p-3">
-                <Image src={logo.imageUrl} alt={logo.name} width={360} height={360} className="max-h-[240px] w-full object-contain" unoptimized />
+              <div className="grid place-items-center overflow-hidden rounded-md bg-[linear-gradient(135deg,var(--color-surface-blue)_0%,var(--color-surface)_100%)] p-3">
+                <Image src={logo.imageUrl} alt={logo.name} width={720} height={720} className="h-auto w-full rounded-sm" unoptimized />
               </div>
               <div>
                 <div className="flex items-start justify-between gap-2">

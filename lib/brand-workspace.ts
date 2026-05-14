@@ -110,6 +110,7 @@ export function isBrandAsset(value: unknown): value is BrandAsset {
   return (
     isNonEmptyString(value.id) &&
     isString(value.brandId) &&
+    (value.logoId === undefined || isString(value.logoId)) &&
     isString(value.sectionId) &&
     isString(value.productId) &&
     isString(value.title) &&

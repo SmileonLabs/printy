@@ -196,7 +196,7 @@ export function SectionPanel({ sectionId, title, summary, brand, cardDraft, busi
       const response = await fetch("/api/brand-mockups", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brandId: brand.id, brandName: brand.name, category: brand.category, logoImageUrl: logo.imageUrl, sceneId }),
+        body: JSON.stringify({ brandId: brand.id, logoId: logo.id, brandName: brand.name, category: brand.category, logoImageUrl: logo.imageUrl, sceneId }),
       });
       const payload: unknown = await response.json().catch(() => undefined);
       const asset = readBrandMockupAssetResponse(payload);
@@ -227,10 +227,10 @@ export function SectionPanel({ sectionId, title, summary, brand, cardDraft, busi
   const content = (() => {
     if (sectionId === "style") {
       if (mockupLogo) {
-        return <MockupStudioPage logo={mockupLogo} assets={sectionAssets} mockupStatus={mockupStatus} generatingMockupSceneId={generatingMockupSceneId} onBack={() => setMockupLogoId(undefined)} onCreateBrandMockup={handleCreateBrandMockup} />;
+        return <MockupStudioPage logo={mockupLogo} assets={sectionAssets.filter((asset) => asset.logoId === mockupLogo.id)} mockupStatus={mockupStatus} generatingMockupSceneId={generatingMockupSceneId} onBack={() => setMockupLogoId(undefined)} onCreateBrandMockup={handleCreateBrandMockup} />;
       }
 
-      return <StyleSection logo={brandLogo} logos={brandLogos} selectedLogoId={brand.selectedLogoId} canShareLogo={canShareLogo} shareStatus={shareStatus} onShare={handleLogoShare} onOpenMockupStudio={(logoId) => { setMockupStatus(""); setMockupLogoId(logoId); }} onStartAdditionalLogo={() => startAdditionalLogoForBrand(brand.id)} onStartLogoRevision={startLogoRevision} onSelectBrandLogo={(logoId) => selectBrandLogo(brand.id, logoId)} onDeleteBrandLogo={(logoId) => deleteBrandLogo(brand.id, logoId)} />;
+      return <StyleSection logo={brandLogo} logos={brandLogos} selectedLogoId={brand.selectedLogoId} canShareLogo={canShareLogo} shareStatus={shareStatus} onShare={handleLogoShare} onOpenMockupStudio={(logoId) => { setMockupStatus(""); setMockupLogoId(logoId); }} onStartAdditionalLogo={() => startAdditionalLogoForBrand(brand.id)} onStartLogoRevision={(logoId) => startLogoRevision(logoId, brand.id)} onSelectBrandLogo={(logoId) => selectBrandLogo(brand.id, logoId)} onDeleteBrandLogo={(logoId) => deleteBrandLogo(brand.id, logoId)} />;
     }
 
     if (sectionId === "team") {
@@ -347,8 +347,8 @@ function BrandLogoGallery({ logos, selectedLogoId, onOpenMockupStudio, onStartLo
           return (
             <div key={item.id} className={`rounded-lg border bg-surface p-3 shadow-card ${isSelected ? "border-primary ring-4 ring-primary-soft" : "border-line"}`}>
               <div className="relative">
-                <button className="relative grid aspect-[4/3] w-full place-items-center overflow-hidden rounded-md bg-surface-blue text-left transition hover:ring-4 hover:ring-primary-soft" type="button" onClick={() => onOpenMockupStudio(item.id)} aria-label={`${item.name} 로고로 목업 만들기`}>
-                  {logoHasImage(item) ? <Image src={item.imageUrl} alt={item.name} fill sizes="160px" className="object-contain p-2" unoptimized /> : <LogoMark logo={item} />}
+                <button className="relative grid w-full place-items-center overflow-hidden rounded-md bg-surface-blue p-2 text-left transition hover:ring-4 hover:ring-primary-soft" type="button" onClick={() => onOpenMockupStudio(item.id)} aria-label={`${item.name} 로고로 목업 만들기`}>
+                  {logoHasImage(item) ? <Image src={item.imageUrl} alt={item.name} width={512} height={512} sizes="(max-width: 430px) 50vw, 180px" className="h-auto w-full rounded-sm" unoptimized /> : <div className="grid aspect-[4/3] w-full place-items-center"><LogoMark logo={item} /></div>}
                   <span className="absolute bottom-2 left-2 rounded-full bg-white/95 px-3 py-1 text-[10px] font-black text-primary-strong shadow-card">목업 만들기</span>
                 </button>
                 {canDelete ? <button className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-white/95 text-danger shadow-card transition hover:scale-105" type="button" aria-label={`${item.name} 로고 삭제`} onClick={() => handleDeleteLogo(item)} title="로고 삭제"><TrashIcon /></button> : null}
@@ -375,7 +375,7 @@ function MockupStudioPage({ logo, assets, mockupStatus, generatingMockupSceneId,
   return (
     <div className="grid gap-5">
       <SoftCard className="bg-[linear-gradient(180deg,var(--color-surface)_0%,var(--color-surface-blue)_100%)]">
-        <button className="mb-4 text-xs font-black text-primary-strong" type="button" onClick={onBack}>
+        <button className="mb-4 text-xs font-black text-primary-strong disabled:cursor-not-allowed disabled:opacity-50" type="button" disabled={Boolean(generatingMockupSceneId)} onClick={onBack}>
           ← 로고 목록으로
         </button>
         <div className="grid gap-4">
@@ -443,8 +443,8 @@ function TrashIcon() {
 function LargeLogoPreview({ logo }: { logo: ResolvedLogoOption }) {
   if (logoHasImage(logo)) {
     return (
-      <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-[linear-gradient(135deg,var(--color-surface)_0%,var(--color-surface-blue)_100%)] shadow-soft">
-        <Image src={logo.imageUrl} alt={logo.name} fill sizes="(max-width: 430px) 100vw, 390px" className="object-cover" unoptimized />
+      <div className="w-full overflow-hidden rounded-lg bg-[linear-gradient(135deg,var(--color-surface)_0%,var(--color-surface-blue)_100%)] p-3 shadow-soft">
+        <Image src={logo.imageUrl} alt={logo.name} width={1024} height={1024} sizes="(max-width: 430px) 100vw, 390px" className="h-auto w-full rounded-md" unoptimized />
       </div>
     );
   }

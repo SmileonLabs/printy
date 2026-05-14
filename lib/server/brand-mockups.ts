@@ -6,6 +6,7 @@ import type { BrandAsset } from "@/lib/types";
 
 type BrandMockupInput = {
   brandId: string;
+  logoId: string;
   brandName: string;
   category: string;
   logoImageUrl: string;
@@ -107,6 +108,7 @@ export async function generateBrandMockup(input: BrandMockupInput): Promise<Bran
   return {
     id: `brand-asset-${scene.id}-${Date.now()}`,
     brandId: input.brandId,
+    logoId: input.logoId,
     sectionId: "style",
     productId: `brand-mockup-${scene.id}`,
     title: scene.title,

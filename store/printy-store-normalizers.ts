@@ -158,6 +158,7 @@ export function normalizeBrandAsset(asset: BrandAsset | Record<string, unknown>)
   return {
     id,
     brandId,
+    logoId: typeof record.logoId === "string" && record.logoId.trim().length > 0 ? record.logoId.trim() : undefined,
     sectionId: sectionId as BrandAsset["sectionId"],
     productId,
     title,

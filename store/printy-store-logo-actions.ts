@@ -122,9 +122,10 @@ export function createPrintyLogoActions(set: PrintyStoreSet, get: PrintyStoreGet
       }),
     setLogoGenerationMode: (mode) => set({ logoGenerationMode: mode }),
     selectLogoReferenceImage: (referenceImageId) => set({ selectedLogoReferenceImageId: referenceImageId }),
-    startLogoRevision: (sourceLogoId) =>
+    startLogoRevision: (sourceLogoId, brandId) =>
       set((state) => {
         const sourceLogo = findGeneratedLogoInState(state, sourceLogoId);
+        const targetBrand = (brandId ? state.brands.find((brand) => brand.id === brandId) : undefined) ?? (state.logoGenerationTargetBrandId ? state.brands.find((brand) => brand.id === state.logoGenerationTargetBrandId) : undefined) ?? state.brands.find((brand) => brand.selectedLogoId === sourceLogoId || brand.logoIds?.includes(sourceLogoId));
 
         if (!sourceLogo) {
           return {
@@ -140,7 +141,10 @@ export function createPrintyLogoActions(set: PrintyStoreSet, get: PrintyStoreGet
         return {
           onboardingComplete: false,
           currentStep: "logoRevision",
+          brandDraft: targetBrand ? { name: targetBrand.name, category: targetBrand.category, designRequest: targetBrand.designRequest } : state.brandDraft,
           selectedLogoId: sourceLogoId,
+          selectedBrandId: targetBrand?.id ?? state.selectedBrandId,
+          logoGenerationTargetBrandId: targetBrand?.id ?? state.logoGenerationTargetBrandId,
           logoGenerationIntent: "revision",
           logoGenerationStatus: "idle",
           logoGenerationMessage: undefined,
