@@ -387,6 +387,27 @@ export type BrandAsset = {
   createdAt: string;
 };
 
+export type BrandMockupTemplatePlacement = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  rotation: number;
+};
+
+export type BrandMockupTemplate = {
+  id: string;
+  title: string;
+  description: string;
+  imageUrl: string;
+  contentType: "image/png" | "image/jpeg";
+  size: number;
+  placement: BrandMockupTemplatePlacement;
+  status: "draft" | "published";
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type RecentOrder = {
   id: string;
   title: string;

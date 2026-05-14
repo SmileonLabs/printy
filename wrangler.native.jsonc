@@ -19,6 +19,10 @@
       "zone_name": "smileon.app"
     },
     {
+      "pattern": "printy.smileon.app/api/brand-mockup-templates*",
+      "zone_name": "smileon.app"
+    },
+    {
       "pattern": "printy.smileon.app/api/admin/*",
       "zone_name": "smileon.app"
     },
@@ -40,6 +44,10 @@
     },
     {
       "pattern": "printy.smileon.app/uploads/admin/business-card-backgrounds/*",
+      "zone_name": "smileon.app"
+    },
+    {
+      "pattern": "printy.smileon.app/uploads/admin/brand-mockup-templates/*",
       "zone_name": "smileon.app"
     }
   ],

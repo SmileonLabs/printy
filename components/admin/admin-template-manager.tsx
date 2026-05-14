@@ -7,7 +7,7 @@ import { BusinessCardTemplateRenderer } from "@/components/printy/templates/busi
 import { AppButton, SoftCard } from "@/components/ui";
 import { PrintyBrandLogo } from "@/components/ui/logo";
 import { businessCardTemplateStatuses, defaultBusinessCardTemplateLayout, getBusinessCardTemplateOrientation, type BusinessCardTemplateStatus } from "@/lib/business-card-templates";
-import type { BusinessCardTemplateBackground, BusinessCardTemplateLayout, LogoReferenceImage, Member, PrintTemplate, ResolvedLogoOption } from "@/lib/types";
+import type { BrandMockupTemplate, BusinessCardTemplateBackground, BusinessCardTemplateLayout, LogoReferenceImage, Member, PrintTemplate, ResolvedLogoOption } from "@/lib/types";
 
 type AdminTemplatesResponse = {
   templates: PrintTemplate[];
@@ -46,6 +46,14 @@ type AdminLogoReferenceImageUploadResponse = {
   image: LogoReferenceImage;
 };
 
+type AdminBrandMockupTemplatesResponse = {
+  templates: BrandMockupTemplate[];
+};
+
+type AdminBrandMockupTemplateResponse = {
+  template: BrandMockupTemplate;
+};
+
 type PublicTemplatesResponse = {
   templates: PrintTemplate[];
 };
@@ -60,7 +68,7 @@ type AdminFormState = {
 };
 
 type RequestStatus = "idle" | "loading" | "error" | "success";
-type AdminSectionId = "dashboard" | "templates" | "editor" | "settings" | "logoReferences";
+type AdminSectionId = "dashboard" | "templates" | "editor" | "settings" | "logoReferences" | "mockups";
 type PrepressStatus = "source-only" | "prepress-unavailable" | "pdfx-candidate" | "validation-failed" | "pdfx-validated";
 
 type PrepressCheck = {
@@ -94,6 +102,7 @@ const adminSections: Array<{ id: AdminSectionId; label: string; helper: string }
   { id: "editor", label: "새 템플릿 만들기", helper: "생성/수정 빌더" },
   { id: "settings", label: "배경 관리", helper: "공통 설정" },
   { id: "logoReferences", label: "로고 레퍼런스", helper: "참고 이미지 관리" },
+  { id: "mockups", label: "목업 템플릿", helper: "사진 합성 관리" },
 ];
 
 const adminThumbnailMember: Member = {
@@ -324,6 +333,30 @@ function readAdminLogoReferenceImageUploadResponse(value: unknown): AdminLogoRef
   return { image: value.image };
 }
 
+function isBrandMockupTemplate(value: unknown): value is BrandMockupTemplate {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return typeof value.id === "string" && typeof value.title === "string" && typeof value.description === "string" && typeof value.imageUrl === "string" && (value.contentType === "image/png" || value.contentType === "image/jpeg") && typeof value.size === "number" && (value.status === "draft" || value.status === "published") && isRecord(value.placement) && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
+}
+
+function readAdminBrandMockupTemplatesResponse(value: unknown): AdminBrandMockupTemplatesResponse | undefined {
+  if (!isRecord(value) || !Array.isArray(value.templates) || !value.templates.every(isBrandMockupTemplate)) {
+    return undefined;
+  }
+
+  return { templates: value.templates };
+}
+
+function readAdminBrandMockupTemplateResponse(value: unknown): AdminBrandMockupTemplateResponse | undefined {
+  if (!isRecord(value) || !isBrandMockupTemplate(value.template)) {
+    return undefined;
+  }
+
+  return { template: value.template };
+}
+
 function readApiErrorReason(value: unknown, fallback: string) {
   return isRecord(value) && typeof value.reason === "string" ? value.reason : fallback;
 }
@@ -439,12 +472,23 @@ export function AdminTemplateManager() {
   const [isUploadingLogoReferenceImage, setIsUploadingLogoReferenceImage] = useState(false);
   const [deletingLogoReferenceImageId, setDeletingLogoReferenceImageId] = useState<string>();
   const [updatingLogoReferenceImageId, setUpdatingLogoReferenceImageId] = useState<string>();
+  const [brandMockupTemplates, setBrandMockupTemplates] = useState<BrandMockupTemplate[]>([]);
+  const [mockupTemplateTitle, setMockupTemplateTitle] = useState("");
+  const [mockupTemplateDescription, setMockupTemplateDescription] = useState("");
+  const [mockupTemplateStatus, setMockupTemplateStatus] = useState<BrandMockupTemplate["status"]>("draft");
+  const [mockupTemplatePlacement, setMockupTemplatePlacement] = useState({ left: "35", top: "35", width: "30", height: "18", rotation: "0" });
+  const [mockupTemplateFile, setMockupTemplateFile] = useState<File>();
+  const [mockupTemplateFileInputKey, setMockupTemplateFileInputKey] = useState(0);
+  const [isUploadingMockupTemplate, setIsUploadingMockupTemplate] = useState(false);
+  const [deletingMockupTemplateId, setDeletingMockupTemplateId] = useState<string>();
+  const [updatingMockupTemplateId, setUpdatingMockupTemplateId] = useState<string>();
   const [activeSection, setActiveSection] = useState<AdminSectionId>("dashboard");
 
   const selectedTemplate = useMemo(() => templates.find((template) => template.id === selectedTemplateId), [selectedTemplateId, templates]);
   const publishedCount = templates.filter((template) => template.status === "published").length;
   const draftCount = templates.filter((template) => template.status !== "published").length;
   const backgroundFilePreviewUrl = useMemo(() => (backgroundFile ? URL.createObjectURL(backgroundFile) : ""), [backgroundFile]);
+  const mockupTemplateFilePreviewUrl = useMemo(() => (mockupTemplateFile ? URL.createObjectURL(mockupTemplateFile) : ""), [mockupTemplateFile]);
 
   useEffect(() => {
     if (!backgroundFilePreviewUrl) {
@@ -453,6 +497,14 @@ export function AdminTemplateManager() {
 
     return () => URL.revokeObjectURL(backgroundFilePreviewUrl);
   }, [backgroundFilePreviewUrl]);
+
+  useEffect(() => {
+    if (!mockupTemplateFilePreviewUrl) {
+      return;
+    }
+
+    return () => URL.revokeObjectURL(mockupTemplateFilePreviewUrl);
+  }, [mockupTemplateFilePreviewUrl]);
 
   const updateForm = <K extends keyof AdminFormState>(field: K, value: AdminFormState[K]) => {
     setForm((current) => ({ ...current, [field]: value }));
@@ -516,6 +568,23 @@ export function AdminTemplateManager() {
     setLogoReferenceImages(data.images);
   };
 
+  const loadBrandMockupTemplates = async () => {
+    const response = await fetch("/api/admin/brand-mockup-templates", { credentials: "include", cache: "no-store" });
+
+    if (!response.ok) {
+      setAuthenticated(false);
+      throw new Error("목업 템플릿을 불러오지 못했어요.");
+    }
+
+    const data = readAdminBrandMockupTemplatesResponse(await response.json());
+
+    if (!data) {
+      throw new Error("목업 템플릿 응답이 올바르지 않아요.");
+    }
+
+    setBrandMockupTemplates(data.templates);
+  };
+
   const refreshPublicTemplates = async () => {
     const response = await fetch("/api/templates", { cache: "no-store" });
 
@@ -551,7 +620,7 @@ export function AdminTemplateManager() {
 
       setAuthenticated(true);
       setToken("");
-      await Promise.all([loadTemplates(), refreshPublicTemplates(), loadManagedBackgrounds(), loadLogoReferenceImages()]);
+      await Promise.all([loadTemplates(), refreshPublicTemplates(), loadManagedBackgrounds(), loadLogoReferenceImages(), loadBrandMockupTemplates()]);
       setActiveSection("dashboard");
       setStatus("success");
       setMessage("관리자 화면이 열렸어요. 토큰은 화면 상태에서만 사용했어요.");
@@ -575,6 +644,11 @@ export function AdminTemplateManager() {
     setLogoReferenceImages([]);
     setLogoReferenceFile(undefined);
     setLogoReferenceFileInputKey((current) => current + 1);
+    setBrandMockupTemplates([]);
+    setMockupTemplateTitle("");
+    setMockupTemplateDescription("");
+    setMockupTemplateFile(undefined);
+    setMockupTemplateFileInputKey((current) => current + 1);
     setActiveSection("dashboard");
     setStatus("idle");
     setMessage("관리자 세션을 종료했어요.");
@@ -678,6 +752,123 @@ export function AdminTemplateManager() {
 
   const handleLogoReferenceFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     setLogoReferenceFile(event.target.files?.[0]);
+  };
+
+  const handleMockupTemplateFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setMockupTemplateFile(event.target.files?.[0]);
+  };
+
+  const buildMockupTemplatePlacementPayload = () => ({
+    left: Number(mockupTemplatePlacement.left),
+    top: Number(mockupTemplatePlacement.top),
+    width: Number(mockupTemplatePlacement.width),
+    height: Number(mockupTemplatePlacement.height),
+    rotation: Number(mockupTemplatePlacement.rotation),
+  });
+
+  const handleUploadBrandMockupTemplate = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!mockupTemplateFile) {
+      setStatus("error");
+      setMessage("등록할 목업 사진을 선택해 주세요.");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", mockupTemplateFile);
+    formData.append("title", mockupTemplateTitle);
+    formData.append("description", mockupTemplateDescription);
+    formData.append("status", mockupTemplateStatus);
+    Object.entries(buildMockupTemplatePlacementPayload()).forEach(([key, value]) => formData.append(key, String(value)));
+    setIsUploadingMockupTemplate(true);
+    setStatus("loading");
+    setMessage("목업 템플릿을 등록하고 있어요.");
+
+    try {
+      const response = await fetch("/api/admin/brand-mockup-templates", { method: "POST", credentials: "include", body: formData });
+      const data: unknown = await response.json().catch(() => undefined);
+
+      if (!response.ok) {
+        throw new Error(readApiErrorReason(data, "목업 템플릿을 등록하지 못했어요."));
+      }
+
+      if (!readAdminBrandMockupTemplateResponse(data)) {
+        throw new Error("목업 템플릿 등록 응답이 올바르지 않아요.");
+      }
+
+      await loadBrandMockupTemplates();
+      setMockupTemplateTitle("");
+      setMockupTemplateDescription("");
+      setMockupTemplateStatus("draft");
+      setMockupTemplatePlacement({ left: "35", top: "35", width: "30", height: "18", rotation: "0" });
+      setMockupTemplateFile(undefined);
+      setMockupTemplateFileInputKey((current) => current + 1);
+      setStatus("success");
+      setMessage("목업 템플릿을 등록했어요. 공개 상태면 사용자 목업 제작 화면에 표시돼요.");
+    } catch (error) {
+      setStatus("error");
+      setMessage(error instanceof Error ? error.message : "목업 템플릿을 등록하지 못했어요.");
+    } finally {
+      setIsUploadingMockupTemplate(false);
+    }
+  };
+
+  const handleUpdateBrandMockupTemplate = async (template: BrandMockupTemplate, next: { title: string; description: string; status: BrandMockupTemplate["status"]; placement: BrandMockupTemplate["placement"] }) => {
+    setUpdatingMockupTemplateId(template.id);
+    setStatus("loading");
+    setMessage(`${template.title} 목업 템플릿을 저장하고 있어요.`);
+
+    try {
+      const response = await fetch("/api/admin/brand-mockup-templates", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ id: template.id, ...next }),
+      });
+      const data: unknown = await response.json().catch(() => undefined);
+
+      if (!response.ok) {
+        throw new Error(readApiErrorReason(data, "목업 템플릿을 저장하지 못했어요."));
+      }
+
+      if (!readAdminBrandMockupTemplateResponse(data)) {
+        throw new Error("목업 템플릿 저장 응답이 올바르지 않아요.");
+      }
+
+      await loadBrandMockupTemplates();
+      setStatus("success");
+      setMessage("목업 템플릿을 저장했어요.");
+    } catch (error) {
+      setStatus("error");
+      setMessage(error instanceof Error ? error.message : "목업 템플릿을 저장하지 못했어요.");
+    } finally {
+      setUpdatingMockupTemplateId(undefined);
+    }
+  };
+
+  const handleDeleteBrandMockupTemplate = async (template: BrandMockupTemplate) => {
+    setDeletingMockupTemplateId(template.id);
+    setStatus("loading");
+    setMessage(`${template.title} 목업 템플릿을 삭제하고 있어요.`);
+
+    try {
+      const response = await fetch(`/api/admin/brand-mockup-templates?id=${encodeURIComponent(template.id)}`, { method: "DELETE", credentials: "include" });
+      const data: unknown = await response.json().catch(() => undefined);
+
+      if (!response.ok) {
+        throw new Error(readApiErrorReason(data, "목업 템플릿을 삭제하지 못했어요."));
+      }
+
+      await loadBrandMockupTemplates();
+      setStatus("success");
+      setMessage("목업 템플릿을 삭제했어요.");
+    } catch (error) {
+      setStatus("error");
+      setMessage(error instanceof Error ? error.message : "목업 템플릿을 삭제하지 못했어요.");
+    } finally {
+      setDeletingMockupTemplateId(undefined);
+    }
   };
 
   const handleUploadLogoReferenceImage = async (event: FormEvent<HTMLFormElement>) => {
@@ -942,6 +1133,8 @@ export function AdminTemplateManager() {
       <CommonSettingsPanel backgrounds={managedBackgrounds} backgroundName={backgroundName} backgroundTagsText={backgroundTagsText} backgroundFile={backgroundFile} backgroundFilePreviewUrl={backgroundFilePreviewUrl} backgroundFileInputKey={backgroundFileInputKey} status={status} message={message} isUploadingBackgroundImage={isUploadingBackgroundImage} isCleaningBackgroundImages={isCleaningBackgroundImages} deletingBackgroundId={deletingBackgroundId} updatingBackgroundId={updatingBackgroundId} onBackgroundNameChange={setBackgroundName} onBackgroundTagsTextChange={setBackgroundTagsText} onBackgroundFileChange={handleBackgroundFileChange} onUploadBackground={handleUploadManagedBackground} onUpdateBackground={handleUpdateManagedBackground} onDeleteBackground={handleDeleteManagedBackground} onCleanupBackgroundImages={handleCleanupBackgroundImages} />
     ) : activeSection === "logoReferences" ? (
       <LogoReferencePanel logoReferenceImages={logoReferenceImages} logoReferenceFile={logoReferenceFile} logoReferenceFileInputKey={logoReferenceFileInputKey} status={status} message={message} isUploadingLogoReferenceImage={isUploadingLogoReferenceImage} deletingLogoReferenceImageId={deletingLogoReferenceImageId} updatingLogoReferenceImageId={updatingLogoReferenceImageId} onLogoReferenceFileChange={handleLogoReferenceFileChange} onUploadLogoReferenceImage={handleUploadLogoReferenceImage} onDeleteLogoReferenceImage={handleDeleteLogoReferenceImage} onUpdateForcedInstructions={handleUpdateLogoReferenceForcedInstructions} />
+    ) : activeSection === "mockups" ? (
+      <BrandMockupTemplatePanel templates={brandMockupTemplates} title={mockupTemplateTitle} description={mockupTemplateDescription} statusValue={mockupTemplateStatus} placement={mockupTemplatePlacement} file={mockupTemplateFile} filePreviewUrl={mockupTemplateFilePreviewUrl} fileInputKey={mockupTemplateFileInputKey} status={status} message={message} isUploading={isUploadingMockupTemplate} deletingTemplateId={deletingMockupTemplateId} updatingTemplateId={updatingMockupTemplateId} onTitleChange={setMockupTemplateTitle} onDescriptionChange={setMockupTemplateDescription} onStatusChange={setMockupTemplateStatus} onPlacementChange={setMockupTemplatePlacement} onFileChange={handleMockupTemplateFileChange} onUpload={handleUploadBrandMockupTemplate} onUpdate={handleUpdateBrandMockupTemplate} onDelete={handleDeleteBrandMockupTemplate} />
     ) : (
       <TemplateEditorPanel form={form} selectedTemplate={selectedTemplate} managedBackgrounds={managedBackgrounds} status={status} message={message} isSaving={isSaving} onChange={updateForm} onSubmit={handleSubmitTemplate} onDelete={handleDeleteTemplate} />
     );
@@ -1158,6 +1351,107 @@ function CommonSettingsPanel({ backgrounds, backgroundName, backgroundTagsText, 
         ))}
       </section>
     </div>
+  );
+}
+
+function BrandMockupTemplatePanel({ templates, title, description, statusValue, placement, file, filePreviewUrl, fileInputKey, status, message, isUploading, deletingTemplateId, updatingTemplateId, onTitleChange, onDescriptionChange, onStatusChange, onPlacementChange, onFileChange, onUpload, onUpdate, onDelete }: { templates: BrandMockupTemplate[]; title: string; description: string; statusValue: BrandMockupTemplate["status"]; placement: Record<keyof BrandMockupTemplate["placement"], string>; file?: File; filePreviewUrl: string; fileInputKey: number; status: RequestStatus; message: string; isUploading: boolean; deletingTemplateId?: string; updatingTemplateId?: string; onTitleChange: (value: string) => void; onDescriptionChange: (value: string) => void; onStatusChange: (value: BrandMockupTemplate["status"]) => void; onPlacementChange: (value: Record<keyof BrandMockupTemplate["placement"], string>) => void; onFileChange: (event: ChangeEvent<HTMLInputElement>) => void; onUpload: (event: FormEvent<HTMLFormElement>) => void; onUpdate: (template: BrandMockupTemplate, next: { title: string; description: string; status: BrandMockupTemplate["status"]; placement: BrandMockupTemplate["placement"] }) => void; onDelete: (template: BrandMockupTemplate) => void }) {
+  const updatePlacement = (field: keyof BrandMockupTemplate["placement"], value: string) => onPlacementChange({ ...placement, [field]: value });
+
+  return (
+    <div className="grid gap-4">
+      <SoftCard className="bg-[linear-gradient(180deg,var(--color-surface)_0%,var(--color-surface-blue)_100%)] p-5 sm:p-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div>
+            <p className="text-xs font-black text-primary-strong">목업 템플릿</p>
+            <h2 className="mt-1 text-2xl font-black tracking-[-0.05em] text-ink">실제 사진 기반 목업 등록</h2>
+            <p className="mt-2 text-sm font-bold leading-6 text-muted">사용자는 공개된 목업 사진을 선택하고, 저장된 로고 PNG가 지정 위치에 그대로 합성돼요.</p>
+          </div>
+          <span className="rounded-md bg-surface px-4 py-3 text-sm font-black text-primary-strong shadow-soft">{templates.filter((template) => template.status === "published").length}개 공개</span>
+        </div>
+        <form className="mt-5 grid gap-4 rounded-lg border border-line bg-surface p-4 shadow-soft" onSubmit={onUpload}>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <AdminTextField label="제목" value={title} placeholder="예: 명함 위 로고 목업" maxLength={80} onChange={onTitleChange} />
+            <AdminSelect label="상태" value={statusValue} options={[{ value: "draft", label: "초안" }, { value: "published", label: "공개" }]} onChange={(value) => onStatusChange(value === "published" ? "published" : "draft")} />
+          </div>
+          <AdminTextArea label="설명" value={description} placeholder="사용자에게 보일 목업 설명" maxLength={240} onChange={onDescriptionChange} />
+          <div className="grid gap-4 lg:grid-cols-5">
+            <AdminTextField label="로고 X(%)" value={placement.left} placeholder="35" type="number" onChange={(value) => updatePlacement("left", value)} />
+            <AdminTextField label="로고 Y(%)" value={placement.top} placeholder="35" type="number" onChange={(value) => updatePlacement("top", value)} />
+            <AdminTextField label="로고 W(%)" value={placement.width} placeholder="30" type="number" onChange={(value) => updatePlacement("width", value)} />
+            <AdminTextField label="로고 H(%)" value={placement.height} placeholder="18" type="number" onChange={(value) => updatePlacement("height", value)} />
+            <AdminTextField label="회전" value={placement.rotation} placeholder="0" type="number" onChange={(value) => updatePlacement("rotation", value)} />
+          </div>
+          <div className="grid gap-3 rounded-md bg-surface-blue p-3 md:grid-cols-[180px_minmax(0,1fr)_auto] md:items-center">
+            <div className="relative aspect-[4/3] overflow-hidden rounded-md border border-line bg-surface shadow-soft">
+              {filePreviewUrl ? <Image src={filePreviewUrl} alt="" fill sizes="180px" className="object-cover" unoptimized /> : <div className="grid h-full place-items-center text-xs font-black text-soft">미리보기</div>}
+            </div>
+            <label className="block rounded-md border border-dashed border-primary-soft bg-surface p-3">
+              <span className="mb-2 block text-xs font-extrabold text-primary-strong">목업 사진 업로드</span>
+              <input key={fileInputKey} className="block w-full text-xs font-bold text-muted file:mr-3 file:rounded-sm file:border-0 file:bg-primary file:px-3 file:py-2 file:text-xs file:font-black file:text-white disabled:cursor-not-allowed disabled:opacity-60" type="file" accept="image/png,image/jpeg" disabled={isUploading} onChange={onFileChange} />
+              <span className="mt-2 block text-xs font-bold text-muted">PNG/JPG, 8MB 이하. 로고가 들어갈 위치는 퍼센트로 저장돼요.</span>
+            </label>
+            <button className="rounded-md bg-primary px-4 py-3 text-sm font-black text-white shadow-soft transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0" type="submit" disabled={isUploading || !file}>
+              {isUploading ? "등록 중" : "목업 등록"}
+            </button>
+          </div>
+          <StatusMessage status={status} message={message} />
+        </form>
+      </SoftCard>
+      <section className="grid gap-3">
+        {templates.length === 0 ? (
+          <SoftCard>
+            <p className="text-sm font-black text-ink">등록된 목업 템플릿이 아직 없어요.</p>
+            <p className="mt-2 text-xs font-bold leading-5 text-muted">목업 사진을 등록하고 공개 상태로 저장하면 사용자 목업 제작 화면에 표시돼요.</p>
+          </SoftCard>
+        ) : null}
+        {templates.map((template) => <BrandMockupTemplateCard key={template.id} template={template} isDeleting={deletingTemplateId === template.id} isUpdating={updatingTemplateId === template.id} onUpdate={onUpdate} onDelete={onDelete} />)}
+      </section>
+    </div>
+  );
+}
+
+function BrandMockupTemplateCard({ template, isDeleting, isUpdating, onUpdate, onDelete }: { template: BrandMockupTemplate; isDeleting: boolean; isUpdating: boolean; onUpdate: (template: BrandMockupTemplate, next: { title: string; description: string; status: BrandMockupTemplate["status"]; placement: BrandMockupTemplate["placement"] }) => void; onDelete: (template: BrandMockupTemplate) => void }) {
+  const [title, setTitle] = useState(template.title);
+  const [description, setDescription] = useState(template.description);
+  const [status, setStatus] = useState<BrandMockupTemplate["status"]>(template.status);
+  const [placement, setPlacement] = useState<Record<keyof BrandMockupTemplate["placement"], string>>({ left: String(template.placement.left), top: String(template.placement.top), width: String(template.placement.width), height: String(template.placement.height), rotation: String(template.placement.rotation) });
+  const updatePlacement = (field: keyof BrandMockupTemplate["placement"], value: string) => setPlacement((current) => ({ ...current, [field]: value }));
+  const placementPayload = { left: Number(placement.left), top: Number(placement.top), width: Number(placement.width), height: Number(placement.height), rotation: Number(placement.rotation) };
+
+  return (
+    <article className="rounded-lg border border-line bg-surface p-4 shadow-card">
+      <div className="grid gap-4 xl:grid-cols-[260px_minmax(0,1fr)]">
+        <div className="relative aspect-[4/3] overflow-hidden rounded-md bg-surface-blue shadow-soft">
+          <Image src={template.imageUrl} alt="" fill sizes="260px" className="object-cover" unoptimized />
+        </div>
+        <div className="grid gap-3">
+          <div className="flex flex-wrap gap-2">
+            <span className={`rounded-md px-3 py-1 text-xs font-black ${template.status === "published" ? "bg-success text-white" : "bg-warning text-white"}`}>{template.status === "published" ? "공개" : "초안"}</span>
+            <span className="rounded-md bg-surface-blue px-3 py-1 text-xs font-black text-primary-strong">{Math.ceil(template.size / 1024)}KB</span>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <AdminTextField label="제목" value={title} placeholder="목업 제목" maxLength={80} onChange={setTitle} />
+            <AdminSelect label="상태" value={status} options={[{ value: "draft", label: "초안" }, { value: "published", label: "공개" }]} onChange={(value) => setStatus(value === "published" ? "published" : "draft")} />
+          </div>
+          <AdminTextArea label="설명" value={description} placeholder="목업 설명" maxLength={240} onChange={setDescription} />
+          <div className="grid gap-3 md:grid-cols-5">
+            <AdminTextField label="X" value={placement.left} placeholder="35" type="number" onChange={(value) => updatePlacement("left", value)} />
+            <AdminTextField label="Y" value={placement.top} placeholder="35" type="number" onChange={(value) => updatePlacement("top", value)} />
+            <AdminTextField label="W" value={placement.width} placeholder="30" type="number" onChange={(value) => updatePlacement("width", value)} />
+            <AdminTextField label="H" value={placement.height} placeholder="18" type="number" onChange={(value) => updatePlacement("height", value)} />
+            <AdminTextField label="회전" value={placement.rotation} placeholder="0" type="number" onChange={(value) => updatePlacement("rotation", value)} />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button className="rounded-md bg-primary px-4 py-3 text-sm font-black text-white shadow-soft transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0" type="button" disabled={isUpdating} onClick={() => onUpdate(template, { title, description, status, placement: placementPayload })}>
+              {isUpdating ? "저장 중" : "저장"}
+            </button>
+            <button className="rounded-md bg-danger px-4 py-3 text-sm font-black text-white shadow-soft transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0" type="button" disabled={isDeleting} onClick={() => onDelete(template)}>
+              {isDeleting ? "삭제 중" : "삭제"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </article>
   );
 }
 
