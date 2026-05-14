@@ -123,6 +123,7 @@ export function SectionPanel({ sectionId, title, summary, brand, cardDraft, busi
   const [shareStatus, setShareStatus] = useState("");
   const [mockupStatus, setMockupStatus] = useState("");
   const [generatingMockupSceneId, setGeneratingMockupSceneId] = useState<string>();
+  const [mockupLogoId, setMockupLogoId] = useState<string>();
   const [teamNotice, setTeamNotice] = useState("");
   const brandLogo = usePrintyStore((state) => resolveLogoFromState(state, brand.selectedLogoId));
   const startBrandSectionProduction = usePrintyStore((state) => state.startBrandSectionProduction);
@@ -139,6 +140,7 @@ export function SectionPanel({ sectionId, title, summary, brand, cardDraft, busi
   const generatedLogoOptions = usePrintyStore((state) => state.generatedLogoOptions);
   const savedGeneratedLogoOptions = usePrintyStore((state) => state.savedGeneratedLogoOptions);
   const brandLogos = getBrandLogoIds(brand).map((logoId) => getLogo(logoId, [...generatedLogoOptions, ...savedGeneratedLogoOptions]));
+  const mockupLogo = mockupLogoId ? brandLogos.find((item) => item.id === mockupLogoId) : undefined;
 
   const handleLogoShare = async () => {
     if (!logoHasImage(brandLogo)) {
@@ -225,7 +227,11 @@ export function SectionPanel({ sectionId, title, summary, brand, cardDraft, busi
 
   const content = (() => {
     if (sectionId === "style") {
-      return <StyleSection logo={brandLogo} logos={brandLogos} selectedLogoId={brand.selectedLogoId} assets={sectionAssets} canShareLogo={canShareLogo} shareStatus={shareStatus} mockupStatus={mockupStatus} generatingMockupSceneId={generatingMockupSceneId} onShare={handleLogoShare} onCreateBrandMockup={handleCreateBrandMockup} onStartAdditionalLogo={() => startAdditionalLogoForBrand(brand.id)} onStartLogoRevision={startLogoRevision} onSelectBrandLogo={(logoId) => selectBrandLogo(brand.id, logoId)} onDeleteBrandLogo={(logoId) => deleteBrandLogo(brand.id, logoId)} />;
+      if (mockupLogo) {
+        return <MockupStudioPage logo={mockupLogo} assets={sectionAssets} mockupStatus={mockupStatus} generatingMockupSceneId={generatingMockupSceneId} onBack={() => setMockupLogoId(undefined)} onCreateBrandMockup={handleCreateBrandMockup} />;
+      }
+
+      return <StyleSection logo={brandLogo} logos={brandLogos} selectedLogoId={brand.selectedLogoId} canShareLogo={canShareLogo} shareStatus={shareStatus} onShare={handleLogoShare} onOpenMockupStudio={(logoId) => { setMockupStatus(""); setMockupLogoId(logoId); }} onStartAdditionalLogo={() => startAdditionalLogoForBrand(brand.id)} onStartLogoRevision={startLogoRevision} onSelectBrandLogo={(logoId) => selectBrandLogo(brand.id, logoId)} onDeleteBrandLogo={(logoId) => deleteBrandLogo(brand.id, logoId)} />;
     }
 
     if (sectionId === "team") {
@@ -272,7 +278,7 @@ export function SectionPanel({ sectionId, title, summary, brand, cardDraft, busi
   );
 }
 
-function StyleSection({ logo, logos, selectedLogoId, assets, canShareLogo, shareStatus, mockupStatus, generatingMockupSceneId, onShare, onCreateBrandMockup, onStartAdditionalLogo, onStartLogoRevision, onSelectBrandLogo, onDeleteBrandLogo }: { logo: ResolvedLogoOption; logos: ResolvedLogoOption[]; selectedLogoId: string; assets: BrandAsset[]; canShareLogo: boolean; shareStatus: string; mockupStatus: string; generatingMockupSceneId?: string; onShare: () => void; onCreateBrandMockup: (logo: ResolvedLogoOption, sceneId: string) => void; onStartAdditionalLogo: () => void; onStartLogoRevision: (logoId: string) => void; onSelectBrandLogo: (logoId: string) => void; onDeleteBrandLogo: (logoId: string) => void }) {
+function StyleSection({ logo, logos, selectedLogoId, canShareLogo, shareStatus, onShare, onOpenMockupStudio, onStartAdditionalLogo, onStartLogoRevision, onSelectBrandLogo, onDeleteBrandLogo }: { logo: ResolvedLogoOption; logos: ResolvedLogoOption[]; selectedLogoId: string; canShareLogo: boolean; shareStatus: string; onShare: () => void; onOpenMockupStudio: (logoId: string) => void; onStartAdditionalLogo: () => void; onStartLogoRevision: (logoId: string) => void; onSelectBrandLogo: (logoId: string) => void; onDeleteBrandLogo: (logoId: string) => void }) {
   const rows = [
     ["설명", logo.description],
   ];
@@ -287,25 +293,12 @@ function StyleSection({ logo, logos, selectedLogoId, assets, canShareLogo, share
           </AppButton>
         </div>
       </SoftCard>
-      <BrandLogoGallery logos={logos} selectedLogoId={selectedLogoId} onStartLogoRevision={onStartLogoRevision} onSelectBrandLogo={onSelectBrandLogo} onDeleteBrandLogo={onDeleteBrandLogo} />
-      <MockupTemplateList logo={logo} generatingMockupSceneId={generatingMockupSceneId} onCreateBrandMockup={onCreateBrandMockup} />
+      <BrandLogoGallery logos={logos} selectedLogoId={selectedLogoId} onOpenMockupStudio={onOpenMockupStudio} onStartLogoRevision={onStartLogoRevision} onSelectBrandLogo={onSelectBrandLogo} onDeleteBrandLogo={onDeleteBrandLogo} />
       <div className="grid gap-3">
         {rows.map(([label, value]) => (
           <SoftCard key={label}>
             <p className="text-xs font-black text-soft">{label}</p>
             <p className="mt-1 text-sm font-medium leading-6 text-ink">{value}</p>
-          </SoftCard>
-        ))}
-        {assets.map((asset) => (
-          <SoftCard key={asset.id}>
-            {asset.imageUrl ? (
-              <div className="relative mb-3 aspect-[4/3] overflow-hidden rounded-md bg-surface-blue">
-                <Image src={asset.imageUrl} alt={asset.title} fill sizes="(max-width: 430px) 100vw, 390px" className="object-cover" unoptimized />
-              </div>
-            ) : null}
-            <p className="text-xs font-black text-soft">저장 자산</p>
-            <p className="mt-1 text-sm font-black leading-6 text-ink">{asset.title} · {asset.createdAt}</p>
-            <p className="mt-2 text-xs font-bold leading-5 text-muted">{asset.description}</p>
           </SoftCard>
         ))}
       </div>
@@ -319,12 +312,11 @@ function StyleSection({ logo, logos, selectedLogoId, assets, canShareLogo, share
       {!logoHasImage(logo) ? <SoftCard className="bg-surface-blue text-xs font-bold leading-5 text-primary-strong">기본 제공 로고는 이미지 파일 링크가 없어 공유를 비활성화했어요.</SoftCard> : null}
       {isClaimedSharedLogo(logo) ? <SoftCard className="bg-surface-blue text-xs font-bold leading-5 text-primary-strong">이미 다른 계정에서 사용 확정된 공유 로고예요.</SoftCard> : null}
       {shareStatus ? <SoftCard className="bg-surface-blue text-xs font-bold leading-5 text-primary-strong">{shareStatus}</SoftCard> : null}
-      {mockupStatus ? <SoftCard className="bg-surface-blue text-xs font-bold leading-5 text-primary-strong">{mockupStatus}</SoftCard> : null}
     </div>
   );
 }
 
-function BrandLogoGallery({ logos, selectedLogoId, onStartLogoRevision, onSelectBrandLogo, onDeleteBrandLogo }: { logos: ResolvedLogoOption[]; selectedLogoId: string; onStartLogoRevision: (logoId: string) => void; onSelectBrandLogo: (logoId: string) => void; onDeleteBrandLogo: (logoId: string) => void }) {
+function BrandLogoGallery({ logos, selectedLogoId, onOpenMockupStudio, onStartLogoRevision, onSelectBrandLogo, onDeleteBrandLogo }: { logos: ResolvedLogoOption[]; selectedLogoId: string; onOpenMockupStudio: (logoId: string) => void; onStartLogoRevision: (logoId: string) => void; onSelectBrandLogo: (logoId: string) => void; onDeleteBrandLogo: (logoId: string) => void }) {
   if (logos.length === 0) {
     return null;
   }
@@ -346,7 +338,7 @@ function BrandLogoGallery({ logos, selectedLogoId, onStartLogoRevision, onSelect
     <SoftCard>
       <div className="mb-4">
         <p className="text-sm font-black text-ink">저장된 로고</p>
-        <p className="mt-1 text-xs font-bold leading-5 text-muted">추가 생성한 로고는 사라지지 않고 이 목록에 보관돼요. 사용할 대표 로고를 선택해 주세요.</p>
+        <p className="mt-1 text-xs font-bold leading-5 text-muted">로고 이미지를 누르면 해당 로고로 목업을 만드는 별도 화면으로 이동해요.</p>
       </div>
       <div className="grid grid-cols-2 gap-3">
         {logos.map((item) => {
@@ -355,8 +347,11 @@ function BrandLogoGallery({ logos, selectedLogoId, onStartLogoRevision, onSelect
 
           return (
             <div key={item.id} className={`rounded-lg border bg-surface p-3 shadow-card ${isSelected ? "border-primary ring-4 ring-primary-soft" : "border-line"}`}>
-              <div className="relative grid aspect-[4/3] place-items-center overflow-hidden rounded-md bg-surface-blue">
-                {logoHasImage(item) ? <Image src={item.imageUrl} alt={item.name} fill sizes="160px" className="object-contain p-2" unoptimized /> : <LogoMark logo={item} />}
+              <div className="relative">
+                <button className="relative grid aspect-[4/3] w-full place-items-center overflow-hidden rounded-md bg-surface-blue text-left transition hover:ring-4 hover:ring-primary-soft" type="button" onClick={() => onOpenMockupStudio(item.id)} aria-label={`${item.name} 로고로 목업 만들기`}>
+                  {logoHasImage(item) ? <Image src={item.imageUrl} alt={item.name} fill sizes="160px" className="object-contain p-2" unoptimized /> : <LogoMark logo={item} />}
+                  <span className="absolute bottom-2 left-2 rounded-full bg-white/95 px-3 py-1 text-[10px] font-black text-primary-strong shadow-card">목업 만들기</span>
+                </button>
                 {canDelete ? <button className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-white/95 text-danger shadow-card transition hover:scale-105" type="button" aria-label={`${item.name} 로고 삭제`} onClick={() => handleDeleteLogo(item)} title="로고 삭제"><TrashIcon /></button> : null}
               </div>
               <p className="mt-3 text-xs font-black text-ink">{item.name}</p>
@@ -374,6 +369,42 @@ function BrandLogoGallery({ logos, selectedLogoId, onStartLogoRevision, onSelect
         })}
       </div>
     </SoftCard>
+  );
+}
+
+function MockupStudioPage({ logo, assets, mockupStatus, generatingMockupSceneId, onBack, onCreateBrandMockup }: { logo: ResolvedLogoOption; assets: BrandAsset[]; mockupStatus: string; generatingMockupSceneId?: string; onBack: () => void; onCreateBrandMockup: (logo: ResolvedLogoOption, sceneId: string) => void }) {
+  return (
+    <div className="grid gap-5">
+      <SoftCard className="bg-[linear-gradient(180deg,var(--color-surface)_0%,var(--color-surface-blue)_100%)]">
+        <button className="mb-4 text-xs font-black text-primary-strong" type="button" onClick={onBack}>
+          ← 로고 목록으로
+        </button>
+        <div className="grid gap-4">
+          <LargeLogoPreview logo={logo} />
+          <div>
+            <p className="text-lg font-black tracking-[-0.04em] text-ink">{logo.name} 목업 제작</p>
+            <p className="mt-1 text-xs font-bold leading-5 text-muted">이 화면에서는 선택한 로고 하나만 기준으로 목업을 생성해요.</p>
+          </div>
+        </div>
+      </SoftCard>
+      <MockupTemplateList logo={logo} generatingMockupSceneId={generatingMockupSceneId} onCreateBrandMockup={onCreateBrandMockup} />
+      {mockupStatus ? <SoftCard className="bg-surface-blue text-xs font-bold leading-5 text-primary-strong">{mockupStatus}</SoftCard> : null}
+      <div className="grid gap-3">
+        {assets.length > 0 ? <p className="px-1 text-sm font-black text-ink">생성된 목업</p> : null}
+        {assets.map((asset) => (
+          <SoftCard key={asset.id}>
+            {asset.imageUrl ? (
+              <div className="relative mb-3 aspect-[4/3] overflow-hidden rounded-md bg-surface-blue">
+                <Image src={asset.imageUrl} alt={asset.title} fill sizes="(max-width: 430px) 100vw, 390px" className="object-cover" unoptimized />
+              </div>
+            ) : null}
+            <p className="text-xs font-black text-soft">저장 목업</p>
+            <p className="mt-1 text-sm font-black leading-6 text-ink">{asset.title} · {asset.createdAt}</p>
+            <p className="mt-2 text-xs font-bold leading-5 text-muted">{asset.description}</p>
+          </SoftCard>
+        ))}
+      </div>
+    </div>
   );
 }
 

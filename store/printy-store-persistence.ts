@@ -43,6 +43,16 @@ function hasSavedBrandWorkspaceArrays(state: Partial<PrintyState>) {
   );
 }
 
+function isPersistedMockupAsset(value: unknown) {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const record = value as { assetType?: unknown; productId?: unknown };
+
+  return record.assetType === "mockup" || (typeof record.productId === "string" && record.productId.startsWith("brand-mockup-"));
+}
+
 export function shouldPersistBrandWorkspaceArrays(state: Partial<PrintyState>) {
   const authUserId = state.authSession?.userId;
 
@@ -67,15 +77,23 @@ export function shouldShowHomeForPersistedGuest(state: Partial<PrintyState>) {
 
 export const printyStorePersistOptions = {
   name: PRINTY_STORE_STORAGE_KEY,
-  version: 3,
+  version: 4,
   storage: createJSONStorage<Partial<PrintyState>>(() => localStorage),
   migrate: (persistedState, version) => {
     if (!isPersistedPrintyState(persistedState)) {
       return {};
     }
 
-    if (version >= 3) {
+    if (version >= 4) {
       return persistedState;
+    }
+
+    if (version >= 3) {
+      return {
+        ...persistedState,
+        brandAssets: Array.isArray(persistedState.brandAssets) ? persistedState.brandAssets.filter((asset) => !isPersistedMockupAsset(asset)) : [],
+        brandWorkspaceHasPendingLocalChanges: persistedState.brandWorkspaceHasPendingLocalChanges,
+      } satisfies Partial<PrintyState>;
     }
 
     return {
@@ -95,6 +113,7 @@ export const printyStorePersistOptions = {
       brands: [],
       businessCardDrafts: [],
       orders: [],
+      brandAssets: [],
       selectedLogoId: undefined,
       selectedBrandId: undefined,
       activeBusinessCardDraftId: undefined,
