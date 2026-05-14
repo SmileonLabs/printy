@@ -37,12 +37,11 @@ const memberFormFields: Array<{ label: string; field: keyof MemberFormValues; pl
 ];
 
 const brandMockupTemplates = [
-  { id: "paper-emboss", title: "프리미엄 종이", description: "종이 질감과 음각/압인 느낌" },
-  { id: "signboard", title: "매장 간판", description: "벽면 사인보드 적용" },
-  { id: "package-cup", title: "컵/포장지", description: "카페 패키지 적용" },
-  { id: "mug", title: "머그컵", description: "굿즈 표면 인쇄" },
-  { id: "digital", title: "디지털 화면", description: "모바일/태블릿 화면" },
-  { id: "business-card", title: "명함", description: "인쇄물 브랜드 시스템" },
+  { id: "standing-sign", title: "실사형 입간판", description: "매장 앞 입간판에 로고 합성" },
+  { id: "store-signboard", title: "매장 간판", description: "외부 간판에 로고 합성" },
+  { id: "paper-card", title: "명함/종이", description: "고급 종이 인쇄물 목업" },
+  { id: "cup-package", title: "컵/패키지", description: "컵과 포장재 실사 목업" },
+  { id: "window-decal", title: "유리창 스티커", description: "매장 유리창 데칼 목업" },
 ];
 
 function logoHasImage(logo: ResolvedLogoOption): logo is LogoWithImage {
@@ -415,7 +414,7 @@ function MockupTemplateList({ logo, generatingMockupSceneId, onCreateBrandMockup
     <SoftCard>
       <div className="mb-4">
         <p className="text-sm font-black text-ink">선택 로고 목업</p>
-        <p className="mt-1 text-xs font-bold leading-5 text-muted">저장된 로고를 대표로 선택한 뒤, 필요한 목업만 하나씩 생성하세요.</p>
+        <p className="mt-1 text-xs font-bold leading-5 text-muted">선택한 로고를 GPT 이미지 모델에 보내 실사형 목업을 생성해요.</p>
       </div>
       <div className="grid gap-2">
         {brandMockupTemplates.map((template) => {
