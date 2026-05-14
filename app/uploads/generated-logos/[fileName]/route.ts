@@ -21,9 +21,13 @@ export async function GET(request: Request, context: GeneratedLogoRouteContext) 
     return new Response(null, { status: 404 });
   }
 
-  return new Response(Buffer.from(bytes), {
+  const body = Buffer.from(bytes);
+
+  return new Response(body, {
     headers: {
       "Content-Type": "image/png",
+      "Content-Length": body.byteLength.toString(),
+      "Cache-Control": "public, max-age=31536000, immutable",
     },
   });
 }
