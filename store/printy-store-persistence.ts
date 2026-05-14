@@ -135,12 +135,16 @@ export const printyStorePersistOptions = {
       logoGenerationMode: state.logoGenerationMode,
       selectedLogoReferenceImageId: state.selectedLogoReferenceImageId,
       logoGenerationTargetBrandId: state.logoGenerationTargetBrandId,
+      activeLogoGenerationJobId: state.activeLogoGenerationJobId,
+      backgroundLogoGenerationNotice: state.backgroundLogoGenerationNotice,
+      brandDraft: state.currentStep === "generating" || state.activeLogoGenerationJobId ? state.brandDraft : undefined,
       selectedLogoId: state.selectedLogoId,
       ...(persistBrandWorkspaceArrays
         ? {
             savedGeneratedLogoOptions: state.savedGeneratedLogoOptions.filter((logo) => logo.id === state.selectedLogoId || state.brands.some((brand) => brand.selectedLogoId === logo.id || (Array.isArray(brand.logoIds) && brand.logoIds.includes(logo.id))) || state.businessCardDrafts.some((draft) => draft.selectedLogoId === logo.id)),
             brands: state.brands,
             brandAssets: state.brandAssets,
+            activeBrandMockupJob: state.activeBrandMockupJob,
             businessCardDrafts: state.businessCardDrafts,
             orders: state.orders,
           }
@@ -172,6 +176,7 @@ export const printyStorePersistOptions = {
     const brands = (persistedWorkspaceState.brands ?? currentState.brands).filter((brand) => brand.id !== "brand-seed").map((brand) => normalizeBrandWithSelectableLogos(brand, savedGeneratedLogoOptions));
     const brandIds = new Set(brands.map((brand) => brand.id));
     const brandAssets = (persistedWorkspaceState.brandAssets ?? currentState.brandAssets).map((asset) => normalizeBrandAsset(asset)).filter((asset): asset is NonNullable<typeof asset> => asset !== undefined && brandIds.has(asset.brandId));
+    const activeBrandMockupJob = persistedState.activeBrandMockupJob && typeof persistedState.activeBrandMockupJob.jobId === "string" && typeof persistedState.activeBrandMockupJob.brandId === "string" && typeof persistedState.activeBrandMockupJob.logoId === "string" && typeof persistedState.activeBrandMockupJob.sceneId === "string" && (persistedState.activeBrandMockupJob.status === "generating" || persistedState.activeBrandMockupJob.status === "failed") && typeof persistedState.activeBrandMockupJob.message === "string" ? persistedState.activeBrandMockupJob : undefined;
     const businessCardDrafts = (persistedWorkspaceState.businessCardDrafts ?? currentState.businessCardDrafts).map((draft) => normalizeBusinessCardDraftWithSelectableLogos(draft, savedGeneratedLogoOptions));
     const selectedBrandId = brands.some((brand) => brand.id === persistedState.selectedBrandId) ? persistedState.selectedBrandId : undefined;
     const activeBusinessCardDraftId = businessCardDrafts.some((draft) => draft.id === persistedState.activeBusinessCardDraftId) ? persistedState.activeBusinessCardDraftId : undefined;
@@ -186,7 +191,8 @@ export const printyStorePersistOptions = {
     const selectedLogoId = normalizeSelectableLogoId(persistedState.selectedLogoId, savedGeneratedLogoOptions, fallbackLogoId);
     const isAuthenticated = Boolean(persistedState.isAuthenticated && persistedState.authSession);
     const hasLegacyPersistedWorkspaceArrays = isAuthenticated && shouldRestoreWorkspaceArrays && persistedState.brandWorkspaceHasPendingLocalChanges === undefined && hasSavedBrandWorkspaceArrays(persistedState);
-    const currentStep = shouldShowHomeForPersistedGuest(persistedState) ? "home" : persistedState.currentStep === "logoRevision" ? "logoSelection" : persistedState.currentStep === "templateSelection" ? "businessCardPreview" : persistedState.currentStep ?? currentState.currentStep;
+    const activeLogoGenerationJobId = typeof persistedState.activeLogoGenerationJobId === "string" && persistedState.activeLogoGenerationJobId.trim().length > 0 ? persistedState.activeLogoGenerationJobId.trim() : undefined;
+    const currentStep = shouldShowHomeForPersistedGuest(persistedState) ? "home" : activeLogoGenerationJobId ? "generating" : persistedState.currentStep === "logoRevision" ? "logoSelection" : persistedState.currentStep === "templateSelection" ? "businessCardPreview" : persistedState.currentStep ?? currentState.currentStep;
     const persistedActiveTab = persistedState.activeTab === "notifications" ? "home" : persistedState.activeTab;
     const currentActiveTab = currentState.activeTab === "notifications" ? "home" : currentState.activeTab;
     const activeTab = isMainTab(persistedActiveTab) ? persistedActiveTab : isMainTab(currentActiveTab) ? currentActiveTab : "home";
@@ -197,10 +203,12 @@ export const printyStorePersistOptions = {
       activeTab,
       brandView: activeTab === "brands" && selectedBrandId && persistedState.brandView === "detail" ? "detail" : "list",
       activeBrandSection: persistedState.activeBrandSection ?? currentState.activeBrandSection,
-      brandDraft: currentState.brandDraft,
+      brandDraft: persistedState.brandDraft && typeof persistedState.brandDraft.name === "string" && typeof persistedState.brandDraft.category === "string" && typeof persistedState.brandDraft.designRequest === "string" ? persistedState.brandDraft : currentState.brandDraft,
       logoGenerationMode: persistedState.logoGenerationMode === "auto" || persistedState.logoGenerationMode === "reference" ? persistedState.logoGenerationMode : currentState.logoGenerationMode,
       selectedLogoReferenceImageId: typeof persistedState.selectedLogoReferenceImageId === "string" ? persistedState.selectedLogoReferenceImageId : currentState.selectedLogoReferenceImageId,
       logoGenerationTargetBrandId: typeof persistedState.logoGenerationTargetBrandId === "string" && brands.some((brand) => brand.id === persistedState.logoGenerationTargetBrandId) ? persistedState.logoGenerationTargetBrandId : undefined,
+      activeLogoGenerationJobId,
+      backgroundLogoGenerationNotice: persistedState.backgroundLogoGenerationNotice,
       memberDraft: currentState.memberDraft,
       selectedLogoId,
       savedGeneratedLogoOptions,
@@ -214,6 +222,7 @@ export const printyStorePersistOptions = {
       lastOrderId: persistedState.lastOrderId ?? currentState.lastOrderId,
       brands,
       brandAssets,
+      activeBrandMockupJob,
       businessCardDrafts,
       orders: shouldRestoreWorkspaceArrays ? persistedState.orders ?? currentState.orders : currentState.orders,
       selectedTemplateId: persistedState.selectedTemplateId ?? currentState.selectedTemplateId,
@@ -221,7 +230,7 @@ export const printyStorePersistOptions = {
       brandWorkspaceHasPendingLocalChanges: Boolean(persistedState.brandWorkspaceHasPendingLocalChanges || hasLegacyPersistedWorkspaceArrays),
       brandWorkspaceOwnerUserId: persistedOwnerUserId,
       generatedLogoOptions: [],
-      logoGenerationStatus: "idle",
+      logoGenerationStatus: activeLogoGenerationJobId ? "generating" : "idle",
       logoGenerationMessage: undefined,
       logoGenerationIntent: "initial",
       logoRevisionRequest: "",

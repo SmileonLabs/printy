@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { generateBrandMockup } from "@/lib/server/brand-mockups";
+import { createBrandMockupJob, getBrandMockupClientKey, wakeBrandMockupProcessor } from "@/lib/server/brand-mockup-jobs";
 
 export const runtime = "nodejs";
 
@@ -9,12 +9,6 @@ const rateLimitBuckets = new Map<string, { count: number; resetAt: number }>();
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
-}
-
-function readString(value: Record<string, unknown>, key: string) {
-  const field = value[key];
-
-  return typeof field === "string" ? field.trim() : "";
 }
 
 function getClientKey(request: Request) {
@@ -59,24 +53,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ reason: "목업 생성 요청이 올바르지 않아요." }, { status: 400 });
   }
 
-  const brandId = readString(body, "brandId");
-  const logoId = readString(body, "logoId");
-  const brandName = readString(body, "brandName");
-  const category = readString(body, "category");
-  const logoImageUrl = readString(body, "logoImageUrl");
-  const sceneId = readString(body, "sceneId");
-
-  if (!brandId || !logoId || !brandName || !sceneId || !logoImageUrl.startsWith("/uploads/generated-logos/")) {
-    return NextResponse.json({ reason: "저장된 로고 이미지가 있어야 목업을 만들 수 있어요." }, { status: 400 });
-  }
-
   try {
-    const asset = await generateBrandMockup({ brandId, logoId, brandName, category, logoImageUrl, sceneId });
+    const response = await createBrandMockupJob(body, getBrandMockupClientKey(request));
+    wakeBrandMockupProcessor();
 
-    return NextResponse.json({ asset });
+    return NextResponse.json(response, { status: 202 });
   } catch (error) {
-    console.error("Brand mockup generation failed", { errorName: error instanceof Error ? error.name : "UnknownError" });
+    console.error("Brand mockup job creation failed", { errorName: error instanceof Error ? error.name : "UnknownError" });
 
-    return NextResponse.json({ reason: "브랜드 목업을 만들지 못했어요. 잠시 후 다시 시도해 주세요." }, { status: 503 });
+    return NextResponse.json({ reason: "저장된 로고 이미지가 있어야 목업을 만들 수 있어요." }, { status: 400 });
   }
 }

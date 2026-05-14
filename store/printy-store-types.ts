@@ -1,6 +1,7 @@
 import type {
   Brand,
   BrandAsset,
+  ActiveBrandMockupJob,
   BrandDetailSectionId,
   BrandView,
   BusinessCardDraft,
@@ -43,6 +44,12 @@ export type PrintyState = {
   logoGenerationMode: LogoGenerationMode;
   selectedLogoReferenceImageId?: string;
   logoGenerationTargetBrandId?: string;
+  activeLogoGenerationJobId?: string;
+  backgroundLogoGenerationNotice?: {
+    brandId: string;
+    status: "generating" | "ready" | "failed";
+    message: string;
+  };
   logoGenerationIntent: LogoGenerationIntent;
   logoRevisionRequest: string;
   logoRevisionSourceLogoId?: string;
@@ -60,6 +67,7 @@ export type PrintyState = {
   printProducts: PrintProduct[];
   templates: PrintTemplate[];
   brandAssets: BrandAsset[];
+  activeBrandMockupJob?: ActiveBrandMockupJob;
   selectedProductId?: string;
   selectedTemplateId?: string;
   selectedBusinessCardMemberIds: string[];
@@ -73,6 +81,9 @@ export type PrintyState = {
   selectBrandLogo: (brandId: string, logoId: string) => void;
   deleteBrandLogo: (brandId: string, logoId: string) => void;
   startLogoGeneration: () => void;
+  setActiveLogoGenerationJob: (jobId?: string) => void;
+  beginBackgroundLogoGeneration: (brandId: string) => void;
+  openBackgroundGeneratedLogos: () => void;
   finishLogoGeneration: (status: Extract<LogoGenerationStatus, "success">, logos: GeneratedLogoOption[], message?: string) => void;
   failLogoGeneration: (message: string) => void;
   setLogoGenerationMode: (mode: LogoGenerationMode) => void;
@@ -102,6 +113,7 @@ export type PrintyState = {
   startProduct: (productId: string) => void;
   selectTemplate: (templateId: string) => void;
   addBrandAssets: (brandId: string, assets: BrandAsset[]) => void;
+  setActiveBrandMockupJob: (job?: ActiveBrandMockupJob) => void;
   syncTemplates: (templates: PrintTemplate[]) => void;
   resetTemplatesToSeeds: () => void;
   syncBrandWorkspace: (workspace: BrandWorkspace, ownerUserId?: string) => void;

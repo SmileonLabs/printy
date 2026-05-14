@@ -9,7 +9,7 @@ import { usePrintyStore } from "@/store/use-printy-store";
 let activeLogoGenerationKey: string | undefined;
 
 const GENERATION_JOB_POLL_INTERVAL_MS = 2000;
-const GENERATION_JOB_TIMEOUT_MS = 5 * 60 * 1000;
+const GENERATION_JOB_TIMEOUT_MS = 10 * 60 * 1000;
 const GENERATION_REQUEST_TIMEOUT_MS = GENERATION_JOB_TIMEOUT_MS + 10000;
 const clientLogoGenerationFailureReason = "OpenAI 응답이 지연됐어요. 잠시 후 다시 시도해 주세요.";
 
@@ -31,8 +31,11 @@ export function LogoGenerationController() {
   const logoGenerationIntent = usePrintyStore((state) => state.logoGenerationIntent);
   const logoRevisionRequest = usePrintyStore((state) => state.logoRevisionRequest);
   const logoRevisionSourceLogoId = usePrintyStore((state) => state.logoRevisionSourceLogoId);
+  const activeLogoGenerationJobId = usePrintyStore((state) => state.activeLogoGenerationJobId);
   const setStep = usePrintyStore((state) => state.setStep);
   const startLogoGeneration = usePrintyStore((state) => state.startLogoGeneration);
+  const setActiveLogoGenerationJob = usePrintyStore((state) => state.setActiveLogoGenerationJob);
+  const beginBackgroundLogoGeneration = usePrintyStore((state) => state.beginBackgroundLogoGeneration);
   const finishLogoGeneration = usePrintyStore((state) => state.finishLogoGeneration);
   const failLogoGeneration = usePrintyStore((state) => state.failLogoGeneration);
 
@@ -92,9 +95,23 @@ export function LogoGenerationController() {
         const response = await fetch(`/api/logos/generation-jobs/${encodeURIComponent(jobId)}`, {
           cache: "no-store",
           signal: controller.signal,
+        }).catch((error: unknown) => {
+          if (error instanceof DOMException && error.name === "AbortError") {
+            throw error;
+          }
+
+          return undefined;
         });
 
+        if (!response) {
+          continue;
+        }
+
         if (!response.ok) {
+          if (response.status >= 500) {
+            continue;
+          }
+
           throw new LogoGenerationRequestFailure(await readErrorReason(response));
         }
 
@@ -116,42 +133,54 @@ export function LogoGenerationController() {
       throw new LogoGenerationRequestFailure(clientLogoGenerationFailureReason);
     };
 
-    fetch("/api/logos/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      signal: controller.signal,
-      body: JSON.stringify(
-        logoGenerationIntent === "revision" && revisionSourceLogo
-          ? {
-              mode: "revision",
-              brandName: brandDraft.name,
-              industry: brandDraft.category,
-              revisionRequest: logoRevisionRequest,
-              sourceLogo: makeRevisionSourceLogo(revisionSourceLogo),
+    const generationPromise = activeLogoGenerationJobId
+      ? pollLogoGenerationJob(activeLogoGenerationJobId)
+      : fetch("/api/logos/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify(
+            logoGenerationIntent === "revision" && revisionSourceLogo
+              ? {
+                  mode: "revision",
+                  brandName: brandDraft.name,
+                  industry: brandDraft.category,
+                  revisionRequest: logoRevisionRequest,
+                  sourceLogo: makeRevisionSourceLogo(revisionSourceLogo),
+                }
+              : {
+                  mode: "initial",
+                  brandName: brandDraft.name,
+                  industry: brandDraft.category,
+                  designRequest: logoGenerationMode === "manual" ? brandDraft.designRequest : "",
+                  generationMode: logoGenerationMode,
+                  referenceImageId: logoGenerationMode === "reference" ? selectedLogoReferenceImageId : undefined,
+                },
+          ),
+        })
+          .then(async (response) => {
+            if (!response.ok) {
+              throw new LogoGenerationRequestFailure(await readErrorReason(response));
             }
-          : {
-              mode: "initial",
-              brandName: brandDraft.name,
-              industry: brandDraft.category,
-              designRequest: logoGenerationMode === "manual" ? brandDraft.designRequest : "",
-              generationMode: logoGenerationMode,
-              referenceImageId: logoGenerationMode === "reference" ? selectedLogoReferenceImageId : undefined,
-            },
-      ),
-    })
-      .then(async (response) => {
-        if (!response.ok) {
-          throw new LogoGenerationRequestFailure(await readErrorReason(response));
-        }
 
-        const payload: unknown = await response.json();
+            const payload: unknown = await response.json();
 
-        if (!isLogoGenerationJobCreateResponse(payload)) {
-          throw new Error("Logo generation job creation response was invalid.");
-        }
+            if (!isLogoGenerationJobCreateResponse(payload)) {
+              throw new Error("Logo generation job creation response was invalid.");
+            }
 
-        return pollLogoGenerationJob(payload.jobId);
-      })
+            setActiveLogoGenerationJob(payload.jobId);
+
+            const targetBrandId = usePrintyStore.getState().logoGenerationTargetBrandId;
+
+            if (targetBrandId) {
+              beginBackgroundLogoGeneration(targetBrandId);
+            }
+
+            return pollLogoGenerationJob(payload.jobId);
+          });
+
+    generationPromise
       .then((payload) => {
         const latestState = usePrintyStore.getState();
 
@@ -182,7 +211,7 @@ export function LogoGenerationController() {
       controller.abort();
       window.clearTimeout(timeoutId);
     };
-  }, [brandDraft, currentStep, failLogoGeneration, finishLogoGeneration, logoGenerationIntent, logoGenerationMode, logoRevisionRequest, logoRevisionSourceLogoId, selectedLogoReferenceImageId, setStep, startLogoGeneration]);
+  }, [activeLogoGenerationJobId, beginBackgroundLogoGeneration, brandDraft, currentStep, failLogoGeneration, finishLogoGeneration, logoGenerationIntent, logoGenerationMode, logoRevisionRequest, logoRevisionSourceLogoId, selectedLogoReferenceImageId, setActiveLogoGenerationJob, setStep, startLogoGeneration]);
 
   return null;
 }

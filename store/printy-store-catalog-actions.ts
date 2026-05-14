@@ -8,7 +8,7 @@ import type { PrintyState } from "@/store/printy-store-types";
 type PrintyStoreSet = Parameters<StateCreator<PrintyState, [], [], PrintyState>>[0];
 type PrintyStoreGet = Parameters<StateCreator<PrintyState, [], [], PrintyState>>[1];
 
-type PrintyCatalogActions = Pick<PrintyState, "startProduct" | "selectTemplate" | "addBrandAssets" | "startBrandSectionProduction">;
+type PrintyCatalogActions = Pick<PrintyState, "startProduct" | "selectTemplate" | "addBrandAssets" | "setActiveBrandMockupJob" | "startBrandSectionProduction">;
 
 function mergeBrandAssets(currentAssets: BrandAsset[], nextAssets: BrandAsset[]) {
   const merged = new Map<string, BrandAsset>();
@@ -84,6 +84,7 @@ export function createPrintyCatalogActions(set: PrintyStoreSet, get: PrintyStore
         brandWorkspaceHasPendingLocalChanges: assets.length > 0 ? true : state.brandWorkspaceHasPendingLocalChanges,
         brandWorkspaceOwnerUserId: assets.length > 0 && !state.isAuthenticated ? undefined : state.brandWorkspaceOwnerUserId,
       })),
+    setActiveBrandMockupJob: (job) => set({ activeBrandMockupJob: job }),
     startBrandSectionProduction: (brandId, sectionId, memberIds) => {
       const state = get();
       const brand = state.brands.find((item) => item.id === brandId);

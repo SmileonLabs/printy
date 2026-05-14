@@ -388,6 +388,15 @@ export type BrandAsset = {
   createdAt: string;
 };
 
+export type ActiveBrandMockupJob = {
+  jobId: string;
+  brandId: string;
+  logoId: string;
+  sceneId: string;
+  status: "generating" | "failed";
+  message: string;
+};
+
 export type RecentOrder = {
   id: string;
   title: string;

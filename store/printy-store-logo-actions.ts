@@ -14,6 +14,9 @@ type PrintyLogoActions = Pick<
   | "selectBrandLogo"
   | "deleteBrandLogo"
   | "startLogoGeneration"
+  | "setActiveLogoGenerationJob"
+  | "beginBackgroundLogoGeneration"
+  | "openBackgroundGeneratedLogos"
   | "finishLogoGeneration"
   | "failLogoGeneration"
   | "setLogoGenerationMode"
@@ -93,10 +96,31 @@ export function createPrintyLogoActions(set: PrintyStoreSet, get: PrintyStoreGet
           brandWorkspaceHasPendingLocalChanges: sourceLogo ? true : state.brandWorkspaceHasPendingLocalChanges,
         };
       }),
+    setActiveLogoGenerationJob: (jobId) => set({ activeLogoGenerationJobId: jobId }),
+    beginBackgroundLogoGeneration: (brandId) =>
+      set({
+        onboardingComplete: true,
+        activeTab: "brands",
+        brandView: "detail",
+        selectedBrandId: brandId,
+        activeBrandSection: "style",
+        backgroundLogoGenerationNotice: {
+          brandId,
+          status: "generating",
+          message: "로고를 백그라운드에서 만들고 있어요.",
+        },
+      }),
+    openBackgroundGeneratedLogos: () =>
+      set({
+        onboardingComplete: false,
+        currentStep: "logoSelection",
+        backgroundLogoGenerationNotice: undefined,
+      }),
     finishLogoGeneration: (status, logos, message) =>
       set((state) => {
         const firstLogo = logos[0];
         const sourceLogo = state.logoRevisionSourceLogoId ? findGeneratedLogoInState(state, state.logoRevisionSourceLogoId) : undefined;
+        const targetBrand = state.logoGenerationTargetBrandId ? state.brands.find((brand) => brand.id === state.logoGenerationTargetBrandId) : undefined;
         const previousUnsavedGeneratedLogoIds = new Set(state.generatedLogoOptions.map((logo) => logo.id));
         const savedWithoutPreviousGeneration = state.savedGeneratedLogoOptions.filter((logo) => !previousUnsavedGeneratedLogoIds.has(logo.id));
         const savedWithSource = sourceLogo ? saveGeneratedLogo(savedWithoutPreviousGeneration, sourceLogo) : savedWithoutPreviousGeneration;
@@ -110,15 +134,45 @@ export function createPrintyLogoActions(set: PrintyStoreSet, get: PrintyStoreGet
           savedGeneratedLogoOptions: savedWithGeneratedLogos,
           brandWorkspaceHasPendingLocalChanges: firstLogo || sourceLogo ? true : state.brandWorkspaceHasPendingLocalChanges,
           logoGenerationIntent: "initial",
+          activeLogoGenerationJobId: undefined,
+          onboardingComplete: targetBrand ? true : state.onboardingComplete,
+          activeTab: targetBrand ? "brands" : state.activeTab,
+          brandView: targetBrand ? "detail" : state.brandView,
+          selectedBrandId: targetBrand?.id ?? state.selectedBrandId,
+          activeBrandSection: targetBrand ? "style" : state.activeBrandSection,
+          backgroundLogoGenerationNotice: targetBrand
+            ? {
+                brandId: targetBrand.id,
+                status: "ready",
+                message: "새 로고가 준비됐어요.",
+              }
+            : state.backgroundLogoGenerationNotice,
           logoRevisionRequest: "",
           logoRevisionSourceLogoId: undefined,
         };
       }),
     failLogoGeneration: (message) =>
-      set({
-        generatedLogoOptions: [],
-        logoGenerationStatus: "error",
-        logoGenerationMessage: message,
+      set((state) => {
+        const targetBrand = state.logoGenerationTargetBrandId ? state.brands.find((brand) => brand.id === state.logoGenerationTargetBrandId) : undefined;
+
+        return {
+          generatedLogoOptions: [],
+          logoGenerationStatus: "error",
+          logoGenerationMessage: message,
+          activeLogoGenerationJobId: undefined,
+          onboardingComplete: targetBrand ? true : state.onboardingComplete,
+          activeTab: targetBrand ? "brands" : state.activeTab,
+          brandView: targetBrand ? "detail" : state.brandView,
+          selectedBrandId: targetBrand?.id ?? state.selectedBrandId,
+          activeBrandSection: targetBrand ? "style" : state.activeBrandSection,
+          backgroundLogoGenerationNotice: targetBrand
+            ? {
+                brandId: targetBrand.id,
+                status: "failed",
+                message,
+              }
+            : state.backgroundLogoGenerationNotice,
+        };
       }),
     setLogoGenerationMode: (mode) => set({ logoGenerationMode: mode }),
     selectLogoReferenceImage: (referenceImageId) => set({ selectedLogoReferenceImageId: referenceImageId }),

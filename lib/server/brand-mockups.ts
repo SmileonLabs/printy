@@ -4,7 +4,7 @@ import OpenAI, { toFile } from "openai";
 import { readGeneratedLogoBytesByPublicUrl, saveBrandAssetImageBytes } from "@/lib/server/storage";
 import type { BrandAsset } from "@/lib/types";
 
-type BrandMockupInput = {
+export type BrandMockupRequest = {
   brandId: string;
   logoId: string;
   brandName: string;
@@ -63,14 +63,43 @@ function getScene(sceneId: string) {
   return aiMockupScenes.find((scene) => scene.id === sceneId);
 }
 
-function buildPrompt(input: BrandMockupInput, scene: AiMockupScene) {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function readString(value: Record<string, unknown>, key: string) {
+  const field = value[key];
+
+  return typeof field === "string" ? field.trim() : "";
+}
+
+export function parseBrandMockupRequest(value: unknown): BrandMockupRequest {
+  if (!isRecord(value)) {
+    throw new Error("Invalid brand mockup request.");
+  }
+
+  const brandId = readString(value, "brandId");
+  const logoId = readString(value, "logoId");
+  const brandName = readString(value, "brandName");
+  const category = readString(value, "category");
+  const logoImageUrl = readString(value, "logoImageUrl");
+  const sceneId = readString(value, "sceneId");
+
+  if (!brandId || !logoId || !brandName || !sceneId || !logoImageUrl.startsWith("/uploads/generated-logos/")) {
+    throw new Error("Invalid brand mockup request.");
+  }
+
+  return { brandId, logoId, brandName, category, logoImageUrl, sceneId };
+}
+
+function buildPrompt(input: BrandMockupRequest, scene: AiMockupScene) {
   const brandName = input.brandName.trim();
   const category = input.category.trim();
 
   return `${scene.prompt}\n\nBrand context: ${brandName}${category ? `, ${category}` : ""}. The input image is the brand logo. Use it as the source logo for the mockup. The final image should look like a polished commercial product mockup, not a flat design preview.`;
 }
 
-export async function generateBrandMockup(input: BrandMockupInput): Promise<BrandAsset> {
+export async function generateBrandMockup(input: BrandMockupRequest): Promise<BrandAsset> {
   const logoBytes = await readGeneratedLogoBytesByPublicUrl(input.logoImageUrl);
 
   if (!logoBytes) {

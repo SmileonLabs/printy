@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import { EmptyBrands } from "@/components/printy/dashboard/brands-tab";
 import { resolveLogoFromState } from "@/components/printy/logo/logo-state";
@@ -13,6 +13,10 @@ import { usePrintyStore } from "@/store/use-printy-store";
 
 type LogoWithImage = Extract<ResolvedLogoOption, { imageUrl: string }>;
 type MemberFormValues = Pick<Member, "name" | "role" | "phone" | "mainPhone" | "fax" | "email" | "website" | "address">;
+type BrandMockupJobResponse =
+  | { jobId: string; status: "queued" | "running" }
+  | { jobId: string; status: "succeeded"; asset: BrandAsset }
+  | { jobId: string; status: "failed" | "cancelled"; reason: string };
 
 const emptyMemberFormValues: MemberFormValues = {
   name: "",
@@ -56,14 +60,40 @@ function isBrandAsset(value: unknown): value is BrandAsset {
   return typeof value === "object" && value !== null && typeof (value as { id?: unknown }).id === "string" && typeof (value as { brandId?: unknown }).brandId === "string" && typeof (value as { title?: unknown }).title === "string" && typeof (value as { description?: unknown }).description === "string" && typeof (value as { createdAt?: unknown }).createdAt === "string";
 }
 
-function readBrandMockupAssetResponse(value: unknown) {
+function readBrandMockupJobCreateResponse(value: unknown) {
   if (typeof value !== "object" || value === null) {
     return undefined;
   }
 
-  const asset = (value as { asset?: unknown }).asset;
+  const record = value as { jobId?: unknown; status?: unknown };
 
-  return isBrandAsset(asset) ? asset : undefined;
+  return typeof record.jobId === "string" && record.status === "queued" ? { jobId: record.jobId } : undefined;
+}
+
+function readBrandMockupJobResponse(value: unknown): BrandMockupJobResponse | undefined {
+  if (typeof value !== "object" || value === null) {
+    return undefined;
+  }
+
+  const record = value as { jobId?: unknown; status?: unknown; asset?: unknown; reason?: unknown };
+
+  if (typeof record.jobId !== "string") {
+    return undefined;
+  }
+
+  if (record.status === "queued" || record.status === "running") {
+    return { jobId: record.jobId, status: record.status };
+  }
+
+  if (record.status === "succeeded" && isBrandAsset(record.asset)) {
+    return { jobId: record.jobId, status: record.status, asset: record.asset };
+  }
+
+  if ((record.status === "failed" || record.status === "cancelled") && typeof record.reason === "string") {
+    return { jobId: record.jobId, status: record.status, reason: record.reason };
+  }
+
+  return undefined;
 }
 
 function getBrandLogoIds(brand: Brand) {
@@ -129,6 +159,8 @@ export function SectionPanel({ sectionId, title, summary, brand, cardDraft, busi
   const startAdditionalLogoForBrand = usePrintyStore((state) => state.startAdditionalLogoForBrand);
   const startLogoRevision = usePrintyStore((state) => state.startLogoRevision);
   const addBrandAssets = usePrintyStore((state) => state.addBrandAssets);
+  const activeBrandMockupJob = usePrintyStore((state) => state.activeBrandMockupJob);
+  const setActiveBrandMockupJob = usePrintyStore((state) => state.setActiveBrandMockupJob);
   const selectBrandLogo = usePrintyStore((state) => state.selectBrandLogo);
   const deleteBrandLogo = usePrintyStore((state) => state.deleteBrandLogo);
   const setBrandSection = usePrintyStore((state) => state.setBrandSection);
@@ -140,6 +172,61 @@ export function SectionPanel({ sectionId, title, summary, brand, cardDraft, busi
   const savedGeneratedLogoOptions = usePrintyStore((state) => state.savedGeneratedLogoOptions);
   const brandLogos = getBrandLogoIds(brand).map((logoId) => getLogo(logoId, [...generatedLogoOptions, ...savedGeneratedLogoOptions]));
   const mockupLogo = mockupLogoId ? brandLogos.find((item) => item.id === mockupLogoId) : undefined;
+
+  useEffect(() => {
+    if (!activeBrandMockupJob || activeBrandMockupJob.brandId !== brand.id || activeBrandMockupJob.status !== "generating") {
+      return;
+    }
+
+    let cancelled = false;
+    const poll = async () => {
+      while (!cancelled) {
+        await new Promise((resolve) => window.setTimeout(resolve, 2500));
+
+        const response = await fetch(`/api/brand-mockups/jobs/${encodeURIComponent(activeBrandMockupJob.jobId)}`, { cache: "no-store" }).catch(() => undefined);
+
+        if (!response || response.status >= 500) {
+          continue;
+        }
+
+        const payload: unknown = await response.json().catch(() => undefined);
+        const job = readBrandMockupJobResponse(payload);
+
+        if (!response.ok || !job) {
+          setMockupStatus("브랜드 목업 생성 상태를 확인하지 못했어요. 잠시 후 다시 확인할게요.");
+          continue;
+        }
+
+        if (job.status === "queued" || job.status === "running") {
+          setMockupStatus(activeBrandMockupJob.message);
+          continue;
+        }
+
+        if (job.status === "succeeded") {
+          addBrandAssets(brand.id, [{ ...job.asset, logoId: activeBrandMockupJob.logoId }]);
+          setMockupStatus(`${job.asset.title} 목업을 만들었어요.`);
+          setActiveBrandMockupJob(undefined);
+          setGeneratingMockupSceneId(undefined);
+          return;
+        }
+
+        if (job.status === "failed" || job.status === "cancelled") {
+          setMockupStatus(job.reason);
+          setActiveBrandMockupJob({ ...activeBrandMockupJob, status: "failed", message: job.reason });
+          setGeneratingMockupSceneId(undefined);
+          return;
+        }
+      }
+    };
+
+    setGeneratingMockupSceneId(activeBrandMockupJob.sceneId);
+    setMockupStatus(activeBrandMockupJob.message);
+    void poll();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeBrandMockupJob, addBrandAssets, brand.id, setActiveBrandMockupJob]);
 
   const handleLogoShare = async () => {
     if (!logoHasImage(brandLogo)) {
@@ -199,18 +286,16 @@ export function SectionPanel({ sectionId, title, summary, brand, cardDraft, busi
         body: JSON.stringify({ brandId: brand.id, logoId: logo.id, brandName: brand.name, category: brand.category, logoImageUrl: logo.imageUrl, sceneId }),
       });
       const payload: unknown = await response.json().catch(() => undefined);
-      const asset = readBrandMockupAssetResponse(payload);
+      const job = readBrandMockupJobCreateResponse(payload);
 
-      if (!response.ok || !asset) {
+      if (!response.ok || !job) {
         throw new Error(typeof payload === "object" && payload !== null && typeof (payload as { reason?: unknown }).reason === "string" ? (payload as { reason: string }).reason : "브랜드 목업을 만들지 못했어요.");
       }
 
-      addBrandAssets(brand.id, [{ ...asset, logoId: logo.id }]);
-      setMockupStatus(`${asset.title} 목업을 만들었어요.`);
+      setActiveBrandMockupJob({ jobId: job.jobId, brandId: brand.id, logoId: logo.id, sceneId, status: "generating", message: "브랜드 목업을 백그라운드에서 만들고 있어요." });
+      setMockupStatus("브랜드 목업을 백그라운드에서 만들고 있어요.");
     } catch (error) {
       setMockupStatus(error instanceof Error ? error.message : "브랜드 목업을 만들지 못했어요.");
-    } finally {
-      setGeneratingMockupSceneId(undefined);
     }
   };
 
@@ -230,7 +315,7 @@ export function SectionPanel({ sectionId, title, summary, brand, cardDraft, busi
         return <MockupStudioPage logo={mockupLogo} assets={sectionAssets.filter((asset) => asset.logoId === mockupLogo.id)} mockupStatus={mockupStatus} generatingMockupSceneId={generatingMockupSceneId} onBack={() => setMockupLogoId(undefined)} onCreateBrandMockup={handleCreateBrandMockup} />;
       }
 
-      return <StyleSection logo={brandLogo} logos={brandLogos} selectedLogoId={brand.selectedLogoId} canShareLogo={canShareLogo} shareStatus={shareStatus} onShare={handleLogoShare} onOpenMockupStudio={(logoId) => { setMockupStatus(""); setMockupLogoId(logoId); }} onStartAdditionalLogo={() => startAdditionalLogoForBrand(brand.id)} onStartLogoRevision={(logoId) => startLogoRevision(logoId, brand.id)} onSelectBrandLogo={(logoId) => selectBrandLogo(brand.id, logoId)} onDeleteBrandLogo={(logoId) => deleteBrandLogo(brand.id, logoId)} />;
+      return <StyleSection logo={brandLogo} logos={brandLogos} selectedLogoId={brand.selectedLogoId} canShareLogo={canShareLogo} shareStatus={shareStatus} mockupStatus={mockupStatus} onShare={handleLogoShare} onOpenMockupStudio={(logoId) => { setMockupStatus(generatingMockupSceneId ? mockupStatus : ""); setMockupLogoId(logoId); }} onStartAdditionalLogo={() => startAdditionalLogoForBrand(brand.id)} onStartLogoRevision={(logoId) => startLogoRevision(logoId, brand.id)} onSelectBrandLogo={(logoId) => selectBrandLogo(brand.id, logoId)} onDeleteBrandLogo={(logoId) => deleteBrandLogo(brand.id, logoId)} />;
     }
 
     if (sectionId === "team") {
@@ -277,7 +362,7 @@ export function SectionPanel({ sectionId, title, summary, brand, cardDraft, busi
   );
 }
 
-function StyleSection({ logo, logos, selectedLogoId, canShareLogo, shareStatus, onShare, onOpenMockupStudio, onStartAdditionalLogo, onStartLogoRevision, onSelectBrandLogo, onDeleteBrandLogo }: { logo: ResolvedLogoOption; logos: ResolvedLogoOption[]; selectedLogoId: string; canShareLogo: boolean; shareStatus: string; onShare: () => void; onOpenMockupStudio: (logoId: string) => void; onStartAdditionalLogo: () => void; onStartLogoRevision: (logoId: string) => void; onSelectBrandLogo: (logoId: string) => void; onDeleteBrandLogo: (logoId: string) => void }) {
+function StyleSection({ logo, logos, selectedLogoId, canShareLogo, shareStatus, mockupStatus, onShare, onOpenMockupStudio, onStartAdditionalLogo, onStartLogoRevision, onSelectBrandLogo, onDeleteBrandLogo }: { logo: ResolvedLogoOption; logos: ResolvedLogoOption[]; selectedLogoId: string; canShareLogo: boolean; shareStatus: string; mockupStatus: string; onShare: () => void; onOpenMockupStudio: (logoId: string) => void; onStartAdditionalLogo: () => void; onStartLogoRevision: (logoId: string) => void; onSelectBrandLogo: (logoId: string) => void; onDeleteBrandLogo: (logoId: string) => void }) {
   const rows = [
     ["설명", logo.description],
   ];
@@ -310,6 +395,7 @@ function StyleSection({ logo, logos, selectedLogoId, canShareLogo, shareStatus, 
       ) : null}
       {!logoHasImage(logo) ? <SoftCard className="bg-surface-blue text-xs font-bold leading-5 text-primary-strong">기본 제공 로고는 이미지 파일 링크가 없어 공유를 비활성화했어요.</SoftCard> : null}
       {isClaimedSharedLogo(logo) ? <SoftCard className="bg-surface-blue text-xs font-bold leading-5 text-primary-strong">이미 다른 계정에서 사용 확정된 공유 로고예요.</SoftCard> : null}
+      {mockupStatus ? <SoftCard className="bg-surface-blue text-xs font-bold leading-5 text-primary-strong">{mockupStatus}</SoftCard> : null}
       {shareStatus ? <SoftCard className="bg-surface-blue text-xs font-bold leading-5 text-primary-strong">{shareStatus}</SoftCard> : null}
     </div>
   );
@@ -375,11 +461,12 @@ function MockupStudioPage({ logo, assets, mockupStatus, generatingMockupSceneId,
   return (
     <div className="grid gap-5">
       <SoftCard className="bg-[linear-gradient(180deg,var(--color-surface)_0%,var(--color-surface-blue)_100%)]">
-        <button className="mb-4 text-xs font-black text-primary-strong disabled:cursor-not-allowed disabled:opacity-50" type="button" disabled={Boolean(generatingMockupSceneId)} onClick={onBack}>
+        <button className="mb-4 text-xs font-black text-primary-strong" type="button" onClick={onBack}>
           ← 로고 목록으로
         </button>
         <div className="grid gap-4">
           <LargeLogoPreview logo={logo} />
+          <GeneratedMockupList assets={assets} />
           <div>
             <p className="text-lg font-black tracking-[-0.04em] text-ink">{logo.name} 목업 제작</p>
             <p className="mt-1 text-xs font-bold leading-5 text-muted">이 화면에서는 선택한 로고 하나만 기준으로 목업을 생성해요.</p>
@@ -388,21 +475,30 @@ function MockupStudioPage({ logo, assets, mockupStatus, generatingMockupSceneId,
       </SoftCard>
       <MockupTemplateList logo={logo} generatingMockupSceneId={generatingMockupSceneId} onCreateBrandMockup={onCreateBrandMockup} />
       {mockupStatus ? <SoftCard className="bg-surface-blue text-xs font-bold leading-5 text-primary-strong">{mockupStatus}</SoftCard> : null}
-      <div className="grid gap-3">
-        {assets.length > 0 ? <p className="px-1 text-sm font-black text-ink">생성된 목업</p> : null}
-        {assets.map((asset) => (
-          <SoftCard key={asset.id}>
-            {asset.imageUrl ? (
-              <div className="relative mb-3 aspect-[4/3] overflow-hidden rounded-md bg-surface-blue">
-                <Image src={asset.imageUrl} alt={asset.title} fill sizes="(max-width: 430px) 100vw, 390px" className="object-cover" unoptimized />
-              </div>
-            ) : null}
-            <p className="text-xs font-black text-soft">저장 목업</p>
-            <p className="mt-1 text-sm font-black leading-6 text-ink">{asset.title} · {asset.createdAt}</p>
-            <p className="mt-2 text-xs font-bold leading-5 text-muted">{asset.description}</p>
-          </SoftCard>
-        ))}
-      </div>
+    </div>
+  );
+}
+
+function GeneratedMockupList({ assets }: { assets: BrandAsset[] }) {
+  if (assets.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="grid gap-3">
+      <p className="px-1 text-sm font-black text-ink">생성된 목업</p>
+      {assets.map((asset) => (
+        <div key={asset.id} className="rounded-lg bg-surface p-3 shadow-card">
+          {asset.imageUrl ? (
+            <div className="relative mb-3 aspect-[4/3] overflow-hidden rounded-md bg-surface-blue">
+              <Image src={asset.imageUrl} alt={asset.title} fill sizes="(max-width: 430px) 100vw, 390px" className="object-cover" unoptimized />
+            </div>
+          ) : null}
+          <p className="text-xs font-black text-soft">저장 목업</p>
+          <p className="mt-1 text-sm font-black leading-6 text-ink">{asset.title} · {asset.createdAt}</p>
+          <p className="mt-2 text-xs font-bold leading-5 text-muted">{asset.description}</p>
+        </div>
+      ))}
     </div>
   );
 }

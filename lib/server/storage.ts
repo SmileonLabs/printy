@@ -334,6 +334,13 @@ function pixelLuminance({ red, green, blue }: BackgroundColor) {
   return red * 0.299 + green * 0.587 + blue * 0.114;
 }
 
+function isSafeGeneratedLogoBackgroundForTransparency(backgroundColor: BackgroundColor) {
+  const maxChannel = Math.max(backgroundColor.red, backgroundColor.green, backgroundColor.blue);
+  const minChannel = Math.min(backgroundColor.red, backgroundColor.green, backgroundColor.blue);
+
+  return pixelLuminance(backgroundColor) >= 150 && maxChannel - minChannel <= 72;
+}
+
 function isNearWhiteOpaquePixel(data: Buffer, pixelIndex: number) {
   const { red, green, blue, alpha } = readPixel(data, pixelIndex);
 
@@ -598,6 +605,11 @@ async function makeGeneratedLogoBackgroundTransparent(bytes: Uint8Array) {
     const { data, info } = await sharp(bytes).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
     const pixelCount = info.width * info.height;
     const backgroundColor = estimateEdgeBackgroundColor(data, info.width, info.height);
+
+    if (!isSafeGeneratedLogoBackgroundForTransparency(backgroundColor)) {
+      return bytes;
+    }
+
     const visited = new Uint8Array(pixelCount);
     const queue: number[] = [];
     let transparentPixels = 0;
