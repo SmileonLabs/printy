@@ -1,5 +1,5 @@
 import { createJSONStorage, type PersistOptions } from "zustand/middleware";
-import { isSelectableLogoId, normalizeBrandWithSelectableLogos, normalizeBusinessCardDraftWithSelectableLogos, normalizeGeneratedLogos, normalizeSelectableLogoId } from "@/store/printy-store-normalizers";
+import { isSelectableLogoId, normalizeBrandAsset, normalizeBrandWithSelectableLogos, normalizeBusinessCardDraftWithSelectableLogos, normalizeGeneratedLogos, normalizeSelectableLogoId } from "@/store/printy-store-normalizers";
 import type { MainTab } from "@/lib/types";
 import type { PrintyState } from "@/store/printy-store-types";
 
@@ -35,9 +35,10 @@ function isMainTab(value: unknown): value is MainTab {
 
 function hasSavedBrandWorkspaceArrays(state: Partial<PrintyState>) {
   return Boolean(
-    (state.brands?.length ?? 0) > 0 ||
+      (state.brands?.length ?? 0) > 0 ||
       (state.businessCardDrafts?.length ?? 0) > 0 ||
       (state.orders?.length ?? 0) > 0 ||
+      (state.brandAssets?.length ?? 0) > 0 ||
       (state.savedGeneratedLogoOptions?.length ?? 0) > 0,
   );
 }
@@ -120,6 +121,7 @@ export const printyStorePersistOptions = {
         ? {
             savedGeneratedLogoOptions: state.savedGeneratedLogoOptions.filter((logo) => logo.id === state.selectedLogoId || state.brands.some((brand) => brand.selectedLogoId === logo.id || (Array.isArray(brand.logoIds) && brand.logoIds.includes(logo.id))) || state.businessCardDrafts.some((draft) => draft.selectedLogoId === logo.id)),
             brands: state.brands,
+            brandAssets: state.brandAssets,
             businessCardDrafts: state.businessCardDrafts,
             orders: state.orders,
           }
@@ -149,6 +151,8 @@ export const printyStorePersistOptions = {
     const persistedWorkspaceState = shouldRestoreWorkspaceArrays ? persistedState : currentState;
     const savedGeneratedLogoOptions = shouldRestoreWorkspaceArrays ? normalizeGeneratedLogos(persistedState.savedGeneratedLogoOptions) : currentState.savedGeneratedLogoOptions;
     const brands = (persistedWorkspaceState.brands ?? currentState.brands).filter((brand) => brand.id !== "brand-seed").map((brand) => normalizeBrandWithSelectableLogos(brand, savedGeneratedLogoOptions));
+    const brandIds = new Set(brands.map((brand) => brand.id));
+    const brandAssets = (persistedWorkspaceState.brandAssets ?? currentState.brandAssets).map((asset) => normalizeBrandAsset(asset)).filter((asset): asset is NonNullable<typeof asset> => asset !== undefined && brandIds.has(asset.brandId));
     const businessCardDrafts = (persistedWorkspaceState.businessCardDrafts ?? currentState.businessCardDrafts).map((draft) => normalizeBusinessCardDraftWithSelectableLogos(draft, savedGeneratedLogoOptions));
     const selectedBrandId = brands.some((brand) => brand.id === persistedState.selectedBrandId) ? persistedState.selectedBrandId : undefined;
     const activeBusinessCardDraftId = businessCardDrafts.some((draft) => draft.id === persistedState.activeBusinessCardDraftId) ? persistedState.activeBusinessCardDraftId : undefined;
@@ -190,6 +194,7 @@ export const printyStorePersistOptions = {
       activeBusinessCardDraftId,
       lastOrderId: persistedState.lastOrderId ?? currentState.lastOrderId,
       brands,
+      brandAssets,
       businessCardDrafts,
       orders: shouldRestoreWorkspaceArrays ? persistedState.orders ?? currentState.orders : currentState.orders,
       selectedTemplateId: persistedState.selectedTemplateId ?? currentState.selectedTemplateId,

@@ -9,6 +9,7 @@ function readLocalWorkspace(): BrandWorkspace {
 
   return {
     brands: state.brands,
+    brandAssets: state.brandAssets,
     savedGeneratedLogoOptions: state.savedGeneratedLogoOptions,
     businessCardDrafts: state.businessCardDrafts,
     orders: state.orders,
@@ -59,6 +60,7 @@ export function BrandWorkspaceSyncController() {
   const isAuthenticated = usePrintyStore((state) => state.isAuthenticated);
   const userId = usePrintyStore((state) => state.authSession?.userId);
   const brands = usePrintyStore((state) => state.brands);
+  const brandAssets = usePrintyStore((state) => state.brandAssets);
   const savedGeneratedLogoOptions = usePrintyStore((state) => state.savedGeneratedLogoOptions);
   const businessCardDrafts = usePrintyStore((state) => state.businessCardDrafts);
   const orders = usePrintyStore((state) => state.orders);
@@ -119,7 +121,7 @@ export function BrandWorkspaceSyncController() {
       return;
     }
 
-    const initialWorkspace = { brands, savedGeneratedLogoOptions, businessCardDrafts, orders };
+    const initialWorkspace = { brands, brandAssets, savedGeneratedLogoOptions, businessCardDrafts, orders };
     const initialSignature = createBrandWorkspaceSignature(initialWorkspace);
 
     if (lastSavedSignaturesRef.current.get(userId) === initialSignature) {
@@ -157,7 +159,7 @@ export function BrandWorkspaceSyncController() {
     void autosaveWorkspaceChanges().finally(() => {
       savingUserIdsRef.current.delete(autosaveUserId);
     });
-  }, [isAuthenticated, userId, brands, savedGeneratedLogoOptions, businessCardDrafts, orders, acknowledgeBrandWorkspaceSave]);
+  }, [isAuthenticated, userId, brands, brandAssets, savedGeneratedLogoOptions, businessCardDrafts, orders, acknowledgeBrandWorkspaceSave]);
 
   return null;
 }

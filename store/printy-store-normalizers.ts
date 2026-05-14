@@ -1,7 +1,7 @@
 import { isGeneratedLogoOption } from "@/lib/logo/logoValidation";
 import { normalizeMemberContact } from "@/lib/member-contact";
 import { logoOptions } from "@/lib/mock-data";
-import type { Brand, BusinessCardDraft, GeneratedLogoOption, Member } from "@/lib/types";
+import type { Brand, BrandAsset, BusinessCardDraft, GeneratedLogoOption, Member } from "@/lib/types";
 import { defaultBrandDraft, defaultMember, type BrandDraft } from "@/store/printy-store-defaults";
 import { getCreatedDate, makeId } from "@/store/printy-store-id-date";
 
@@ -139,6 +139,33 @@ export function normalizeBusinessCardDraftWithSelectableLogos(draft: BusinessCar
 
 export function normalizeBusinessCardDraft(draft: BusinessCardDraft | Record<string, unknown>): BusinessCardDraft {
   return normalizeBusinessCardDraftWithSelectableLogos(draft, []);
+}
+
+export function normalizeBrandAsset(asset: BrandAsset | Record<string, unknown>): BrandAsset | undefined {
+  const record = asset as Record<string, unknown>;
+  const id = normalizeString(record.id);
+  const brandId = normalizeString(record.brandId);
+  const sectionId = normalizeString(record.sectionId);
+  const productId = normalizeString(record.productId);
+  const title = normalizeString(record.title);
+
+  if (!id || !brandId || !sectionId || !productId || !title) {
+    return undefined;
+  }
+
+  const assetType = record.assetType === "mockup" || record.assetType === "brand-board" || record.assetType === "file" ? record.assetType : undefined;
+
+  return {
+    id,
+    brandId,
+    sectionId: sectionId as BrandAsset["sectionId"],
+    productId,
+    title,
+    description: normalizeString(record.description),
+    imageUrl: typeof record.imageUrl === "string" && record.imageUrl.trim().length > 0 ? record.imageUrl.trim() : undefined,
+    assetType,
+    createdAt: normalizeOptionalString(record.createdAt, getCreatedDate()),
+  };
 }
 
 export function normalizeGeneratedLogos(logos: unknown): GeneratedLogoOption[] {

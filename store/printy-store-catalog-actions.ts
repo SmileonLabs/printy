@@ -2,12 +2,27 @@ import type { StateCreator } from "zustand";
 import { businessCardProductId } from "@/lib/business-card-templates";
 import { defaultMember } from "@/store/printy-store-defaults";
 import { getProductForSection } from "@/store/printy-store-products";
+import type { BrandAsset } from "@/lib/types";
 import type { PrintyState } from "@/store/printy-store-types";
 
 type PrintyStoreSet = Parameters<StateCreator<PrintyState, [], [], PrintyState>>[0];
 type PrintyStoreGet = Parameters<StateCreator<PrintyState, [], [], PrintyState>>[1];
 
-type PrintyCatalogActions = Pick<PrintyState, "startProduct" | "selectTemplate" | "startBrandSectionProduction">;
+type PrintyCatalogActions = Pick<PrintyState, "startProduct" | "selectTemplate" | "addBrandAssets" | "startBrandSectionProduction">;
+
+function mergeBrandAssets(currentAssets: BrandAsset[], nextAssets: BrandAsset[]) {
+  const merged = new Map<string, BrandAsset>();
+
+  for (const asset of currentAssets) {
+    merged.set(asset.id, asset);
+  }
+
+  for (const asset of nextAssets) {
+    merged.set(asset.id, asset);
+  }
+
+  return Array.from(merged.values());
+}
 
 export function createPrintyCatalogActions(set: PrintyStoreSet, get: PrintyStoreGet): PrintyCatalogActions {
   return {
@@ -62,6 +77,13 @@ export function createPrintyCatalogActions(set: PrintyStoreSet, get: PrintyStore
         brandWorkspaceOwnerUserId: shouldUpdateBusinessCardDraft && !state.isAuthenticated ? undefined : state.brandWorkspaceOwnerUserId,
       }));
     },
+    addBrandAssets: (brandId, assets) =>
+      set((state) => ({
+        brandAssets: mergeBrandAssets(state.brandAssets, assets.filter((asset) => asset.brandId === brandId)),
+        brands: state.brands.map((brand) => (brand.id === brandId ? { ...brand, assets: Math.max(brand.assets, brand.assets + assets.length) } : brand)),
+        brandWorkspaceHasPendingLocalChanges: assets.length > 0 ? true : state.brandWorkspaceHasPendingLocalChanges,
+        brandWorkspaceOwnerUserId: assets.length > 0 && !state.isAuthenticated ? undefined : state.brandWorkspaceOwnerUserId,
+      })),
     startBrandSectionProduction: (brandId, sectionId, memberIds) => {
       const state = get();
       const brand = state.brands.find((item) => item.id === brandId);

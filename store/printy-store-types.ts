@@ -101,6 +101,7 @@ export type PrintyState = {
   setBrandSection: (sectionId: BrandDetailSectionId) => void;
   startProduct: (productId: string) => void;
   selectTemplate: (templateId: string) => void;
+  addBrandAssets: (brandId: string, assets: BrandAsset[]) => void;
   syncTemplates: (templates: PrintTemplate[]) => void;
   resetTemplatesToSeeds: () => void;
   syncBrandWorkspace: (workspace: BrandWorkspace, ownerUserId?: string) => void;

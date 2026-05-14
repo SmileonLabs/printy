@@ -21,6 +21,7 @@ export function createPrintyWorkspaceActions(set: PrintyStoreSet): PrintyWorkspa
 
         return {
           brands: workspace.brands,
+          brandAssets: workspace.brandAssets,
           savedGeneratedLogoOptions: workspace.savedGeneratedLogoOptions,
           businessCardDrafts: workspace.businessCardDrafts,
           orders: workspace.orders,
@@ -38,6 +39,7 @@ export function createPrintyWorkspaceActions(set: PrintyStoreSet): PrintyWorkspa
         const authUserId = state.authSession?.userId;
         const currentSignature = createBrandWorkspaceSignature({
           brands: state.brands,
+          brandAssets: state.brandAssets,
           savedGeneratedLogoOptions: state.savedGeneratedLogoOptions,
           businessCardDrafts: state.businessCardDrafts,
           orders: state.orders,

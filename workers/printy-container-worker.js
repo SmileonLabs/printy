@@ -31,11 +31,13 @@ function shouldUseNativeContainer(pathname) {
   return (
     pathname.startsWith("/api/admin/") ||
     pathname === "/api/logo-reference-images" ||
+    pathname === "/api/brand-mockups" ||
     pathname === "/api/logos/generate" ||
     pathname.startsWith("/api/logos/generation-jobs/") ||
     pathname === "/api/logos/vectorize" ||
     /^\/uploads\/logo-reference-images\/[^/]+$/.test(pathname) ||
     /^\/uploads\/generated-logos\/[^/]+$/.test(pathname) ||
+    /^\/uploads\/brand-assets\/[^/]+$/.test(pathname) ||
     /^\/uploads\/admin\/business-card-backgrounds\/[^/]+$/.test(pathname) ||
     /^\/api\/templates\/[^/]+\/business-card-pdf$/.test(pathname)
   );

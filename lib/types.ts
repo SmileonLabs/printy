@@ -382,6 +382,8 @@ export type BrandAsset = {
   productId: string;
   title: string;
   description: string;
+  imageUrl?: string;
+  assetType?: "mockup" | "brand-board" | "file";
   createdAt: string;
 };
 

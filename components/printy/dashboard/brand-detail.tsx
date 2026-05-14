@@ -44,6 +44,20 @@ function isClaimedSharedLogo(logo: ResolvedLogoOption) {
   return "shareLockedAt" in logo && typeof logo.shareLockedAt === "string";
 }
 
+function isBrandAsset(value: unknown): value is BrandAsset {
+  return typeof value === "object" && value !== null && typeof (value as { id?: unknown }).id === "string" && typeof (value as { brandId?: unknown }).brandId === "string" && typeof (value as { title?: unknown }).title === "string" && typeof (value as { description?: unknown }).description === "string" && typeof (value as { createdAt?: unknown }).createdAt === "string";
+}
+
+function readBrandMockupAssetsResponse(value: unknown) {
+  if (typeof value !== "object" || value === null || !Array.isArray((value as { assets?: unknown }).assets)) {
+    return undefined;
+  }
+
+  const assets = (value as { assets: unknown[] }).assets.filter(isBrandAsset);
+
+  return assets.length > 0 ? assets : undefined;
+}
+
 function getBrandLogoIds(brand: Brand) {
   return Array.from(new Set([brand.selectedLogoId, ...(Array.isArray(brand.logoIds) ? brand.logoIds : [])]));
 }
@@ -98,10 +112,13 @@ export function BrandDetail() {
 
 export function SectionPanel({ sectionId, title, summary, brand, cardDraft, businessCardDrafts, orders, assets, templates }: { sectionId: BrandDetailSectionId; title: string; summary: string; brand: Brand; cardDraft?: BusinessCardDraft; businessCardDrafts: BusinessCardDraft[]; orders: OrderRecord[]; assets: BrandAsset[]; templates: PrintTemplate[] }) {
   const [shareStatus, setShareStatus] = useState("");
+  const [mockupStatus, setMockupStatus] = useState("");
+  const [isGeneratingMockups, setIsGeneratingMockups] = useState(false);
   const [teamNotice, setTeamNotice] = useState("");
   const brandLogo = usePrintyStore((state) => resolveLogoFromState(state, brand.selectedLogoId));
   const startBrandSectionProduction = usePrintyStore((state) => state.startBrandSectionProduction);
   const startAdditionalLogoForBrand = usePrintyStore((state) => state.startAdditionalLogoForBrand);
+  const addBrandAssets = usePrintyStore((state) => state.addBrandAssets);
   const selectBrandLogo = usePrintyStore((state) => state.selectBrandLogo);
   const deleteBrandLogo = usePrintyStore((state) => state.deleteBrandLogo);
   const setBrandSection = usePrintyStore((state) => state.setBrandSection);
@@ -155,6 +172,37 @@ export function SectionPanel({ sectionId, title, summary, brand, cardDraft, busi
     }
   };
 
+  const handleCreateBrandMockups = async () => {
+    if (!logoHasImage(brandLogo)) {
+      setMockupStatus("저장된 이미지 로고가 있어야 목업을 만들 수 있어요.");
+      return;
+    }
+
+    setIsGeneratingMockups(true);
+    setMockupStatus("브랜드 목업을 만들고 있어요.");
+
+    try {
+      const response = await fetch("/api/brand-mockups", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ brandId: brand.id, brandName: brand.name, category: brand.category, logoImageUrl: brandLogo.imageUrl }),
+      });
+      const payload: unknown = await response.json().catch(() => undefined);
+      const assets = readBrandMockupAssetsResponse(payload);
+
+      if (!response.ok || !assets) {
+        throw new Error(typeof payload === "object" && payload !== null && typeof (payload as { reason?: unknown }).reason === "string" ? (payload as { reason: string }).reason : "브랜드 목업을 만들지 못했어요.");
+      }
+
+      addBrandAssets(brand.id, assets);
+      setMockupStatus(`목업 ${assets.length}개를 만들었어요.`);
+    } catch (error) {
+      setMockupStatus(error instanceof Error ? error.message : "브랜드 목업을 만들지 못했어요.");
+    } finally {
+      setIsGeneratingMockups(false);
+    }
+  };
+
   const handleStartCardsProduction = (memberIds?: string[]) => {
     if (brand.members.length === 0) {
       setTeamNotice("팀원 1명 이상을 추가해 주세요.");
@@ -167,7 +215,7 @@ export function SectionPanel({ sectionId, title, summary, brand, cardDraft, busi
 
   const content = (() => {
     if (sectionId === "style") {
-      return <StyleSection logo={brandLogo} logos={brandLogos} selectedLogoId={brand.selectedLogoId} assets={sectionAssets} canShareLogo={canShareLogo} shareStatus={shareStatus} onShare={handleLogoShare} onStartAdditionalLogo={() => startAdditionalLogoForBrand(brand.id)} onSelectBrandLogo={(logoId) => selectBrandLogo(brand.id, logoId)} onDeleteBrandLogo={(logoId) => deleteBrandLogo(brand.id, logoId)} />;
+      return <StyleSection logo={brandLogo} logos={brandLogos} selectedLogoId={brand.selectedLogoId} assets={sectionAssets} canShareLogo={canShareLogo} shareStatus={shareStatus} mockupStatus={mockupStatus} isGeneratingMockups={isGeneratingMockups} onShare={handleLogoShare} onCreateBrandMockups={handleCreateBrandMockups} onStartAdditionalLogo={() => startAdditionalLogoForBrand(brand.id)} onSelectBrandLogo={(logoId) => selectBrandLogo(brand.id, logoId)} onDeleteBrandLogo={(logoId) => deleteBrandLogo(brand.id, logoId)} />;
     }
 
     if (sectionId === "team") {
@@ -214,7 +262,7 @@ export function SectionPanel({ sectionId, title, summary, brand, cardDraft, busi
   );
 }
 
-function StyleSection({ logo, logos, selectedLogoId, assets, canShareLogo, shareStatus, onShare, onStartAdditionalLogo, onSelectBrandLogo, onDeleteBrandLogo }: { logo: ResolvedLogoOption; logos: ResolvedLogoOption[]; selectedLogoId: string; assets: BrandAsset[]; canShareLogo: boolean; shareStatus: string; onShare: () => void; onStartAdditionalLogo: () => void; onSelectBrandLogo: (logoId: string) => void; onDeleteBrandLogo: (logoId: string) => void }) {
+function StyleSection({ logo, logos, selectedLogoId, assets, canShareLogo, shareStatus, mockupStatus, isGeneratingMockups, onShare, onCreateBrandMockups, onStartAdditionalLogo, onSelectBrandLogo, onDeleteBrandLogo }: { logo: ResolvedLogoOption; logos: ResolvedLogoOption[]; selectedLogoId: string; assets: BrandAsset[]; canShareLogo: boolean; shareStatus: string; mockupStatus: string; isGeneratingMockups: boolean; onShare: () => void; onCreateBrandMockups: () => void; onStartAdditionalLogo: () => void; onSelectBrandLogo: (logoId: string) => void; onDeleteBrandLogo: (logoId: string) => void }) {
   const rows = [
     ["설명", logo.description],
   ];
@@ -226,6 +274,9 @@ function StyleSection({ logo, logos, selectedLogoId, assets, canShareLogo, share
           <LargeLogoPreview logo={logo} />
           <AppButton variant="secondary" onClick={onStartAdditionalLogo}>
             로고 하나 더 만들기
+          </AppButton>
+          <AppButton className="disabled:cursor-wait disabled:opacity-60 disabled:hover:translate-y-0" onClick={onCreateBrandMockups} disabled={isGeneratingMockups || !logoHasImage(logo)}>
+            {isGeneratingMockups ? "목업 생성 중" : "브랜드 목업 만들기"}
           </AppButton>
         </div>
       </SoftCard>
@@ -239,8 +290,14 @@ function StyleSection({ logo, logos, selectedLogoId, assets, canShareLogo, share
         ))}
         {assets.map((asset) => (
           <SoftCard key={asset.id}>
+            {asset.imageUrl ? (
+              <div className="relative mb-3 aspect-[4/3] overflow-hidden rounded-md bg-surface-blue">
+                <Image src={asset.imageUrl} alt={asset.title} fill sizes="(max-width: 430px) 100vw, 390px" className="object-cover" unoptimized />
+              </div>
+            ) : null}
             <p className="text-xs font-black text-soft">저장 자산</p>
             <p className="mt-1 text-sm font-black leading-6 text-ink">{asset.title} · {asset.createdAt}</p>
+            <p className="mt-2 text-xs font-bold leading-5 text-muted">{asset.description}</p>
           </SoftCard>
         ))}
       </div>
@@ -254,6 +311,7 @@ function StyleSection({ logo, logos, selectedLogoId, assets, canShareLogo, share
       {!logoHasImage(logo) ? <SoftCard className="bg-surface-blue text-xs font-bold leading-5 text-primary-strong">기본 제공 로고는 이미지 파일 링크가 없어 공유를 비활성화했어요.</SoftCard> : null}
       {isClaimedSharedLogo(logo) ? <SoftCard className="bg-surface-blue text-xs font-bold leading-5 text-primary-strong">이미 다른 계정에서 사용 확정된 공유 로고예요.</SoftCard> : null}
       {shareStatus ? <SoftCard className="bg-surface-blue text-xs font-bold leading-5 text-primary-strong">{shareStatus}</SoftCard> : null}
+      {mockupStatus ? <SoftCard className="bg-surface-blue text-xs font-bold leading-5 text-primary-strong">{mockupStatus}</SoftCard> : null}
     </div>
   );
 }

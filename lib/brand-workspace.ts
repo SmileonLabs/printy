@@ -1,13 +1,14 @@
 import { isGeneratedLogoOption } from "@/lib/logo/logoValidation";
 import { normalizeMemberContact } from "@/lib/member-contact";
 import { logoOptions } from "@/lib/mock-data";
-import type { Brand, BusinessCardDraft, GeneratedLogoOption, Member, OrderRecord, PaymentMethod } from "@/lib/types";
+import type { Brand, BrandAsset, BusinessCardDraft, GeneratedLogoOption, Member, OrderRecord, PaymentMethod } from "@/lib/types";
 
 export type BrandWorkspace = {
   brands: Brand[];
   savedGeneratedLogoOptions: GeneratedLogoOption[];
   businessCardDrafts: BusinessCardDraft[];
   orders: OrderRecord[];
+  brandAssets: BrandAsset[];
 };
 
 const paymentMethods = new Set<PaymentMethod>(["간편결제", "카드", "계좌이체"]);
@@ -101,6 +102,24 @@ export function isOrderRecord(value: unknown): value is OrderRecord {
   );
 }
 
+export function isBrandAsset(value: unknown): value is BrandAsset {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    isNonEmptyString(value.id) &&
+    isString(value.brandId) &&
+    isString(value.sectionId) &&
+    isString(value.productId) &&
+    isString(value.title) &&
+    isString(value.description) &&
+    (value.imageUrl === undefined || isString(value.imageUrl)) &&
+    (value.assetType === undefined || value.assetType === "mockup" || value.assetType === "brand-board" || value.assetType === "file") &&
+    isString(value.createdAt)
+  );
+}
+
 function hasUniqueIds(items: { id: string }[]) {
   return new Set(items.map((item) => item.id)).size === items.length;
 }
@@ -121,12 +140,14 @@ export function readBrandWorkspace(value: unknown): BrandWorkspace | undefined {
   const savedGeneratedLogoOptions = value.savedGeneratedLogoOptions.filter(isGeneratedLogoOption);
   const businessCardDrafts = value.businessCardDrafts.filter(isBusinessCardDraft).map(normalizeBusinessCardDraftContacts);
   const orders = value.orders.filter(isOrderRecord);
+  const rawBrandAssets = Array.isArray(value.brandAssets) ? value.brandAssets : [];
+  const brandAssets = rawBrandAssets.filter(isBrandAsset);
 
-  if (brands.length !== value.brands.length || savedGeneratedLogoOptions.length !== value.savedGeneratedLogoOptions.length || businessCardDrafts.length !== value.businessCardDrafts.length || orders.length !== value.orders.length) {
+  if (brands.length !== value.brands.length || savedGeneratedLogoOptions.length !== value.savedGeneratedLogoOptions.length || businessCardDrafts.length !== value.businessCardDrafts.length || orders.length !== value.orders.length || brandAssets.length !== rawBrandAssets.length) {
     return undefined;
   }
 
-  if (!hasUniqueIds(brands) || !hasUniqueIds(savedGeneratedLogoOptions) || !hasUniqueIds(businessCardDrafts) || !hasUniqueIds(orders)) {
+  if (!hasUniqueIds(brands) || !hasUniqueIds(savedGeneratedLogoOptions) || !hasUniqueIds(businessCardDrafts) || !hasUniqueIds(orders) || !hasUniqueIds(brandAssets)) {
     return undefined;
   }
 
@@ -136,7 +157,7 @@ export function readBrandWorkspace(value: unknown): BrandWorkspace | undefined {
     return undefined;
   }
 
-  return { brands, savedGeneratedLogoOptions, businessCardDrafts, orders };
+  return { brands, savedGeneratedLogoOptions, businessCardDrafts, orders, brandAssets };
 }
 
 function mergeById<T extends { id: string }>(localItems: T[], serverItems: T[]) {
@@ -173,11 +194,12 @@ export function mergeBrandWorkspaces(localWorkspace: BrandWorkspace, serverWorks
     savedGeneratedLogoOptions: mergeById(localWorkspace.savedGeneratedLogoOptions, serverWorkspace.savedGeneratedLogoOptions),
     businessCardDrafts: mergeById(localWorkspace.businessCardDrafts, serverWorkspace.businessCardDrafts),
     orders: mergeById(localWorkspace.orders, serverWorkspace.orders),
+    brandAssets: mergeById(localWorkspace.brandAssets, serverWorkspace.brandAssets),
   };
 }
 
 export function hasBrandWorkspaceData(workspace: BrandWorkspace) {
-  return workspace.brands.length > 0 || workspace.savedGeneratedLogoOptions.length > 0 || workspace.businessCardDrafts.length > 0 || workspace.orders.length > 0;
+  return workspace.brands.length > 0 || workspace.savedGeneratedLogoOptions.length > 0 || workspace.businessCardDrafts.length > 0 || workspace.orders.length > 0 || workspace.brandAssets.length > 0;
 }
 
 export function createBrandWorkspaceSignature(workspace: BrandWorkspace) {

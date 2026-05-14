@@ -22,6 +22,11 @@ const logoReferencePurpose = "logo-reference-image";
 const logoReferenceUploadDirectory = path.join(process.cwd(), "data", "uploads", "logo-reference-images");
 const logoReferencePublicPath = "/uploads/logo-reference-images";
 const logoReferencePublicPathPrefix = `${logoReferencePublicPath}/`;
+const brandAssetBucket = "brand-assets";
+const brandAssetPurpose = "brand-asset";
+const brandAssetUploadDirectory = path.join(process.cwd(), "data", "uploads", "brand-assets");
+const brandAssetPublicPath = "/uploads/brand-assets";
+const brandAssetPublicPathPrefix = `${brandAssetPublicPath}/`;
 
 export type BusinessCardBackgroundStoredFile = {
   id: string;
@@ -56,6 +61,13 @@ export type LogoReferenceImageStoredFile = {
   size: number;
   createdAt: string;
   analysis?: LogoReferenceImageAnalysis;
+};
+
+export type BrandAssetStoredFile = {
+  id: string;
+  publicUrl: string;
+  contentType: "image/png";
+  size: number;
 };
 
 type StaleGeneratedLogoUploadRow = {
@@ -126,6 +138,20 @@ function logoReferenceObjectKeyFromPublicUrl(publicUrl: string) {
 
 function logoReferenceContentTypeFromObjectKey(objectKey: string): "image/png" | "image/jpeg" {
   return objectKey.endsWith(".png") ? "image/png" : "image/jpeg";
+}
+
+function brandAssetPublicUrlFromObjectKey(objectKey: string) {
+  return `${brandAssetPublicPathPrefix}${objectKey}`;
+}
+
+function brandAssetObjectKeyFromPublicUrl(publicUrl: string) {
+  if (!publicUrl.startsWith(brandAssetPublicPathPrefix)) {
+    return undefined;
+  }
+
+  const objectKey = publicUrl.slice(brandAssetPublicPathPrefix.length);
+
+  return isGeneratedLogoObjectKey(objectKey) ? objectKey : undefined;
 }
 
 function logoReferenceFileNameFromPublicUrl(publicUrl: string) {
@@ -765,6 +791,31 @@ export async function saveLogoReferenceImageBytes(bytes: Uint8Array, contentType
   };
 }
 
+export async function saveBrandAssetImageBytes(bytes: Uint8Array): Promise<BrandAssetStoredFile> {
+  const id = `uploaded-file-${randomUUID()}`;
+  const objectKey = `${randomUUID()}.png`;
+  const publicUrl = brandAssetPublicUrlFromObjectKey(objectKey);
+  const filePath = path.join(brandAssetUploadDirectory, objectKey);
+  const result = await queryDb<UploadedFileRow>(
+    `
+      insert into uploaded_files (id, bucket, object_key, public_url, content_type, size, purpose)
+      values ($1, $2, $3, $4, $5, $6, $7)
+      returning id, object_key, public_url, content_type, size
+    `,
+    [id, brandAssetBucket, objectKey, publicUrl, "image/png", bytes.byteLength, brandAssetPurpose],
+  );
+  const row = result.rows[0];
+  await writeUploadedFileBlob(row.id, bytes);
+  await writeFileCacheBestEffort(brandAssetUploadDirectory, filePath, bytes, "Brand asset");
+
+  return {
+    id: row.id,
+    publicUrl: row.public_url,
+    contentType: "image/png",
+    size: toNumber(row.size),
+  };
+}
+
 export async function listLogoReferenceImages(): Promise<LogoReferenceImageStoredFile[]> {
   const result = await queryDb<UploadedFileRow>(
     `
@@ -903,6 +954,28 @@ export async function readGeneratedLogoBytesByPublicUrl(publicUrl: string): Prom
   } catch (error) {
     if (isMissingFileError(error)) {
       return readUploadedFileBlob(generatedLogoBucket, generatedLogoPurpose, objectKey);
+    }
+
+    throw error;
+  }
+}
+
+export function isBrandAssetPublicUrl(publicUrl: string) {
+  return brandAssetObjectKeyFromPublicUrl(publicUrl) !== undefined;
+}
+
+export async function readBrandAssetBytesByPublicUrl(publicUrl: string): Promise<Uint8Array | undefined> {
+  const objectKey = brandAssetObjectKeyFromPublicUrl(publicUrl);
+
+  if (!objectKey) {
+    return undefined;
+  }
+
+  try {
+    return await readFile(path.join(brandAssetUploadDirectory, objectKey));
+  } catch (error) {
+    if (isMissingFileError(error)) {
+      return readUploadedFileBlob(brandAssetBucket, brandAssetPurpose, objectKey);
     }
 
     throw error;
