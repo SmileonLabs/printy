@@ -47,7 +47,7 @@ RUN apt-get update \
     fonts-nanum \
     fonts-noto-cjk \
   && rm -rf /var/lib/apt/lists/* \
-  && mkdir -p /app/data/uploads/generated-logos /app/data/uploads/brand-assets /app/data/uploads/admin/brand-mockup-templates /app/public/uploads/admin/business-card-backgrounds /opt/printy/color
+  && mkdir -p /app/data/uploads/generated-logos /app/data/uploads/brand-assets /app/public/uploads/admin/business-card-backgrounds /opt/printy/color
 
 RUN mkdir -p /usr/share/fonts/truetype/printy \
   && wget -O /usr/share/fonts/truetype/printy/GowunDodum-Regular.ttf "$GOWUN_DODUM_FONT_URL" \
@@ -80,7 +80,7 @@ COPY --from=builder /app/.next/static ./.next/static
 COPY db ./db
 COPY scripts ./scripts
 
-RUN mkdir -p /app/data/uploads/generated-logos /app/data/uploads/brand-assets /app/data/uploads/admin/brand-mockup-templates /app/public/uploads/admin/business-card-backgrounds /app/.next/cache /opt/printy/color \
+RUN mkdir -p /app/data/uploads/generated-logos /app/data/uploads/brand-assets /app/public/uploads/admin/business-card-backgrounds /app/.next/cache /opt/printy/color \
   && chown -R node:node /app/data /app/public/uploads/admin/business-card-backgrounds /app/.next
 
 USER node

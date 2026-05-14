@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Image from "next/image";
 import { EmptyBrands } from "@/components/printy/dashboard/brands-tab";
 import { resolveLogoFromState } from "@/components/printy/logo/logo-state";
@@ -8,7 +8,7 @@ import { BusinessCardPreview } from "@/components/printy/templates/business-card
 import { AppButton, SoftCard, TextField } from "@/components/ui";
 import { getLogo, LogoMark } from "@/components/ui/logo";
 import { brandDetailSections, logoOptions } from "@/lib/mock-data";
-import type { Brand, BrandAsset, BrandDetailSectionId, BrandMockupTemplate, BusinessCardDraft, Member, OrderRecord, PrintTemplate, ResolvedLogoOption } from "@/lib/types";
+import type { Brand, BrandAsset, BrandDetailSectionId, BusinessCardDraft, Member, OrderRecord, PrintTemplate, ResolvedLogoOption } from "@/lib/types";
 import { usePrintyStore } from "@/store/use-printy-store";
 
 type LogoWithImage = Extract<ResolvedLogoOption, { imageUrl: string }>;
@@ -36,6 +36,15 @@ const memberFormFields: Array<{ label: string; field: keyof MemberFormValues; pl
   { label: "주소", field: "address", placeholder: "서울시 성동구 프린티로 12" },
 ];
 
+const brandMockupTemplates = [
+  { id: "paper-emboss", title: "프리미엄 종이", description: "종이 질감과 음각/압인 느낌" },
+  { id: "signboard", title: "매장 간판", description: "벽면 사인보드 적용" },
+  { id: "package-cup", title: "컵/포장지", description: "카페 패키지 적용" },
+  { id: "mug", title: "머그컵", description: "굿즈 표면 인쇄" },
+  { id: "digital", title: "디지털 화면", description: "모바일/태블릿 화면" },
+  { id: "business-card", title: "명함", description: "인쇄물 브랜드 시스템" },
+];
+
 function logoHasImage(logo: ResolvedLogoOption): logo is LogoWithImage {
   return "imageUrl" in logo;
 }
@@ -56,20 +65,6 @@ function readBrandMockupAssetResponse(value: unknown) {
   const asset = (value as { asset?: unknown }).asset;
 
   return isBrandAsset(asset) ? asset : undefined;
-}
-
-function isBrandMockupTemplate(value: unknown): value is BrandMockupTemplate {
-  return typeof value === "object" && value !== null && typeof (value as { id?: unknown }).id === "string" && typeof (value as { title?: unknown }).title === "string" && typeof (value as { description?: unknown }).description === "string" && typeof (value as { imageUrl?: unknown }).imageUrl === "string";
-}
-
-function readBrandMockupTemplatesResponse(value: unknown) {
-  if (typeof value !== "object" || value === null || !Array.isArray((value as { templates?: unknown }).templates)) {
-    return undefined;
-  }
-
-  const templates = (value as { templates: unknown[] }).templates;
-
-  return templates.every(isBrandMockupTemplate) ? templates : undefined;
 }
 
 function getBrandLogoIds(brand: Brand) {
@@ -129,8 +124,6 @@ export function SectionPanel({ sectionId, title, summary, brand, cardDraft, busi
   const [mockupStatus, setMockupStatus] = useState("");
   const [generatingMockupSceneId, setGeneratingMockupSceneId] = useState<string>();
   const [mockupLogoId, setMockupLogoId] = useState<string>();
-  const [mockupTemplates, setMockupTemplates] = useState<BrandMockupTemplate[]>([]);
-  const [mockupTemplatesLoaded, setMockupTemplatesLoaded] = useState(false);
   const [teamNotice, setTeamNotice] = useState("");
   const brandLogo = usePrintyStore((state) => resolveLogoFromState(state, brand.selectedLogoId));
   const startBrandSectionProduction = usePrintyStore((state) => state.startBrandSectionProduction);
@@ -148,37 +141,6 @@ export function SectionPanel({ sectionId, title, summary, brand, cardDraft, busi
   const savedGeneratedLogoOptions = usePrintyStore((state) => state.savedGeneratedLogoOptions);
   const brandLogos = getBrandLogoIds(brand).map((logoId) => getLogo(logoId, [...generatedLogoOptions, ...savedGeneratedLogoOptions]));
   const mockupLogo = mockupLogoId ? brandLogos.find((item) => item.id === mockupLogoId) : undefined;
-
-  useEffect(() => {
-    if (sectionId !== "style") {
-      return;
-    }
-
-    let cancelled = false;
-
-    async function loadMockupTemplates() {
-      try {
-        const response = await fetch("/api/brand-mockup-templates", { cache: "no-store" });
-        const templates = readBrandMockupTemplatesResponse(await response.json().catch(() => undefined));
-
-        if (!cancelled) {
-          setMockupTemplates(response.ok && templates ? templates : []);
-          setMockupTemplatesLoaded(true);
-        }
-      } catch {
-        if (!cancelled) {
-          setMockupTemplates([]);
-          setMockupTemplatesLoaded(true);
-        }
-      }
-    }
-
-    loadMockupTemplates();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [sectionId]);
 
   const handleLogoShare = async () => {
     if (!logoHasImage(brandLogo)) {
@@ -222,20 +184,20 @@ export function SectionPanel({ sectionId, title, summary, brand, cardDraft, busi
     }
   };
 
-  const handleCreateBrandMockup = async (logo: ResolvedLogoOption, templateId: string) => {
+  const handleCreateBrandMockup = async (logo: ResolvedLogoOption, sceneId: string) => {
     if (!logoHasImage(logo)) {
       setMockupStatus("저장된 이미지 로고가 있어야 목업을 만들 수 있어요.");
       return;
     }
 
-    setGeneratingMockupSceneId(templateId);
+    setGeneratingMockupSceneId(sceneId);
     setMockupStatus("브랜드 목업을 만들고 있어요.");
 
     try {
       const response = await fetch("/api/brand-mockups", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brandId: brand.id, brandName: brand.name, category: brand.category, logoImageUrl: logo.imageUrl, templateId }),
+        body: JSON.stringify({ brandId: brand.id, brandName: brand.name, category: brand.category, logoImageUrl: logo.imageUrl, sceneId }),
       });
       const payload: unknown = await response.json().catch(() => undefined);
       const asset = readBrandMockupAssetResponse(payload);
@@ -266,7 +228,7 @@ export function SectionPanel({ sectionId, title, summary, brand, cardDraft, busi
   const content = (() => {
     if (sectionId === "style") {
       if (mockupLogo) {
-        return <MockupStudioPage logo={mockupLogo} assets={sectionAssets} templates={mockupTemplates} templatesLoaded={mockupTemplatesLoaded} mockupStatus={mockupStatus} generatingMockupSceneId={generatingMockupSceneId} onBack={() => setMockupLogoId(undefined)} onCreateBrandMockup={handleCreateBrandMockup} />;
+        return <MockupStudioPage logo={mockupLogo} assets={sectionAssets} mockupStatus={mockupStatus} generatingMockupSceneId={generatingMockupSceneId} onBack={() => setMockupLogoId(undefined)} onCreateBrandMockup={handleCreateBrandMockup} />;
       }
 
       return <StyleSection logo={brandLogo} logos={brandLogos} selectedLogoId={brand.selectedLogoId} canShareLogo={canShareLogo} shareStatus={shareStatus} onShare={handleLogoShare} onOpenMockupStudio={(logoId) => { setMockupStatus(""); setMockupLogoId(logoId); }} onStartAdditionalLogo={() => startAdditionalLogoForBrand(brand.id)} onStartLogoRevision={startLogoRevision} onSelectBrandLogo={(logoId) => selectBrandLogo(brand.id, logoId)} onDeleteBrandLogo={(logoId) => deleteBrandLogo(brand.id, logoId)} />;
@@ -410,7 +372,7 @@ function BrandLogoGallery({ logos, selectedLogoId, onOpenMockupStudio, onStartLo
   );
 }
 
-function MockupStudioPage({ logo, assets, templates, templatesLoaded, mockupStatus, generatingMockupSceneId, onBack, onCreateBrandMockup }: { logo: ResolvedLogoOption; assets: BrandAsset[]; templates: BrandMockupTemplate[]; templatesLoaded: boolean; mockupStatus: string; generatingMockupSceneId?: string; onBack: () => void; onCreateBrandMockup: (logo: ResolvedLogoOption, templateId: string) => void }) {
+function MockupStudioPage({ logo, assets, mockupStatus, generatingMockupSceneId, onBack, onCreateBrandMockup }: { logo: ResolvedLogoOption; assets: BrandAsset[]; mockupStatus: string; generatingMockupSceneId?: string; onBack: () => void; onCreateBrandMockup: (logo: ResolvedLogoOption, sceneId: string) => void }) {
   return (
     <div className="grid gap-5">
       <SoftCard className="bg-[linear-gradient(180deg,var(--color-surface)_0%,var(--color-surface-blue)_100%)]">
@@ -425,7 +387,7 @@ function MockupStudioPage({ logo, assets, templates, templatesLoaded, mockupStat
           </div>
         </div>
       </SoftCard>
-      <MockupTemplateList logo={logo} templates={templates} templatesLoaded={templatesLoaded} generatingMockupSceneId={generatingMockupSceneId} onCreateBrandMockup={onCreateBrandMockup} />
+      <MockupTemplateList logo={logo} generatingMockupSceneId={generatingMockupSceneId} onCreateBrandMockup={onCreateBrandMockup} />
       {mockupStatus ? <SoftCard className="bg-surface-blue text-xs font-bold leading-5 text-primary-strong">{mockupStatus}</SoftCard> : null}
       <div className="grid gap-3">
         {assets.length > 0 ? <p className="px-1 text-sm font-black text-ink">생성된 목업</p> : null}
@@ -446,7 +408,7 @@ function MockupStudioPage({ logo, assets, templates, templatesLoaded, mockupStat
   );
 }
 
-function MockupTemplateList({ logo, templates, templatesLoaded, generatingMockupSceneId, onCreateBrandMockup }: { logo: ResolvedLogoOption; templates: BrandMockupTemplate[]; templatesLoaded: boolean; generatingMockupSceneId?: string; onCreateBrandMockup: (logo: ResolvedLogoOption, templateId: string) => void }) {
+function MockupTemplateList({ logo, generatingMockupSceneId, onCreateBrandMockup }: { logo: ResolvedLogoOption; generatingMockupSceneId?: string; onCreateBrandMockup: (logo: ResolvedLogoOption, sceneId: string) => void }) {
   const canGenerate = logoHasImage(logo);
 
   return (
@@ -455,21 +417,14 @@ function MockupTemplateList({ logo, templates, templatesLoaded, generatingMockup
         <p className="text-sm font-black text-ink">선택 로고 목업</p>
         <p className="mt-1 text-xs font-bold leading-5 text-muted">저장된 로고를 대표로 선택한 뒤, 필요한 목업만 하나씩 생성하세요.</p>
       </div>
-      {!templatesLoaded ? <p className="rounded-md bg-surface-blue px-4 py-3 text-xs font-bold leading-5 text-primary-strong">목업 템플릿을 불러오고 있어요.</p> : null}
-      {templatesLoaded && templates.length === 0 ? <p className="rounded-md bg-surface-blue px-4 py-3 text-xs font-bold leading-5 text-primary-strong">관리자에서 공개된 목업 템플릿을 먼저 등록해 주세요.</p> : null}
       <div className="grid gap-2">
-        {templates.map((template) => {
+        {brandMockupTemplates.map((template) => {
           const isGenerating = generatingMockupSceneId === template.id;
 
           return (
-            <button key={template.id} className="grid gap-3 rounded-md border border-line bg-surface p-3 text-left shadow-card transition hover:border-primary-soft hover:bg-surface-blue disabled:cursor-not-allowed disabled:opacity-60 sm:grid-cols-[120px_minmax(0,1fr)]" type="button" disabled={!canGenerate || Boolean(generatingMockupSceneId)} onClick={() => onCreateBrandMockup(logo, template.id)}>
-              <span className="relative block aspect-[4/3] overflow-hidden rounded-md bg-surface-blue">
-                <Image src={template.imageUrl} alt="" fill sizes="120px" className="object-cover" unoptimized />
-              </span>
-              <span className="block min-w-0">
-                <span className="block text-sm font-black text-ink">{isGenerating ? "생성 중..." : template.title}</span>
-                <span className="mt-1 block text-xs font-bold leading-5 text-muted">{template.description}</span>
-              </span>
+            <button key={template.id} className="rounded-md border border-line bg-surface p-3 text-left shadow-card transition hover:border-primary-soft hover:bg-surface-blue disabled:cursor-not-allowed disabled:opacity-60" type="button" disabled={!canGenerate || Boolean(generatingMockupSceneId)} onClick={() => onCreateBrandMockup(logo, template.id)}>
+              <span className="block text-sm font-black text-ink">{isGenerating ? "생성 중..." : template.title}</span>
+              <span className="mt-1 block text-xs font-bold leading-5 text-muted">{template.description}</span>
             </button>
           );
         })}

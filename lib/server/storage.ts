@@ -27,11 +27,6 @@ const brandAssetPurpose = "brand-asset";
 const brandAssetUploadDirectory = path.join(process.cwd(), "data", "uploads", "brand-assets");
 const brandAssetPublicPath = "/uploads/brand-assets";
 const brandAssetPublicPathPrefix = `${brandAssetPublicPath}/`;
-const adminMockupTemplateBucket = "admin-brand-mockup-templates";
-const adminMockupTemplatePurpose = "brand-mockup-template";
-const adminMockupTemplateUploadDirectory = path.join(process.cwd(), "data", "uploads", "admin", "brand-mockup-templates");
-const adminMockupTemplatePublicPath = "/uploads/admin/brand-mockup-templates";
-const adminMockupTemplatePublicPathPrefix = `${adminMockupTemplatePublicPath}/`;
 
 export type BusinessCardBackgroundStoredFile = {
   id: string;
@@ -72,13 +67,6 @@ export type BrandAssetStoredFile = {
   id: string;
   publicUrl: string;
   contentType: "image/png";
-  size: number;
-};
-
-export type AdminMockupTemplateStoredFile = {
-  id: string;
-  publicUrl: string;
-  contentType: "image/png" | "image/jpeg";
   size: number;
 };
 
@@ -164,24 +152,6 @@ function brandAssetObjectKeyFromPublicUrl(publicUrl: string) {
   const objectKey = publicUrl.slice(brandAssetPublicPathPrefix.length);
 
   return isGeneratedLogoObjectKey(objectKey) ? objectKey : undefined;
-}
-
-function adminMockupTemplatePublicUrlFromObjectKey(objectKey: string) {
-  return `${adminMockupTemplatePublicPathPrefix}${objectKey}`;
-}
-
-function adminMockupTemplateObjectKeyFromPublicUrl(publicUrl: string) {
-  if (!publicUrl.startsWith(adminMockupTemplatePublicPathPrefix)) {
-    return undefined;
-  }
-
-  const objectKey = publicUrl.slice(adminMockupTemplatePublicPathPrefix.length);
-
-  return isGeneratedLogoObjectKey(objectKey) || /^[A-Za-z0-9_-]+\.jpg$/.test(objectKey) ? objectKey : undefined;
-}
-
-function adminMockupTemplateContentTypeFromObjectKey(objectKey: string): "image/png" | "image/jpeg" {
-  return objectKey.endsWith(".png") ? "image/png" : "image/jpeg";
 }
 
 function logoReferenceFileNameFromPublicUrl(publicUrl: string) {
@@ -846,31 +816,6 @@ export async function saveBrandAssetImageBytes(bytes: Uint8Array): Promise<Brand
   };
 }
 
-export async function saveAdminMockupTemplateImageBytes(bytes: Uint8Array, contentType: "image/png" | "image/jpeg"): Promise<AdminMockupTemplateStoredFile> {
-  const id = `uploaded-file-${randomUUID()}`;
-  const objectKey = `${randomUUID()}.${contentType === "image/png" ? "png" : "jpg"}`;
-  const publicUrl = adminMockupTemplatePublicUrlFromObjectKey(objectKey);
-  const filePath = path.join(adminMockupTemplateUploadDirectory, objectKey);
-  const result = await queryDb<UploadedFileRow>(
-    `
-      insert into uploaded_files (id, bucket, object_key, public_url, content_type, size, purpose)
-      values ($1, $2, $3, $4, $5, $6, $7)
-      returning id, object_key, public_url, content_type, size
-    `,
-    [id, adminMockupTemplateBucket, objectKey, publicUrl, contentType, bytes.byteLength, adminMockupTemplatePurpose],
-  );
-  const row = result.rows[0];
-  await writeUploadedFileBlob(row.id, bytes);
-  await writeFileCacheBestEffort(adminMockupTemplateUploadDirectory, filePath, bytes, "Brand mockup template");
-
-  return {
-    id: row.id,
-    publicUrl: row.public_url,
-    contentType,
-    size: toNumber(row.size),
-  };
-}
-
 export async function listLogoReferenceImages(): Promise<LogoReferenceImageStoredFile[]> {
   const result = await queryDb<UploadedFileRow>(
     `
@@ -1035,46 +980,6 @@ export async function readBrandAssetBytesByPublicUrl(publicUrl: string): Promise
 
     throw error;
   }
-}
-
-export async function readAdminMockupTemplateBytesByPublicUrl(publicUrl: string): Promise<{ bytes: Uint8Array; contentType: "image/png" | "image/jpeg" } | undefined> {
-  const objectKey = adminMockupTemplateObjectKeyFromPublicUrl(publicUrl);
-
-  if (!objectKey) {
-    return undefined;
-  }
-
-  try {
-    return { bytes: await readFile(path.join(adminMockupTemplateUploadDirectory, objectKey)), contentType: adminMockupTemplateContentTypeFromObjectKey(objectKey) };
-  } catch (error) {
-    if (isMissingFileError(error)) {
-      const bytes = await readUploadedFileBlob(adminMockupTemplateBucket, adminMockupTemplatePurpose, objectKey);
-
-      return bytes ? { bytes, contentType: adminMockupTemplateContentTypeFromObjectKey(objectKey) } : undefined;
-    }
-
-    throw error;
-  }
-}
-
-export async function readAdminMockupTemplateBytesByFileName(fileName: string): Promise<{ bytes: Uint8Array; contentType: "image/png" | "image/jpeg" } | undefined> {
-  return readAdminMockupTemplateBytesByPublicUrl(`${adminMockupTemplatePublicPathPrefix}${fileName}`);
-}
-
-export async function deleteAdminMockupTemplateImageFile(publicUrl: string) {
-  const objectKey = adminMockupTemplateObjectKeyFromPublicUrl(publicUrl);
-
-  if (!objectKey) {
-    return false;
-  }
-
-  await queryDb(
-    `delete from uploaded_files where bucket = $1 and purpose = $2 and public_url = $3`,
-    [adminMockupTemplateBucket, adminMockupTemplatePurpose, publicUrl],
-  );
-
-  await unlink(path.join(adminMockupTemplateUploadDirectory, objectKey)).catch(() => undefined);
-  return true;
 }
 
 async function isGeneratedLogoPublicUrlReferenced(publicUrl: string, client: Pick<PoolClient, "query">) {
