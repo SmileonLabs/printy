@@ -205,7 +205,7 @@ export function SectionPanel({ sectionId, title, summary, brand, cardDraft, busi
         throw new Error(typeof payload === "object" && payload !== null && typeof (payload as { reason?: unknown }).reason === "string" ? (payload as { reason: string }).reason : "브랜드 목업을 만들지 못했어요.");
       }
 
-      addBrandAssets(brand.id, [asset]);
+      addBrandAssets(brand.id, [{ ...asset, logoId: logo.id }]);
       setMockupStatus(`${asset.title} 목업을 만들었어요.`);
     } catch (error) {
       setMockupStatus(error instanceof Error ? error.message : "브랜드 목업을 만들지 못했어요.");
