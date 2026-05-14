@@ -101,6 +101,7 @@ export function SectionPanel({ sectionId, title, summary, brand, cardDraft, busi
   const [teamNotice, setTeamNotice] = useState("");
   const brandLogo = usePrintyStore((state) => resolveLogoFromState(state, brand.selectedLogoId));
   const startBrandSectionProduction = usePrintyStore((state) => state.startBrandSectionProduction);
+  const startAdditionalLogoForBrand = usePrintyStore((state) => state.startAdditionalLogoForBrand);
   const selectBrandLogo = usePrintyStore((state) => state.selectBrandLogo);
   const deleteBrandLogo = usePrintyStore((state) => state.deleteBrandLogo);
   const setBrandSection = usePrintyStore((state) => state.setBrandSection);
@@ -166,7 +167,7 @@ export function SectionPanel({ sectionId, title, summary, brand, cardDraft, busi
 
   const content = (() => {
     if (sectionId === "style") {
-      return <StyleSection logo={brandLogo} logos={brandLogos} selectedLogoId={brand.selectedLogoId} assets={sectionAssets} canShareLogo={canShareLogo} shareStatus={shareStatus} onShare={handleLogoShare} onSelectBrandLogo={(logoId) => selectBrandLogo(brand.id, logoId)} onDeleteBrandLogo={(logoId) => deleteBrandLogo(brand.id, logoId)} />;
+      return <StyleSection logo={brandLogo} logos={brandLogos} selectedLogoId={brand.selectedLogoId} assets={sectionAssets} canShareLogo={canShareLogo} shareStatus={shareStatus} onShare={handleLogoShare} onStartAdditionalLogo={() => startAdditionalLogoForBrand(brand.id)} onSelectBrandLogo={(logoId) => selectBrandLogo(brand.id, logoId)} onDeleteBrandLogo={(logoId) => deleteBrandLogo(brand.id, logoId)} />;
     }
 
     if (sectionId === "team") {
@@ -213,7 +214,7 @@ export function SectionPanel({ sectionId, title, summary, brand, cardDraft, busi
   );
 }
 
-function StyleSection({ logo, logos, selectedLogoId, assets, canShareLogo, shareStatus, onShare, onSelectBrandLogo, onDeleteBrandLogo }: { logo: ResolvedLogoOption; logos: ResolvedLogoOption[]; selectedLogoId: string; assets: BrandAsset[]; canShareLogo: boolean; shareStatus: string; onShare: () => void; onSelectBrandLogo: (logoId: string) => void; onDeleteBrandLogo: (logoId: string) => void }) {
+function StyleSection({ logo, logos, selectedLogoId, assets, canShareLogo, shareStatus, onShare, onStartAdditionalLogo, onSelectBrandLogo, onDeleteBrandLogo }: { logo: ResolvedLogoOption; logos: ResolvedLogoOption[]; selectedLogoId: string; assets: BrandAsset[]; canShareLogo: boolean; shareStatus: string; onShare: () => void; onStartAdditionalLogo: () => void; onSelectBrandLogo: (logoId: string) => void; onDeleteBrandLogo: (logoId: string) => void }) {
   const rows = [
     ["설명", logo.description],
   ];
@@ -223,6 +224,9 @@ function StyleSection({ logo, logos, selectedLogoId, assets, canShareLogo, share
       <SoftCard className="bg-[linear-gradient(135deg,var(--color-surface-blue)_0%,var(--color-surface)_100%)]">
         <div className="grid gap-5">
           <LargeLogoPreview logo={logo} />
+          <AppButton variant="secondary" onClick={onStartAdditionalLogo}>
+            로고 하나 더 만들기
+          </AppButton>
         </div>
       </SoftCard>
       <BrandLogoGallery logos={logos} selectedLogoId={selectedLogoId} onSelectBrandLogo={onSelectBrandLogo} onDeleteBrandLogo={onDeleteBrandLogo} />
