@@ -107,8 +107,13 @@ export async function createLogoShare(userId: string, brandId: string, logoId: s
     }
 
     const existingToken = (row.payload as { shareToken?: unknown; shareLockedAt?: unknown }).shareToken;
+    const existingLockedAt = (row.payload as { shareLockedAt?: unknown }).shareLockedAt;
 
-    if (typeof existingToken === "string" && isLogoShareToken(existingToken) && (row.payload as { shareLockedAt?: unknown }).shareLockedAt === undefined) {
+    if (existingLockedAt !== undefined) {
+      return undefined;
+    }
+
+    if (typeof existingToken === "string" && isLogoShareToken(existingToken)) {
       return toPublicLogoShare(row, existingToken);
     }
 
@@ -153,6 +158,11 @@ export async function claimLogoShare(token: string, userId: string, userName: st
       const row = await findShareWithClient(client, token, true);
 
       if (!row || !isGeneratedLogoOption(row.payload)) {
+        await client.query("rollback");
+        return undefined;
+      }
+
+      if (row.user_id === userId) {
         await client.query("rollback");
         return undefined;
       }

@@ -40,6 +40,10 @@ function logoHasImage(logo: ResolvedLogoOption): logo is LogoWithImage {
   return "imageUrl" in logo;
 }
 
+function isClaimedSharedLogo(logo: ResolvedLogoOption) {
+  return "shareLockedAt" in logo && typeof logo.shareLockedAt === "string";
+}
+
 function getBrandLogoIds(brand: Brand) {
   return Array.from(new Set([brand.selectedLogoId, ...(Array.isArray(brand.logoIds) ? brand.logoIds : [])]));
 }
@@ -103,6 +107,7 @@ export function SectionPanel({ sectionId, title, summary, brand, cardDraft, busi
   const addBrandMember = usePrintyStore((state) => state.addBrandMember);
   const sectionAssets = assets.filter((asset) => asset.sectionId === sectionId);
   const hasDownloadableLogo = logoHasImage(brandLogo);
+  const canShareLogo = hasDownloadableLogo && !isClaimedSharedLogo(brandLogo);
   const generatedLogoOptions = usePrintyStore((state) => state.generatedLogoOptions);
   const savedGeneratedLogoOptions = usePrintyStore((state) => state.savedGeneratedLogoOptions);
   const brandLogos = getBrandLogoIds(brand).map((logoId) => getLogo(logoId, [...generatedLogoOptions, ...savedGeneratedLogoOptions]));
@@ -161,7 +166,7 @@ export function SectionPanel({ sectionId, title, summary, brand, cardDraft, busi
 
   const content = (() => {
     if (sectionId === "style") {
-      return <StyleSection logo={brandLogo} logos={brandLogos} selectedLogoId={brand.selectedLogoId} assets={sectionAssets} canUseImageActions={hasDownloadableLogo} shareStatus={shareStatus} onShare={handleLogoShare} onSelectBrandLogo={(logoId) => selectBrandLogo(brand.id, logoId)} onDeleteBrandLogo={(logoId) => deleteBrandLogo(brand.id, logoId)} />;
+      return <StyleSection logo={brandLogo} logos={brandLogos} selectedLogoId={brand.selectedLogoId} assets={sectionAssets} canShareLogo={canShareLogo} shareStatus={shareStatus} onShare={handleLogoShare} onSelectBrandLogo={(logoId) => selectBrandLogo(brand.id, logoId)} onDeleteBrandLogo={(logoId) => deleteBrandLogo(brand.id, logoId)} />;
     }
 
     if (sectionId === "team") {
@@ -208,7 +213,7 @@ export function SectionPanel({ sectionId, title, summary, brand, cardDraft, busi
   );
 }
 
-function StyleSection({ logo, logos, selectedLogoId, assets, canUseImageActions, shareStatus, onShare, onSelectBrandLogo, onDeleteBrandLogo }: { logo: ResolvedLogoOption; logos: ResolvedLogoOption[]; selectedLogoId: string; assets: BrandAsset[]; canUseImageActions: boolean; shareStatus: string; onShare: () => void; onSelectBrandLogo: (logoId: string) => void; onDeleteBrandLogo: (logoId: string) => void }) {
+function StyleSection({ logo, logos, selectedLogoId, assets, canShareLogo, shareStatus, onShare, onSelectBrandLogo, onDeleteBrandLogo }: { logo: ResolvedLogoOption; logos: ResolvedLogoOption[]; selectedLogoId: string; assets: BrandAsset[]; canShareLogo: boolean; shareStatus: string; onShare: () => void; onSelectBrandLogo: (logoId: string) => void; onDeleteBrandLogo: (logoId: string) => void }) {
   const rows = [
     ["설명", logo.description],
   ];
@@ -235,12 +240,15 @@ function StyleSection({ logo, logos, selectedLogoId, assets, canUseImageActions,
           </SoftCard>
         ))}
       </div>
-      <SoftCard>
-        <AppButton className="disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0" variant="secondary" onClick={onShare} disabled={!canUseImageActions}>
-          공유하기
-        </AppButton>
-      </SoftCard>
-      {!canUseImageActions ? <SoftCard className="bg-surface-blue text-xs font-bold leading-5 text-primary-strong">기본 제공 로고는 이미지 파일 링크가 없어 다운로드와 공유를 비활성화했어요.</SoftCard> : null}
+      {canShareLogo ? (
+        <SoftCard>
+          <AppButton className="disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0" variant="secondary" onClick={onShare}>
+            공유하기
+          </AppButton>
+        </SoftCard>
+      ) : null}
+      {!logoHasImage(logo) ? <SoftCard className="bg-surface-blue text-xs font-bold leading-5 text-primary-strong">기본 제공 로고는 이미지 파일 링크가 없어 공유를 비활성화했어요.</SoftCard> : null}
+      {isClaimedSharedLogo(logo) ? <SoftCard className="bg-surface-blue text-xs font-bold leading-5 text-primary-strong">이미 다른 계정에서 사용 확정된 공유 로고예요.</SoftCard> : null}
       {shareStatus ? <SoftCard className="bg-surface-blue text-xs font-bold leading-5 text-primary-strong">{shareStatus}</SoftCard> : null}
     </div>
   );
