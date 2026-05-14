@@ -98,15 +98,14 @@ export function createPrintyLogoActions(set: PrintyStoreSet, get: PrintyStoreGet
         const firstLogo = logos[0];
         const sourceLogo = state.logoRevisionSourceLogoId ? findGeneratedLogoInState(state, state.logoRevisionSourceLogoId) : undefined;
         const savedWithSource = sourceLogo ? saveGeneratedLogo(state.savedGeneratedLogoOptions, sourceLogo) : state.savedGeneratedLogoOptions;
-        const savedWithGeneratedLogos = logos.reduce((savedLogos, logo) => saveGeneratedLogo(savedLogos, logo), savedWithSource);
 
         return {
           generatedLogoOptions: logos,
           logoGenerationStatus: status,
           logoGenerationMessage: message,
           selectedLogoId: firstLogo?.id ?? state.selectedLogoId,
-          savedGeneratedLogoOptions: savedWithGeneratedLogos,
-          brandWorkspaceHasPendingLocalChanges: firstLogo || sourceLogo ? true : state.brandWorkspaceHasPendingLocalChanges,
+          savedGeneratedLogoOptions: savedWithSource,
+          brandWorkspaceHasPendingLocalChanges: sourceLogo ? true : state.brandWorkspaceHasPendingLocalChanges,
           logoGenerationIntent: "initial",
           logoRevisionRequest: "",
           logoRevisionSourceLogoId: undefined,
