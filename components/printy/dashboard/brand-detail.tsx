@@ -36,6 +36,15 @@ const memberFormFields: Array<{ label: string; field: keyof MemberFormValues; pl
   { label: "주소", field: "address", placeholder: "서울시 성동구 프린티로 12" },
 ];
 
+const brandMockupTemplates = [
+  { id: "paper-emboss", title: "프리미엄 종이", description: "종이 질감과 음각/압인 느낌" },
+  { id: "signboard", title: "매장 간판", description: "벽면 사인보드 적용" },
+  { id: "package-cup", title: "컵/포장지", description: "카페 패키지 적용" },
+  { id: "mug", title: "머그컵", description: "굿즈 표면 인쇄" },
+  { id: "digital", title: "디지털 화면", description: "모바일/태블릿 화면" },
+  { id: "business-card", title: "명함", description: "인쇄물 브랜드 시스템" },
+];
+
 function logoHasImage(logo: ResolvedLogoOption): logo is LogoWithImage {
   return "imageUrl" in logo;
 }
@@ -48,14 +57,14 @@ function isBrandAsset(value: unknown): value is BrandAsset {
   return typeof value === "object" && value !== null && typeof (value as { id?: unknown }).id === "string" && typeof (value as { brandId?: unknown }).brandId === "string" && typeof (value as { title?: unknown }).title === "string" && typeof (value as { description?: unknown }).description === "string" && typeof (value as { createdAt?: unknown }).createdAt === "string";
 }
 
-function readBrandMockupAssetsResponse(value: unknown) {
-  if (typeof value !== "object" || value === null || !Array.isArray((value as { assets?: unknown }).assets)) {
+function readBrandMockupAssetResponse(value: unknown) {
+  if (typeof value !== "object" || value === null) {
     return undefined;
   }
 
-  const assets = (value as { assets: unknown[] }).assets.filter(isBrandAsset);
+  const asset = (value as { asset?: unknown }).asset;
 
-  return assets.length > 0 ? assets : undefined;
+  return isBrandAsset(asset) ? asset : undefined;
 }
 
 function getBrandLogoIds(brand: Brand) {
@@ -113,11 +122,12 @@ export function BrandDetail() {
 export function SectionPanel({ sectionId, title, summary, brand, cardDraft, businessCardDrafts, orders, assets, templates }: { sectionId: BrandDetailSectionId; title: string; summary: string; brand: Brand; cardDraft?: BusinessCardDraft; businessCardDrafts: BusinessCardDraft[]; orders: OrderRecord[]; assets: BrandAsset[]; templates: PrintTemplate[] }) {
   const [shareStatus, setShareStatus] = useState("");
   const [mockupStatus, setMockupStatus] = useState("");
-  const [isGeneratingMockups, setIsGeneratingMockups] = useState(false);
+  const [generatingMockupSceneId, setGeneratingMockupSceneId] = useState<string>();
   const [teamNotice, setTeamNotice] = useState("");
   const brandLogo = usePrintyStore((state) => resolveLogoFromState(state, brand.selectedLogoId));
   const startBrandSectionProduction = usePrintyStore((state) => state.startBrandSectionProduction);
   const startAdditionalLogoForBrand = usePrintyStore((state) => state.startAdditionalLogoForBrand);
+  const startLogoRevision = usePrintyStore((state) => state.startLogoRevision);
   const addBrandAssets = usePrintyStore((state) => state.addBrandAssets);
   const selectBrandLogo = usePrintyStore((state) => state.selectBrandLogo);
   const deleteBrandLogo = usePrintyStore((state) => state.deleteBrandLogo);
@@ -172,34 +182,34 @@ export function SectionPanel({ sectionId, title, summary, brand, cardDraft, busi
     }
   };
 
-  const handleCreateBrandMockups = async () => {
-    if (!logoHasImage(brandLogo)) {
+  const handleCreateBrandMockup = async (logo: ResolvedLogoOption, sceneId: string) => {
+    if (!logoHasImage(logo)) {
       setMockupStatus("저장된 이미지 로고가 있어야 목업을 만들 수 있어요.");
       return;
     }
 
-    setIsGeneratingMockups(true);
+    setGeneratingMockupSceneId(sceneId);
     setMockupStatus("브랜드 목업을 만들고 있어요.");
 
     try {
       const response = await fetch("/api/brand-mockups", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brandId: brand.id, brandName: brand.name, category: brand.category, logoImageUrl: brandLogo.imageUrl }),
+        body: JSON.stringify({ brandId: brand.id, brandName: brand.name, category: brand.category, logoImageUrl: logo.imageUrl, sceneId }),
       });
       const payload: unknown = await response.json().catch(() => undefined);
-      const assets = readBrandMockupAssetsResponse(payload);
+      const asset = readBrandMockupAssetResponse(payload);
 
-      if (!response.ok || !assets) {
+      if (!response.ok || !asset) {
         throw new Error(typeof payload === "object" && payload !== null && typeof (payload as { reason?: unknown }).reason === "string" ? (payload as { reason: string }).reason : "브랜드 목업을 만들지 못했어요.");
       }
 
-      addBrandAssets(brand.id, assets);
-      setMockupStatus(`목업 ${assets.length}개를 만들었어요.`);
+      addBrandAssets(brand.id, [asset]);
+      setMockupStatus(`${asset.title} 목업을 만들었어요.`);
     } catch (error) {
       setMockupStatus(error instanceof Error ? error.message : "브랜드 목업을 만들지 못했어요.");
     } finally {
-      setIsGeneratingMockups(false);
+      setGeneratingMockupSceneId(undefined);
     }
   };
 
@@ -215,7 +225,7 @@ export function SectionPanel({ sectionId, title, summary, brand, cardDraft, busi
 
   const content = (() => {
     if (sectionId === "style") {
-      return <StyleSection logo={brandLogo} logos={brandLogos} selectedLogoId={brand.selectedLogoId} assets={sectionAssets} canShareLogo={canShareLogo} shareStatus={shareStatus} mockupStatus={mockupStatus} isGeneratingMockups={isGeneratingMockups} onShare={handleLogoShare} onCreateBrandMockups={handleCreateBrandMockups} onStartAdditionalLogo={() => startAdditionalLogoForBrand(brand.id)} onSelectBrandLogo={(logoId) => selectBrandLogo(brand.id, logoId)} onDeleteBrandLogo={(logoId) => deleteBrandLogo(brand.id, logoId)} />;
+      return <StyleSection logo={brandLogo} logos={brandLogos} selectedLogoId={brand.selectedLogoId} assets={sectionAssets} canShareLogo={canShareLogo} shareStatus={shareStatus} mockupStatus={mockupStatus} generatingMockupSceneId={generatingMockupSceneId} onShare={handleLogoShare} onCreateBrandMockup={handleCreateBrandMockup} onStartAdditionalLogo={() => startAdditionalLogoForBrand(brand.id)} onStartLogoRevision={startLogoRevision} onSelectBrandLogo={(logoId) => selectBrandLogo(brand.id, logoId)} onDeleteBrandLogo={(logoId) => deleteBrandLogo(brand.id, logoId)} />;
     }
 
     if (sectionId === "team") {
@@ -262,7 +272,7 @@ export function SectionPanel({ sectionId, title, summary, brand, cardDraft, busi
   );
 }
 
-function StyleSection({ logo, logos, selectedLogoId, assets, canShareLogo, shareStatus, mockupStatus, isGeneratingMockups, onShare, onCreateBrandMockups, onStartAdditionalLogo, onSelectBrandLogo, onDeleteBrandLogo }: { logo: ResolvedLogoOption; logos: ResolvedLogoOption[]; selectedLogoId: string; assets: BrandAsset[]; canShareLogo: boolean; shareStatus: string; mockupStatus: string; isGeneratingMockups: boolean; onShare: () => void; onCreateBrandMockups: () => void; onStartAdditionalLogo: () => void; onSelectBrandLogo: (logoId: string) => void; onDeleteBrandLogo: (logoId: string) => void }) {
+function StyleSection({ logo, logos, selectedLogoId, assets, canShareLogo, shareStatus, mockupStatus, generatingMockupSceneId, onShare, onCreateBrandMockup, onStartAdditionalLogo, onStartLogoRevision, onSelectBrandLogo, onDeleteBrandLogo }: { logo: ResolvedLogoOption; logos: ResolvedLogoOption[]; selectedLogoId: string; assets: BrandAsset[]; canShareLogo: boolean; shareStatus: string; mockupStatus: string; generatingMockupSceneId?: string; onShare: () => void; onCreateBrandMockup: (logo: ResolvedLogoOption, sceneId: string) => void; onStartAdditionalLogo: () => void; onStartLogoRevision: (logoId: string) => void; onSelectBrandLogo: (logoId: string) => void; onDeleteBrandLogo: (logoId: string) => void }) {
   const rows = [
     ["설명", logo.description],
   ];
@@ -275,12 +285,10 @@ function StyleSection({ logo, logos, selectedLogoId, assets, canShareLogo, share
           <AppButton variant="secondary" onClick={onStartAdditionalLogo}>
             로고 하나 더 만들기
           </AppButton>
-          <AppButton className="disabled:cursor-wait disabled:opacity-60 disabled:hover:translate-y-0" onClick={onCreateBrandMockups} disabled={isGeneratingMockups || !logoHasImage(logo)}>
-            {isGeneratingMockups ? "목업 생성 중" : "브랜드 목업 만들기"}
-          </AppButton>
         </div>
       </SoftCard>
-      <BrandLogoGallery logos={logos} selectedLogoId={selectedLogoId} onSelectBrandLogo={onSelectBrandLogo} onDeleteBrandLogo={onDeleteBrandLogo} />
+      <BrandLogoGallery logos={logos} selectedLogoId={selectedLogoId} onStartLogoRevision={onStartLogoRevision} onSelectBrandLogo={onSelectBrandLogo} onDeleteBrandLogo={onDeleteBrandLogo} />
+      <MockupTemplateList logo={logo} generatingMockupSceneId={generatingMockupSceneId} onCreateBrandMockup={onCreateBrandMockup} />
       <div className="grid gap-3">
         {rows.map(([label, value]) => (
           <SoftCard key={label}>
@@ -316,7 +324,7 @@ function StyleSection({ logo, logos, selectedLogoId, assets, canShareLogo, share
   );
 }
 
-function BrandLogoGallery({ logos, selectedLogoId, onSelectBrandLogo, onDeleteBrandLogo }: { logos: ResolvedLogoOption[]; selectedLogoId: string; onSelectBrandLogo: (logoId: string) => void; onDeleteBrandLogo: (logoId: string) => void }) {
+function BrandLogoGallery({ logos, selectedLogoId, onStartLogoRevision, onSelectBrandLogo, onDeleteBrandLogo }: { logos: ResolvedLogoOption[]; selectedLogoId: string; onStartLogoRevision: (logoId: string) => void; onSelectBrandLogo: (logoId: string) => void; onDeleteBrandLogo: (logoId: string) => void }) {
   if (logos.length === 0) {
     return null;
   }
@@ -356,7 +364,37 @@ function BrandLogoGallery({ logos, selectedLogoId, onSelectBrandLogo, onDeleteBr
               <AppButton className="mt-3 w-full disabled:cursor-default disabled:opacity-100 disabled:hover:translate-y-0" variant={isSelected ? "primary" : "secondary"} onClick={() => onSelectBrandLogo(item.id)} disabled={isSelected}>
                 {isSelected ? "현재 대표 로고" : "대표로고로 선택"}
               </AppButton>
+              {logoHasImage(item) ? (
+                <AppButton className="mt-2 w-full" variant="secondary" onClick={() => onStartLogoRevision(item.id)}>
+                  이 로고 수정하기
+                </AppButton>
+              ) : null}
             </div>
+          );
+        })}
+      </div>
+    </SoftCard>
+  );
+}
+
+function MockupTemplateList({ logo, generatingMockupSceneId, onCreateBrandMockup }: { logo: ResolvedLogoOption; generatingMockupSceneId?: string; onCreateBrandMockup: (logo: ResolvedLogoOption, sceneId: string) => void }) {
+  const canGenerate = logoHasImage(logo);
+
+  return (
+    <SoftCard>
+      <div className="mb-4">
+        <p className="text-sm font-black text-ink">선택 로고 목업</p>
+        <p className="mt-1 text-xs font-bold leading-5 text-muted">저장된 로고를 대표로 선택한 뒤, 필요한 목업만 하나씩 생성하세요.</p>
+      </div>
+      <div className="grid gap-2">
+        {brandMockupTemplates.map((template) => {
+          const isGenerating = generatingMockupSceneId === template.id;
+
+          return (
+            <button key={template.id} className="rounded-md border border-line bg-surface p-3 text-left shadow-card transition hover:border-primary-soft hover:bg-surface-blue disabled:cursor-not-allowed disabled:opacity-60" type="button" disabled={!canGenerate || Boolean(generatingMockupSceneId)} onClick={() => onCreateBrandMockup(logo, template.id)}>
+              <span className="block text-sm font-black text-ink">{isGenerating ? "생성 중..." : template.title}</span>
+              <span className="mt-1 block text-xs font-bold leading-5 text-muted">{template.description}</span>
+            </button>
           );
         })}
       </div>

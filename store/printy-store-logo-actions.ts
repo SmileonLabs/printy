@@ -138,6 +138,7 @@ export function createPrintyLogoActions(set: PrintyStoreSet, get: PrintyStoreGet
         }
 
         return {
+          onboardingComplete: false,
           currentStep: "logoRevision",
           selectedLogoId: sourceLogoId,
           logoGenerationIntent: "revision",

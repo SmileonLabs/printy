@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { generateBrandMockups } from "@/lib/server/brand-mockups";
+import { generateBrandMockup } from "@/lib/server/brand-mockups";
 
 export const runtime = "nodejs";
 
@@ -63,15 +63,16 @@ export async function POST(request: Request) {
   const brandName = readString(body, "brandName");
   const category = readString(body, "category");
   const logoImageUrl = readString(body, "logoImageUrl");
+  const sceneId = readString(body, "sceneId");
 
-  if (!brandId || !brandName || !logoImageUrl.startsWith("/uploads/generated-logos/")) {
+  if (!brandId || !brandName || !sceneId || !logoImageUrl.startsWith("/uploads/generated-logos/")) {
     return NextResponse.json({ reason: "저장된 로고 이미지가 있어야 목업을 만들 수 있어요." }, { status: 400 });
   }
 
   try {
-    const assets = await generateBrandMockups({ brandId, brandName, category, logoImageUrl });
+    const asset = await generateBrandMockup({ brandId, brandName, category, logoImageUrl, sceneId });
 
-    return NextResponse.json({ assets });
+    return NextResponse.json({ asset });
   } catch (error) {
     console.error("Brand mockup generation failed", { errorName: error instanceof Error ? error.name : "UnknownError" });
 
