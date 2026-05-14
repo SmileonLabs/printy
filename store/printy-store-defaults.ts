@@ -8,9 +8,9 @@ export type BrandDraft = {
 
 export const defaultMember: Member = {
   id: "member-1",
-  name: "김하린",
-  role: "대표",
-  phone: "010-2480-1190",
+  name: "",
+  role: "",
+  phone: "",
   mainPhone: "",
   fax: "",
   email: "",
@@ -19,8 +19,8 @@ export const defaultMember: Member = {
 };
 
 export const defaultBrandDraft: BrandDraft = {
-  name: "프린티 스튜디오",
-  category: "카페",
+  name: "",
+  category: "",
   designRequest: "",
 };
 

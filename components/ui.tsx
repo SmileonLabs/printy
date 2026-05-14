@@ -11,25 +11,12 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 
 export function PhoneShell({ children, topLeftAction }: { children: ReactNode; topLeftAction?: ReactNode }) {
   return (
-    <main className="grain flex min-h-screen items-center justify-center px-4 py-6 text-ink">
-      <section className="relative flex h-[min(860px,calc(100vh-48px))] w-full max-w-[430px] flex-col overflow-hidden rounded-[30px] border border-white/80 bg-surface shadow-floating">
-        <StatusBar />
+    <main className="min-h-screen bg-surface text-ink">
+      <section className="relative flex min-h-screen w-full flex-col overflow-hidden bg-surface">
         {topLeftAction ? <div className="flex shrink-0 justify-start px-5 pb-2 pt-1">{topLeftAction}</div> : null}
         {children}
       </section>
     </main>
-  );
-}
-
-function StatusBar() {
-  return (
-    <div className="flex h-10 shrink-0 items-center justify-between px-7 pt-2 text-xs font-bold text-ink">
-      <span>9:41</span>
-      <div className="flex items-center gap-1.5">
-        <span className="h-2.5 w-4 rounded-sm border border-ink/70" />
-        <span className="h-2 w-2 rounded-full bg-ink" />
-      </div>
-    </div>
   );
 }
 
@@ -124,6 +111,7 @@ export function TextField({ label, value, placeholder, onChange }: { label: stri
       <span className="mb-2 block text-xs font-extrabold text-soft">{label}</span>
       <input
         className="w-full rounded-md border border-line bg-surface px-4 py-4 text-base font-bold text-ink outline-none transition focus:border-primary focus:shadow-soft"
+        autoComplete="off"
         placeholder={placeholder}
         value={value}
         onChange={(event) => onChange(event.target.value)}

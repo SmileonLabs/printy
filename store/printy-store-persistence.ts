@@ -1,5 +1,5 @@
 import { createJSONStorage, type PersistOptions } from "zustand/middleware";
-import { isSelectableLogoId, normalizeBrandDraft, normalizeBrandWithSelectableLogos, normalizeBusinessCardDraftWithSelectableLogos, normalizeGeneratedLogos, normalizeMember, normalizeSelectableLogoId } from "@/store/printy-store-normalizers";
+import { isSelectableLogoId, normalizeBrandWithSelectableLogos, normalizeBusinessCardDraftWithSelectableLogos, normalizeGeneratedLogos, normalizeSelectableLogoId } from "@/store/printy-store-normalizers";
 import type { MainTab } from "@/lib/types";
 import type { PrintyState } from "@/store/printy-store-types";
 
@@ -66,14 +66,14 @@ export function shouldShowHomeForPersistedGuest(state: Partial<PrintyState>) {
 
 export const printyStorePersistOptions = {
   name: PRINTY_STORE_STORAGE_KEY,
-  version: 2,
+  version: 3,
   storage: createJSONStorage<Partial<PrintyState>>(() => localStorage),
   migrate: (persistedState, version) => {
     if (!isPersistedPrintyState(persistedState)) {
       return {};
     }
 
-    if (version >= 2) {
+    if (version >= 3) {
       return persistedState;
     }
 
@@ -83,7 +83,6 @@ export const printyStorePersistOptions = {
       activeTab: "home",
       brandView: "list",
       activeBrandSection: "style",
-      brandDraft: persistedState.brandDraft,
       logoGenerationMode: persistedState.logoGenerationMode,
       selectedLogoReferenceImageId: persistedState.selectedLogoReferenceImageId,
       orderOptions: persistedState.orderOptions,
@@ -113,11 +112,9 @@ export const printyStorePersistOptions = {
       activeTab: state.activeTab,
       brandView: state.brandView,
       activeBrandSection: state.activeBrandSection,
-      brandDraft: state.brandDraft,
       logoGenerationMode: state.logoGenerationMode,
       selectedLogoReferenceImageId: state.selectedLogoReferenceImageId,
       logoGenerationTargetBrandId: state.logoGenerationTargetBrandId,
-      memberDraft: state.memberDraft,
       selectedLogoId: state.selectedLogoId,
       ...(persistBrandWorkspaceArrays
         ? {
@@ -153,8 +150,6 @@ export const printyStorePersistOptions = {
     const savedGeneratedLogoOptions = shouldRestoreWorkspaceArrays ? normalizeGeneratedLogos(persistedState.savedGeneratedLogoOptions) : currentState.savedGeneratedLogoOptions;
     const brands = (persistedWorkspaceState.brands ?? currentState.brands).filter((brand) => brand.id !== "brand-seed").map((brand) => normalizeBrandWithSelectableLogos(brand, savedGeneratedLogoOptions));
     const businessCardDrafts = (persistedWorkspaceState.businessCardDrafts ?? currentState.businessCardDrafts).map((draft) => normalizeBusinessCardDraftWithSelectableLogos(draft, savedGeneratedLogoOptions));
-    const brandDraft = normalizeBrandDraft(persistedState.brandDraft, currentState.brandDraft);
-    const memberDraft = normalizeMember(persistedState.memberDraft, currentState.memberDraft);
     const selectedBrandId = brands.some((brand) => brand.id === persistedState.selectedBrandId) ? persistedState.selectedBrandId : undefined;
     const activeBusinessCardDraftId = businessCardDrafts.some((draft) => draft.id === persistedState.activeBusinessCardDraftId) ? persistedState.activeBusinessCardDraftId : undefined;
     const selectedBrandLogoId = brands.find((brand) => brand.id === selectedBrandId)?.selectedLogoId;
@@ -179,11 +174,11 @@ export const printyStorePersistOptions = {
       activeTab,
       brandView: activeTab === "brands" && selectedBrandId && persistedState.brandView === "detail" ? "detail" : "list",
       activeBrandSection: persistedState.activeBrandSection ?? currentState.activeBrandSection,
-      brandDraft,
+      brandDraft: currentState.brandDraft,
       logoGenerationMode: persistedState.logoGenerationMode === "auto" || persistedState.logoGenerationMode === "reference" ? persistedState.logoGenerationMode : currentState.logoGenerationMode,
       selectedLogoReferenceImageId: typeof persistedState.selectedLogoReferenceImageId === "string" ? persistedState.selectedLogoReferenceImageId : currentState.selectedLogoReferenceImageId,
       logoGenerationTargetBrandId: typeof persistedState.logoGenerationTargetBrandId === "string" && brands.some((brand) => brand.id === persistedState.logoGenerationTargetBrandId) ? persistedState.logoGenerationTargetBrandId : undefined,
-      memberDraft,
+      memberDraft: currentState.memberDraft,
       selectedLogoId,
       savedGeneratedLogoOptions,
       orderOptions: persistedState.orderOptions ?? currentState.orderOptions,

@@ -26,6 +26,7 @@ export function LogoRevisionPanel({ logo, value, onChange, onSubmit, onCancel }:
           <span className="mb-2 block text-xs font-extrabold text-soft">수정 요청</span>
           <textarea
             className="min-h-32 w-full resize-none rounded-md border border-line bg-surface px-4 py-4 text-base font-bold leading-7 text-ink outline-none transition focus:border-primary focus:shadow-soft"
+            autoComplete="off"
             placeholder="예: 원형 구성은 유지하고, 심볼을 조금 더 단순하게 정리하면서 색을 따뜻한 베이지 톤으로 바꿔 주세요."
             maxLength={1000}
             value={value}

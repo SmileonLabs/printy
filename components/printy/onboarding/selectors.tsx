@@ -49,7 +49,7 @@ export function IndustrySelector({ selected, onSelect }: { selected: string; onS
       <div className="grid gap-3 rounded-lg border border-line bg-surface p-4 shadow-card">
         <label className="block">
           <span className="mb-2 block text-xs font-black text-soft">업종</span>
-          <input className="w-full rounded-md border border-line bg-white px-4 py-4 text-sm font-black text-ink outline-none transition placeholder:text-soft focus:border-primary focus:shadow-soft" maxLength={100} placeholder="자유롭게 업종을 입력" value={selected} onChange={(event) => onSelect(event.target.value)} />
+          <input className="w-full rounded-md border border-line bg-white px-4 py-4 text-sm font-black text-ink outline-none transition placeholder:text-soft focus:border-primary focus:shadow-soft" autoComplete="off" maxLength={100} placeholder="자유롭게 업종을 입력" value={selected} onChange={(event) => onSelect(event.target.value)} />
         </label>
         <div className="rounded-lg border border-line bg-surface-blue p-3">
           <div className="mb-3 flex items-start justify-between gap-3">

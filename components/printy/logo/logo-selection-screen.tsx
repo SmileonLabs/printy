@@ -29,31 +29,22 @@ export function LogoSelectionScreen() {
         ) : undefined
       }
     >
-      <ProgressHeader eyebrow="로고 선택" title={isFailure ? "로고 생성이 멈췄어요" : "마음에 드는 해석을 골라주세요"} description={isFailure ? "대체 로고나 기본 카드 대신 실패 상태를 보여드려요. 요청을 수정하거나 같은 조건으로 다시 생성할 수 있어요." : "브랜드 정보를 바탕으로 만든 로고예요. 선택하면 명함과 홍보물에 적용돼요."} step={stepNumbers.logoSelection} total={onboardingTotalSteps} action={<HomeExitAction />} />
+      <ProgressHeader eyebrow="로고 선택" title={isFailure ? "로고 생성이 멈췄어요" : "마음에 드는 로고를 골라주세요"} description={isFailure ? "대체 로고나 기본 카드 대신 실패 상태를 보여드려요. 요청을 수정하거나 같은 조건으로 다시 생성할 수 있어요." : "선택하면 명함과 홍보물에 바로 적용돼요."} step={stepNumbers.logoSelection} total={onboardingTotalSteps} action={<HomeExitAction />} titleClassName="text-[clamp(2rem,9vw,2.55rem)]" />
       {isFailure ? (
         <LogoGenerationFailure message={logoGenerationMessage} onRetry={() => setStep("generating")} onEdit={() => setStep("logoDirection")} />
       ) : null}
       {hasGeneratedLogos ? (
-        <>
-      <SoftCard className="mb-4 bg-[linear-gradient(180deg,var(--color-surface)_0%,var(--color-surface-blue)_100%)]">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="text-xs font-black text-primary-strong">생성 완료</p>
-          </div>
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-surface text-xs font-black text-primary-strong shadow-soft">{generatedLogoOptions.length}</span>
-        </div>
-      </SoftCard>
-      <div className="grid gap-4">
+        <div className="grid gap-3">
         {generatedLogoOptions.map((logo) => (
           <button
             key={logo.id}
-            className={`rounded-lg border bg-surface p-4 text-left shadow-card transition duration-200 hover:-translate-y-0.5 ${selectedLogoId === logo.id ? "border-primary ring-4 ring-primary-soft" : "border-line"}`}
+            className={`rounded-lg border bg-surface p-3 text-left shadow-card transition duration-200 hover:-translate-y-0.5 ${selectedLogoId === logo.id ? "border-primary ring-4 ring-primary-soft" : "border-line"}`}
             type="button"
             onClick={() => selectLogo(logo.id)}
           >
-            <div className="grid gap-4">
-              <div className="grid aspect-square place-items-center overflow-hidden rounded-md bg-[linear-gradient(135deg,var(--color-surface-blue)_0%,var(--color-surface)_100%)] p-4">
-                <Image src={logo.imageUrl} alt={logo.name} width={320} height={320} className="h-full w-full object-contain" unoptimized />
+            <div className="grid gap-3">
+              <div className="grid min-h-[240px] place-items-center overflow-hidden rounded-md bg-[linear-gradient(135deg,var(--color-surface-blue)_0%,var(--color-surface)_100%)] p-3">
+                <Image src={logo.imageUrl} alt={logo.name} width={360} height={360} className="max-h-[240px] w-full object-contain" unoptimized />
               </div>
               <div>
                 <div className="flex items-start justify-between gap-2">
@@ -67,8 +58,7 @@ export function LogoSelectionScreen() {
             </div>
           </button>
         ))}
-      </div>
-        </>
+        </div>
       ) : null}
     </Screen>
   );

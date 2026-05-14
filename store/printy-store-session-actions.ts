@@ -1,6 +1,7 @@
 import type { StateCreator } from "zustand";
 import { normalizeContact } from "@/lib/contact";
 import type { LocalUser } from "@/lib/types";
+import { logoOptions } from "@/lib/mock-data";
 import { makeId } from "@/store/printy-store-id-date";
 import type { PrintyState } from "@/store/printy-store-types";
 
@@ -47,10 +48,31 @@ export function createPrintySessionActions(set: PrintyStoreSet, get: PrintyStore
             authenticatedAt: now,
           },
         };
+        const isSwitchingUser = state.authSession?.userId !== undefined && state.authSession.userId !== nextUser.id;
+        const isSavingCurrentGuestWork = state.loginBackStep === "logoSave" || state.loginRedirectTarget === "checkout";
+        const workspaceState = isSwitchingUser || !isSavingCurrentGuestWork
+          ? {
+              brands: [],
+              savedGeneratedLogoOptions: [],
+              businessCardDrafts: [],
+              orders: [],
+              generatedLogoOptions: [],
+              selectedLogoId: logoOptions[0].id,
+              selectedBrandId: undefined,
+              activeBusinessCardDraftId: undefined,
+              lastOrderId: undefined,
+              brandWorkspaceHasPendingLocalChanges: false,
+              brandWorkspaceOwnerUserId: nextUser.id,
+            }
+          : {
+              brandWorkspaceHasPendingLocalChanges: true,
+              brandWorkspaceOwnerUserId: nextUser.id,
+            };
 
         if (redirectTarget === "dashboard") {
           return {
             ...authenticatedState,
+            ...workspaceState,
             onboardingComplete: true,
             activeTab: "home",
             brandView: "list",
@@ -63,6 +85,7 @@ export function createPrintySessionActions(set: PrintyStoreSet, get: PrintyStore
 
         return {
           ...authenticatedState,
+          ...workspaceState,
           onboardingComplete: false,
           currentStep: "checkout",
           loginRedirectTarget: undefined,

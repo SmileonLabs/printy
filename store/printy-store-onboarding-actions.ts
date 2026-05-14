@@ -3,7 +3,7 @@ import { findBusinessCardTemplate } from "@/lib/business-card-templates";
 import { findGeneratedLogoInState } from "@/lib/logo/generatedLogoLookup";
 import { logoOptions } from "@/lib/mock-data";
 import type { Brand, BusinessCardDraft, GeneratedLogoOption, OrderRecord } from "@/lib/types";
-import { defaultMember, defaultOrderOptions, defaultPaymentMethod } from "@/store/printy-store-defaults";
+import { defaultBrandDraft, defaultMember, defaultOrderOptions, defaultPaymentMethod } from "@/store/printy-store-defaults";
 import { saveGeneratedLogo } from "@/store/printy-store-generated-logos";
 import { getCreatedDate, getDisplayDate, makeId } from "@/store/printy-store-id-date";
 import { createOrderNumber, formatPrice, getOrderPriceAmount } from "@/store/printy-store-order";
@@ -152,11 +152,7 @@ export function createPrintyOnboardingActions(set: PrintyStoreSet, get: PrintySt
         onboardingComplete: false,
         currentStep: "brandCreation",
         brandView: "list",
-        brandDraft: {
-          name: "새 브랜드",
-          category: "카페",
-        designRequest: "",
-        },
+        brandDraft: defaultBrandDraft,
         selectedLogoId: logoOptions[0].id,
         selectedBrandId: undefined,
         generatedLogoOptions: [],
