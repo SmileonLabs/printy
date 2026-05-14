@@ -44,27 +44,6 @@ function getBrandLogoIds(brand: Brand) {
   return Array.from(new Set([brand.selectedLogoId, ...(Array.isArray(brand.logoIds) ? brand.logoIds : [])]));
 }
 
-function createLogoFileName(brandName: string, logoName: string) {
-  const fileName = `${brandName}-${logoName}`.replace(/[\\/:*?"<>|]+/g, "-").trim();
-
-  return `${fileName || "printy-logo"}.png`;
-}
-
-function createLogoSvgFileName(brandName: string, logoName: string) {
-  return createLogoFileName(brandName, logoName).replace(/\.png$/i, ".svg");
-}
-
-function downloadLogoImage(imageUrl: string, fileName: string) {
-  const anchor = document.createElement("a");
-
-  anchor.href = imageUrl;
-  anchor.download = fileName;
-  anchor.rel = "noopener";
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-}
-
 export function BrandDetail() {
   const { brands, businessCardDrafts, orders, brandAssets, templates, selectedBrandId, activeBrandSection, setBrandSection, startNewBrand } = usePrintyStore();
   const brand = brands.find((item) => item.id === selectedBrandId);
@@ -115,11 +94,9 @@ export function BrandDetail() {
 
 export function SectionPanel({ sectionId, title, summary, brand, cardDraft, businessCardDrafts, orders, assets, templates }: { sectionId: BrandDetailSectionId; title: string; summary: string; brand: Brand; cardDraft?: BusinessCardDraft; businessCardDrafts: BusinessCardDraft[]; orders: OrderRecord[]; assets: BrandAsset[]; templates: PrintTemplate[] }) {
   const [shareStatus, setShareStatus] = useState("");
-  const [svgDownloadStatus, setSvgDownloadStatus] = useState("");
   const [teamNotice, setTeamNotice] = useState("");
   const brandLogo = usePrintyStore((state) => resolveLogoFromState(state, brand.selectedLogoId));
   const startBrandSectionProduction = usePrintyStore((state) => state.startBrandSectionProduction);
-  const startAdditionalLogoForBrand = usePrintyStore((state) => state.startAdditionalLogoForBrand);
   const selectBrandLogo = usePrintyStore((state) => state.selectBrandLogo);
   const deleteBrandLogo = usePrintyStore((state) => state.deleteBrandLogo);
   const setBrandSection = usePrintyStore((state) => state.setBrandSection);
@@ -130,71 +107,45 @@ export function SectionPanel({ sectionId, title, summary, brand, cardDraft, busi
   const savedGeneratedLogoOptions = usePrintyStore((state) => state.savedGeneratedLogoOptions);
   const brandLogos = getBrandLogoIds(brand).map((logoId) => getLogo(logoId, [...generatedLogoOptions, ...savedGeneratedLogoOptions]));
 
-  const handleLogoDownload = () => {
-    if (!logoHasImage(brandLogo)) {
-      return;
-    }
-
-    downloadLogoImage(brandLogo.imageUrl, createLogoFileName(brand.name, brandLogo.name));
-  };
-
   const handleLogoShare = async () => {
     if (!logoHasImage(brandLogo)) {
       return;
     }
 
-    const shareText = `${brand.name} 대표 로고: ${brandLogo.name}`;
+    setShareStatus("공유 페이지를 준비하고 있어요.");
 
     try {
+      const response = await fetch("/api/logo-shares", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ brandId: brand.id, logoId: brandLogo.id }),
+      });
+      const payload: unknown = await response.json().catch(() => undefined);
+      const token = typeof payload === "object" && payload !== null && "token" in payload && typeof payload.token === "string" ? payload.token : undefined;
+
+      if (!response.ok || !token) {
+        throw new Error("공유 페이지를 만들지 못했어요.");
+      }
+
+      const shareUrl = new URL(`/share/logos/${token}`, window.location.origin).toString();
+      const shareText = `${brand.name} 대표 로고를 확인해 보세요.`;
+
       if (navigator.share) {
-        await navigator.share({ title: brandLogo.name, text: shareText, url: brandLogo.imageUrl });
+        await navigator.share({ title: `${brand.name} 로고`, text: shareText, url: shareUrl });
         setShareStatus("공유를 열었어요.");
         return;
       }
 
       if (navigator.clipboard) {
-        await navigator.clipboard.writeText(brandLogo.imageUrl);
-        setShareStatus("로고 링크를 복사했어요.");
+        await navigator.clipboard.writeText(shareUrl);
+        setShareStatus("공유 페이지 링크를 복사했어요.");
         return;
       }
 
-      window.open(brandLogo.imageUrl, "_blank", "noopener,noreferrer");
-      setShareStatus("새 창에서 로고를 열었어요.");
+      window.open(shareUrl, "_blank", "noopener,noreferrer");
+      setShareStatus("새 창에서 공유 페이지를 열었어요.");
     } catch {
       setShareStatus("공유를 완료하지 못했어요.");
-    }
-  };
-
-  const handleLogoSvgDownload = async () => {
-    if (!logoHasImage(brandLogo)) {
-      return;
-    }
-
-    setSvgDownloadStatus("SVG 변환 중...");
-
-    try {
-      const response = await fetch("/api/logos/vectorize", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageUrl: brandLogo.imageUrl }),
-      });
-
-      if (!response.ok) {
-        throw new Error("SVG 변환에 실패했어요. PNG는 그대로 사용할 수 있어요.");
-      }
-
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = createLogoSvgFileName(brand.name, brandLogo.name);
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      URL.revokeObjectURL(url);
-      setSvgDownloadStatus("SVG 파일을 준비했어요.");
-    } catch (error) {
-      setSvgDownloadStatus(error instanceof Error ? error.message : "SVG 변환에 실패했어요. PNG는 그대로 사용할 수 있어요.");
     }
   };
 
@@ -210,7 +161,7 @@ export function SectionPanel({ sectionId, title, summary, brand, cardDraft, busi
 
   const content = (() => {
     if (sectionId === "style") {
-      return <StyleSection logo={brandLogo} logos={brandLogos} selectedLogoId={brand.selectedLogoId} assets={sectionAssets} canUseImageActions={hasDownloadableLogo} shareStatus={shareStatus} svgDownloadStatus={svgDownloadStatus} onDownload={handleLogoDownload} onDownloadSvg={handleLogoSvgDownload} onShare={handleLogoShare} onCreateAnotherLogo={() => startAdditionalLogoForBrand(brand.id)} onSelectBrandLogo={(logoId) => selectBrandLogo(brand.id, logoId)} onDeleteBrandLogo={(logoId) => deleteBrandLogo(brand.id, logoId)} />;
+      return <StyleSection logo={brandLogo} logos={brandLogos} selectedLogoId={brand.selectedLogoId} assets={sectionAssets} canUseImageActions={hasDownloadableLogo} shareStatus={shareStatus} onShare={handleLogoShare} onSelectBrandLogo={(logoId) => selectBrandLogo(brand.id, logoId)} onDeleteBrandLogo={(logoId) => deleteBrandLogo(brand.id, logoId)} />;
     }
 
     if (sectionId === "team") {
@@ -257,7 +208,7 @@ export function SectionPanel({ sectionId, title, summary, brand, cardDraft, busi
   );
 }
 
-function StyleSection({ logo, logos, selectedLogoId, assets, canUseImageActions, shareStatus, svgDownloadStatus, onDownload, onDownloadSvg, onShare, onCreateAnotherLogo, onSelectBrandLogo, onDeleteBrandLogo }: { logo: ResolvedLogoOption; logos: ResolvedLogoOption[]; selectedLogoId: string; assets: BrandAsset[]; canUseImageActions: boolean; shareStatus: string; svgDownloadStatus: string; onDownload: () => void; onDownloadSvg: () => void; onShare: () => void; onCreateAnotherLogo: () => void; onSelectBrandLogo: (logoId: string) => void; onDeleteBrandLogo: (logoId: string) => void }) {
+function StyleSection({ logo, logos, selectedLogoId, assets, canUseImageActions, shareStatus, onShare, onSelectBrandLogo, onDeleteBrandLogo }: { logo: ResolvedLogoOption; logos: ResolvedLogoOption[]; selectedLogoId: string; assets: BrandAsset[]; canUseImageActions: boolean; shareStatus: string; onShare: () => void; onSelectBrandLogo: (logoId: string) => void; onDeleteBrandLogo: (logoId: string) => void }) {
   const rows = [
     ["설명", logo.description],
   ];
@@ -284,23 +235,13 @@ function StyleSection({ logo, logos, selectedLogoId, assets, canUseImageActions,
           </SoftCard>
         ))}
       </div>
-      <SoftCard className="grid grid-cols-2 gap-3">
-        <AppButton className="disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0" variant="secondary" onClick={onDownload} disabled={!canUseImageActions}>
-          PNG 다운 받기
-        </AppButton>
-        <AppButton className="disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0" variant="secondary" onClick={onDownloadSvg} disabled={!canUseImageActions || svgDownloadStatus === "SVG 변환 중..."}>
-          {svgDownloadStatus === "SVG 변환 중..." ? "SVG 변환 중" : "SVG 파일로 다운 받기"}
-        </AppButton>
-        <AppButton variant="secondary" onClick={onCreateAnotherLogo}>
-          로고 하나 더 만들기
-        </AppButton>
+      <SoftCard>
         <AppButton className="disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0" variant="secondary" onClick={onShare} disabled={!canUseImageActions}>
           공유하기
         </AppButton>
       </SoftCard>
       {!canUseImageActions ? <SoftCard className="bg-surface-blue text-xs font-bold leading-5 text-primary-strong">기본 제공 로고는 이미지 파일 링크가 없어 다운로드와 공유를 비활성화했어요.</SoftCard> : null}
       {shareStatus ? <SoftCard className="bg-surface-blue text-xs font-bold leading-5 text-primary-strong">{shareStatus}</SoftCard> : null}
-      {svgDownloadStatus && svgDownloadStatus !== "SVG 변환 중..." ? <SoftCard className="bg-surface-blue text-xs font-bold leading-5 text-primary-strong">{svgDownloadStatus}</SoftCard> : null}
     </div>
   );
 }

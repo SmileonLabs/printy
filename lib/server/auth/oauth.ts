@@ -57,6 +57,7 @@ export type OAuthCallbackConfig = {
 
 const oauthStateCookieName = "printy_oauth_state";
 const oauthRedirectCookieName = "printy_oauth_redirect";
+const oauthLogoShareCookieName = "printy_oauth_logo_share";
 const oauthStateDurationSeconds = 10 * 60;
 
 function cookieOptions(maxAge: number) {
@@ -97,10 +98,18 @@ function appOrigin(request: Request, requestUrl: string) {
   return `${protocol}://${host}`;
 }
 
-function appRedirectUrl(request: Request, requestUrl: string, status: "success" | "error", redirectTarget: string) {
+function isLogoShareToken(value: string | null): value is string {
+  return Boolean(value && /^[A-Za-z0-9_-]{24,80}$/.test(value));
+}
+
+function appRedirectUrl(request: Request, requestUrl: string, status: "success" | "error", redirectTarget: string, logoShareToken?: string) {
   const url = new URL("/", appOrigin(request, requestUrl));
   url.searchParams.set("auth", status);
   url.searchParams.set("target", redirectTarget === "checkout" ? "checkout" : "dashboard");
+
+  if (logoShareToken) {
+    url.searchParams.set("claimLogoShare", logoShareToken);
+  }
 
   return url;
 }
@@ -121,6 +130,7 @@ export function startOAuth(request: Request, config: OAuthStartConfig) {
   const requestUrl = new URL(request.url);
   const state = createState();
   const redirectTarget = readRedirectTarget(requestUrl.searchParams.get("redirect"));
+  const logoShareToken = requestUrl.searchParams.get("claimLogoShare");
   const authorizeUrl = new URL(config.authorizeUrl);
 
   authorizeUrl.searchParams.set("client_id", config.clientId);
@@ -132,6 +142,10 @@ export function startOAuth(request: Request, config: OAuthStartConfig) {
   const response = NextResponse.redirect(authorizeUrl);
   response.cookies.set(`${oauthStateCookieName}_${config.provider}`, state, cookieOptions(oauthStateDurationSeconds));
   response.cookies.set(`${oauthRedirectCookieName}_${config.provider}`, redirectTarget, cookieOptions(oauthStateDurationSeconds));
+
+  if (isLogoShareToken(logoShareToken)) {
+    response.cookies.set(`${oauthLogoShareCookieName}_${config.provider}`, logoShareToken, cookieOptions(oauthStateDurationSeconds));
+  }
 
   return response;
 }
@@ -229,23 +243,26 @@ export async function finishOAuthCallback(request: Request, config: OAuthCallbac
   const state = requestUrl.searchParams.get("state");
   const stateCookie = request.headers.get("cookie")?.split(";").map((part) => part.trim()).find((part) => part.startsWith(`${oauthStateCookieName}_${config.provider}=`))?.split("=")[1];
   const redirectCookie = request.headers.get("cookie")?.split(";").map((part) => part.trim()).find((part) => part.startsWith(`${oauthRedirectCookieName}_${config.provider}=`))?.split("=")[1];
+  const logoShareCookie = request.headers.get("cookie")?.split(";").map((part) => part.trim()).find((part) => part.startsWith(`${oauthLogoShareCookieName}_${config.provider}=`))?.split("=")[1];
   const redirectTarget = readRedirectTarget(redirectCookie ?? null);
+  const logoShareToken = isLogoShareToken(logoShareCookie ?? null) ? logoShareCookie : undefined;
 
   if (!code || !state || !stateCookie || state !== stateCookie) {
-    return NextResponse.redirect(appRedirectUrl(request, config.requestUrl, "error", redirectTarget));
+    return NextResponse.redirect(appRedirectUrl(request, config.requestUrl, "error", redirectTarget, logoShareToken));
   }
 
   try {
     const profile = config.provider === "google" ? await fetchGoogleProfile(config, code) : await fetchKakaoProfile(config, code);
     const user = await upsertOAuthUser(profile);
     const dbSession = await createDbSession(user.id, config.provider);
-    const response = NextResponse.redirect(appRedirectUrl(request, config.requestUrl, "success", redirectTarget));
+    const response = NextResponse.redirect(appRedirectUrl(request, config.requestUrl, "success", redirectTarget, logoShareToken));
 
     response.cookies.set(`${oauthStateCookieName}_${config.provider}`, "", { ...cookieOptions(0), maxAge: 0 });
     response.cookies.set(`${oauthRedirectCookieName}_${config.provider}`, "", { ...cookieOptions(0), maxAge: 0 });
+    response.cookies.set(`${oauthLogoShareCookieName}_${config.provider}`, "", { ...cookieOptions(0), maxAge: 0 });
 
     return setSessionCookie(response, dbSession.token, dbSession.expiresAt, request);
   } catch {
-    return NextResponse.redirect(appRedirectUrl(request, config.requestUrl, "error", redirectTarget));
+    return NextResponse.redirect(appRedirectUrl(request, config.requestUrl, "error", redirectTarget, logoShareToken));
   }
 }

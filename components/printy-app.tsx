@@ -4,6 +4,7 @@ import { type ReactElement } from "react";
 import { BrandWorkspaceSyncController } from "@/components/printy/brand-workspace-sync-controller";
 import { MainApp } from "@/components/printy/dashboard/main-app";
 import { LogoGenerationController } from "@/components/printy/logo/logo-generation-controller";
+import { LogoShareClaimController } from "@/components/printy/logo-share-claim-controller";
 import { LogoGeneratingScreen } from "@/components/printy/logo/logo-generating-screen";
 import { LogoRevisionScreen } from "@/components/printy/logo/logo-revision-screen";
 import { LogoSaveScreen } from "@/components/printy/logo/logo-save-screen";
@@ -34,6 +35,7 @@ export function PrintyApp() {
   return (
     <>
       <LogoGenerationController />
+      <LogoShareClaimController />
       <PublicTemplateSyncController />
       <SessionSyncController />
       <BrandWorkspaceSyncController />
