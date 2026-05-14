@@ -105,7 +105,7 @@ export function OptionChip({ label, selected, onClick }: { label: string; select
   );
 }
 
-export function TextField({ label, value, placeholder, onChange }: { label: string; value: string; placeholder: string; onChange: (value: string) => void }) {
+export function TextField({ label, value, placeholder, type = "text", onChange }: { label: string; value: string; placeholder: string; type?: string; onChange: (value: string) => void }) {
   return (
     <label className="block">
       <span className="mb-2 block text-xs font-extrabold text-soft">{label}</span>
@@ -113,6 +113,7 @@ export function TextField({ label, value, placeholder, onChange }: { label: stri
         className="w-full rounded-md border border-line bg-surface px-4 py-4 text-base font-bold text-ink outline-none transition focus:border-primary focus:shadow-soft"
         autoComplete="off"
         placeholder={placeholder}
+        type={type}
         value={value}
         onChange={(event) => onChange(event.target.value)}
       />
@@ -126,14 +127,54 @@ export function BottomTabs({ activeTab, onChange }: { activeTab: MainTab; onChan
       {bottomTabs.map((tab) => (
         <button
           key={tab.id}
-          className={`rounded-md px-2 py-3 text-xs font-black transition ${activeTab === tab.id ? "bg-surface-blue text-primary-strong" : "text-soft"}`}
+          className={`grid justify-items-center gap-1 rounded-md px-1 py-2 text-[11px] font-black transition ${activeTab === tab.id ? "text-primary-strong" : "text-soft"}`}
           type="button"
           onClick={() => onChange(tab.id)}
+          aria-label={tab.label}
         >
-          <span className="mx-auto mb-1 block h-1.5 w-1.5 rounded-full bg-current" />
-          {tab.label}
+          <span className={`grid h-11 w-11 place-items-center rounded-2xl transition ${activeTab === tab.id ? "bg-surface-blue shadow-soft" : "bg-transparent"}`}>
+            <BottomTabIcon tab={tab.id} />
+          </span>
+          <span className="leading-4">{tab.label}</span>
         </button>
       ))}
     </nav>
+  );
+}
+
+function BottomTabIcon({ tab }: { tab: MainTab }) {
+  const iconClassName = "h-5 w-5";
+
+  if (tab === "home") {
+    return (
+      <svg className={iconClassName} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M4 11.2 12 4l8 7.2V20a1 1 0 0 1-1 1h-4.5v-6h-5v6H5a1 1 0 0 1-1-1v-8.8Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+
+  if (tab === "brands") {
+    return (
+      <svg className={iconClassName} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M5 7.5 12 4l7 3.5v9L12 20l-7-3.5v-9Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+        <path d="m8.5 9.5 3.5 1.75 3.5-1.75M12 11.25V16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+
+  if (tab === "orders") {
+    return (
+      <svg className={iconClassName} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M7 4h10a1 1 0 0 1 1 1v16l-3-1.7-3 1.7-3-1.7L6 21V5a1 1 0 0 1 1-1Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+        <path d="M9 8h6M9 12h6M9 16h3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg className={iconClassName} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" stroke="currentColor" strokeWidth="2" />
+      <path d="M5 20a7 7 0 0 1 14 0" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
   );
 }

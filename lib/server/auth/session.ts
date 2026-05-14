@@ -3,7 +3,6 @@ import "server-only";
 import crypto from "node:crypto";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { normalizeContact } from "@/lib/contact";
 import { queryDb } from "@/lib/server/db";
 
 export type PublicSessionUser = {
@@ -25,6 +24,7 @@ type UserRow = {
   name: string;
   contact: string | null;
   email: string | null;
+  password_hash?: string | null;
 };
 
 type SessionRow = UserRow & {
@@ -33,6 +33,35 @@ type SessionRow = UserRow & {
 
 const sessionCookieName = "printy_session";
 const sessionDurationMs = 30 * 24 * 60 * 60 * 1000;
+const localPasswordHashPrefix = "scrypt";
+
+function normalizeLocalUserId(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function isValidLocalUserId(value: string) {
+  return /^[a-z0-9][a-z0-9._-]{2,39}$/.test(value);
+}
+
+function hashLocalPassword(password: string) {
+  const salt = crypto.randomBytes(16).toString("base64url");
+  const hash = crypto.scryptSync(password, salt, 64).toString("base64url");
+
+  return `${localPasswordHashPrefix}:${salt}:${hash}`;
+}
+
+function verifyLocalPassword(password: string, storedHash: string) {
+  const [prefix, salt, hash] = storedHash.split(":");
+
+  if (prefix !== localPasswordHashPrefix || !salt || !hash) {
+    return false;
+  }
+
+  const expected = Buffer.from(hash, "base64url");
+  const actual = crypto.scryptSync(password, salt, expected.length);
+
+  return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
+}
 
 function hashSessionToken(token: string) {
   return crypto.createHash("sha256").update(token).digest("hex");
@@ -77,36 +106,49 @@ function toPublicSession(row: SessionRow): PublicSession {
   };
 }
 
-export function readLocalLoginInput(value: unknown): { name: string; contact: string; email?: string } | undefined {
+export function readLocalLoginInput(value: unknown): { userId: string; password: string } | undefined {
   if (typeof value !== "object" || value === null) {
     return undefined;
   }
 
   const record = value as Record<string, unknown>;
-  const name = typeof record.name === "string" ? record.name.trim() : "";
-  const contact = typeof record.contact === "string" ? normalizeContact(record.contact) : "";
-  const email = contact.includes("@") ? contact : undefined;
+  const userId = typeof record.userId === "string" ? normalizeLocalUserId(record.userId) : "";
+  const password = typeof record.password === "string" ? record.password : "";
 
-  if (!name || !contact || name.length > 100 || contact.length > 200) {
+  if (!isValidLocalUserId(userId) || password.length < 8 || password.length > 100) {
     return undefined;
   }
 
-  return { name, contact, email };
+  return { userId, password };
 }
 
-export async function upsertLocalUser(input: { name: string; contact: string; email?: string }) {
+export async function findOrCreateLocalPasswordUser(input: { userId: string; password: string }) {
+  const existingUser = await queryDb<UserRow>(
+    `
+      select id, name, contact, email, password_hash
+      from users
+      where contact = $1
+      limit 1
+    `,
+    [input.userId],
+  );
+  const existing = existingUser.rows[0];
+
+  if (existing) {
+    if (!existing.password_hash || !verifyLocalPassword(input.password, existing.password_hash)) {
+      return undefined;
+    }
+
+    return existing;
+  }
+
   const result = await queryDb<UserRow>(
     `
-      insert into users (name, contact, email)
+      insert into users (name, contact, password_hash)
       values ($1, $2, $3)
-      on conflict (contact) where contact is not null
-      do update set
-        name = excluded.name,
-        email = coalesce(users.email, excluded.email),
-        updated_at = now()
       returning id, name, contact, email
     `,
-    [input.name, input.contact, input.email ?? null],
+    [input.userId, input.userId, hashLocalPassword(input.password)],
   );
 
   return result.rows[0];
