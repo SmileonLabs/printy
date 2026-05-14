@@ -65,6 +65,7 @@
     "OPENAI_IMAGE_MODEL": "gpt-image-2",
     "OPENAI_REFERENCE_ANALYSIS_MODEL": "gpt-4.1-mini",
     "PRINTY_ALLOW_INSECURE_COOKIES": "false",
+    "PRINTY_LOGO_GENERATION_MAX_RUNNING": "3",
     "PRINTY_MAIN_WORKER_ORIGIN": "https://printy.ljhee3611.workers.dev"
   }
 }

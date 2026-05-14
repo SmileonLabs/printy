@@ -1,14 +1,16 @@
 "use client";
 
 import { useEffect } from "react";
-import { getBrandGenerationKey, isLogoGenerationErrorPayload, isLogoGenerationResponse } from "@/components/printy/logo/logo-generation";
+import { getBrandGenerationKey, isLogoGenerationErrorPayload, isLogoGenerationJobCreateResponse, isLogoGenerationJobResponse } from "@/components/printy/logo/logo-generation";
 import { findGeneratedLogoFromState, makeRevisionSourceLogo } from "@/components/printy/logo/logo-state";
 import { logoUiCopy } from "@/lib/logo/logoUiCopy";
 import { usePrintyStore } from "@/store/use-printy-store";
 
 let activeLogoGenerationKey: string | undefined;
 
-const GENERATION_REQUEST_TIMEOUT_MS = 120000;
+const GENERATION_JOB_POLL_INTERVAL_MS = 2000;
+const GENERATION_JOB_TIMEOUT_MS = 5 * 60 * 1000;
+const GENERATION_REQUEST_TIMEOUT_MS = GENERATION_JOB_TIMEOUT_MS + 10000;
 const clientLogoGenerationFailureReason = "OpenAI 응답이 지연됐어요. 잠시 후 다시 시도해 주세요.";
 
 class LogoGenerationRequestFailure extends Error {
@@ -60,6 +62,59 @@ export function LogoGenerationController() {
     const timeoutId = window.setTimeout(() => {
       controller.abort();
     }, GENERATION_REQUEST_TIMEOUT_MS);
+    const startedAt = Date.now();
+
+    const readErrorReason = async (response: Response) => {
+      const payload: unknown = await response.json().catch(() => undefined);
+
+      return isLogoGenerationErrorPayload(payload) ? payload.reason : clientLogoGenerationFailureReason;
+    };
+
+    const pollLogoGenerationJob = async (jobId: string) => {
+      while (!controller.signal.aborted) {
+        if (Date.now() - startedAt > GENERATION_JOB_TIMEOUT_MS) {
+          throw new LogoGenerationRequestFailure(clientLogoGenerationFailureReason);
+        }
+
+        await new Promise<void>((resolve, reject) => {
+          const pollTimeoutId = window.setTimeout(resolve, GENERATION_JOB_POLL_INTERVAL_MS);
+
+          controller.signal.addEventListener(
+            "abort",
+            () => {
+              window.clearTimeout(pollTimeoutId);
+              reject(new DOMException("Logo generation was aborted.", "AbortError"));
+            },
+            { once: true },
+          );
+        });
+
+        const response = await fetch(`/api/logos/generation-jobs/${encodeURIComponent(jobId)}`, {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          throw new LogoGenerationRequestFailure(await readErrorReason(response));
+        }
+
+        const payload: unknown = await response.json();
+
+        if (!isLogoGenerationJobResponse(payload)) {
+          throw new Error("Logo generation job response was invalid.");
+        }
+
+        if (payload.status === "succeeded") {
+          return payload.result;
+        }
+
+        if (payload.status === "failed" || payload.status === "cancelled") {
+          throw new LogoGenerationRequestFailure(payload.reason);
+        }
+      }
+
+      throw new LogoGenerationRequestFailure(clientLogoGenerationFailureReason);
+    };
 
     fetch("/api/logos/generate", {
       method: "POST",
@@ -86,18 +141,18 @@ export function LogoGenerationController() {
     })
       .then(async (response) => {
         if (!response.ok) {
-          const payload: unknown = await response.json().catch(() => undefined);
-          const reason = isLogoGenerationErrorPayload(payload) ? payload.reason : clientLogoGenerationFailureReason;
-
-          throw new LogoGenerationRequestFailure(reason);
+          throw new LogoGenerationRequestFailure(await readErrorReason(response));
         }
 
         const payload: unknown = await response.json();
 
-        if (!isLogoGenerationResponse(payload)) {
-          throw new Error("Logo generation response was invalid.");
+        if (!isLogoGenerationJobCreateResponse(payload)) {
+          throw new Error("Logo generation job creation response was invalid.");
         }
 
+        return pollLogoGenerationJob(payload.jobId);
+      })
+      .then((payload) => {
         const latestState = usePrintyStore.getState();
 
         if (latestState.currentStep !== "generating" || getBrandGenerationKey(latestState.brandDraft, latestState.logoGenerationMode, latestState.logoGenerationIntent, latestState.logoRevisionRequest, latestState.logoRevisionSourceLogoId, latestState.selectedLogoReferenceImageId) !== generationKey) {

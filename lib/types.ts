@@ -149,6 +149,29 @@ export type LogoGenerationResponse = {
   logos: GeneratedLogoOption[];
 };
 
+export type LogoGenerationJobStatus = "queued" | "running" | "succeeded" | "failed" | "cancelled";
+
+export type LogoGenerationJobCreateResponse = {
+  jobId: string;
+  status: Extract<LogoGenerationJobStatus, "queued" | "running">;
+};
+
+export type LogoGenerationJobResponse =
+  | {
+      jobId: string;
+      status: Extract<LogoGenerationJobStatus, "queued" | "running">;
+    }
+  | {
+      jobId: string;
+      status: "succeeded";
+      result: LogoGenerationResponse;
+    }
+  | {
+      jobId: string;
+      status: "failed" | "cancelled";
+      reason: string;
+    };
+
 export type ResolvedLogoOption = LogoOption | GeneratedLogoOption;
 
 export type Member = {

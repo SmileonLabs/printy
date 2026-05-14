@@ -41,7 +41,8 @@ export function LogoDirectionScreen() {
   const [referenceFileInputKey, setReferenceFileInputKey] = useState(0);
   const [referenceUploadMessage, setReferenceUploadMessage] = useState("");
   const [isUploadingReference, setIsUploadingReference] = useState(false);
-  const canGenerate = brandDraft.name.trim().length > 0 && brandDraft.category.trim().length > 0 && (logoGenerationMode !== "reference" || Boolean(selectedLogoReferenceImageId));
+  const selectedReferenceImageExists = selectedLogoReferenceImageId ? referenceImages.some((image) => image.id === selectedLogoReferenceImageId) : false;
+  const canGenerate = brandDraft.name.trim().length > 0 && brandDraft.category.trim().length > 0 && (logoGenerationMode !== "reference" || selectedReferenceImageExists);
   const showManualFields = logoGenerationMode === "manual";
   const showReferenceFields = logoGenerationMode === "reference";
 
@@ -52,8 +53,10 @@ export function LogoDirectionScreen() {
         if (isLogoReferenceImagesResponse(payload)) {
           setReferenceImages(payload.images);
 
-          if (!selectedLogoReferenceImageId && payload.images[0]) {
-            selectLogoReferenceImage(payload.images[0].id);
+          const selectedImageExists = selectedLogoReferenceImageId ? payload.images.some((image) => image.id === selectedLogoReferenceImageId) : false;
+
+          if (!selectedImageExists) {
+            selectLogoReferenceImage(payload.images[0]?.id);
           }
         }
       })

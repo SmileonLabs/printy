@@ -16,6 +16,8 @@ export class PrintyContainer extends Container {
     PRINTY_ADMIN_CONTACTS: workerEnv.PRINTY_ADMIN_CONTACTS,
     PRINTY_ADMIN_TOKEN: workerEnv.PRINTY_ADMIN_TOKEN,
     PRINTY_ALLOW_INSECURE_COOKIES: workerEnv.PRINTY_ALLOW_INSECURE_COOKIES,
+    PRINTY_LOGO_GENERATION_MAX_RUNNING: workerEnv.PRINTY_LOGO_GENERATION_MAX_RUNNING,
+    PRINTY_JOB_PROCESSOR_TOKEN: workerEnv.PRINTY_JOB_PROCESSOR_TOKEN,
     GOOGLE_CLIENT_ID: workerEnv.GOOGLE_CLIENT_ID,
     GOOGLE_CLIENT_SECRET: workerEnv.GOOGLE_CLIENT_SECRET,
     GOOGLE_REDIRECT_URI: workerEnv.GOOGLE_REDIRECT_URI,
@@ -30,6 +32,7 @@ function shouldUseNativeContainer(pathname) {
     pathname.startsWith("/api/admin/") ||
     pathname === "/api/logo-reference-images" ||
     pathname === "/api/logos/generate" ||
+    pathname.startsWith("/api/logos/generation-jobs/") ||
     pathname === "/api/logos/vectorize" ||
     /^\/uploads\/logo-reference-images\/[^/]+$/.test(pathname) ||
     /^\/uploads\/generated-logos\/[^/]+$/.test(pathname) ||

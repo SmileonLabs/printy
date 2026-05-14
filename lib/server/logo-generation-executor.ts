@@ -1,0 +1,573 @@
+import "server-only";
+
+import OpenAI, { toFile } from "openai";
+import { createLogoGenerationPlans, createLogoRevisionPlans } from "@/lib/logo/logoGenerationPlans";
+import { isGeneratedLogoPublicUrl, readGeneratedLogoBytesByPublicUrl, readLogoReferenceImageBytesById, saveGeneratedLogoBytes } from "@/lib/server/storage";
+import type { GeneratedLogoOption, LogoGenerationInput, LogoGenerationMode, LogoGenerationPlan, LogoGenerationResponse, LogoRevisionGenerationInput, LogoRevisionSourceLogo } from "@/lib/types";
+
+export type InitialBrandLogoRequest = LogoGenerationInput & {
+  mode: "initial";
+  generationMode: LogoGenerationMode;
+};
+
+export type RevisionBrandLogoRequest = LogoRevisionGenerationInput & {
+  mode: "revision";
+};
+
+export type BrandLogoRequest = InitialBrandLogoRequest | RevisionBrandLogoRequest;
+
+export const invalidLogoGenerationRequestReason = "브랜드 이름과 업종은 1-100자, 디자인 요청은 1500자 이하, 수정 요청은 1-1000자로 입력해 주세요.";
+const missingConfigurationReason = "이미지 생성 설정을 확인해야 해요. 관리자에게 OpenAI API 키 설정을 확인해 달라고 알려주세요.";
+const usageQuotaReason = "이미지 생성 서비스를 일시적으로 사용할 수 없어요. 잠시 후 다시 시도해 주세요.";
+const rateLimitReason = "요청이 너무 많아요. 10분 정도 기다린 뒤 다시 시도해 주세요.";
+const modelAccessReason = "OpenAI 이미지 모델 접근 권한이 막혔어요. 조직 인증이나 모델 권한을 확인해 주세요.";
+const modelUnavailableReason = "요청한 이미지 모델을 사용할 수 없어요. 모델 설정을 확인해 주세요.";
+const upstreamInvalidRequestReason = "OpenAI가 요청 형식을 거절했어요. 입력을 조금 줄이거나 다르게 적어 다시 시도해 주세요.";
+const upstreamTimeoutReason = "OpenAI 응답이 지연됐어요. 잠시 후 다시 시도해 주세요.";
+const upstreamServerReason = "OpenAI 서버 응답이 불안정해요. 잠시 후 다시 시도해 주세요.";
+const unknownUpstreamReason = "이미지 생성 중 원인을 알 수 없는 오류가 발생했어요. 잠시 후 다시 시도해 주세요.";
+const internalStorageReason = "로고 이미지는 생성됐지만 내부 저장 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.";
+const defaultOpenAIImageModel = "gpt-image-2";
+const supportedOpenAIImageModels = new Set(["gpt-image-2", "gpt-image-2-2026-04-21", "gpt-image-1.5", "gpt-image-1", "gpt-image-1-mini"]);
+
+type OpenAIImageOperation = "images.generate" | "images.edit";
+export type LogoGenerationFailureKind = "usage_quota" | "rate_limit" | "permission_model_access" | "auth_config" | "model_unavailable" | "invalid_request" | "timeout_network" | "upstream_server" | "internal_storage" | "unknown";
+
+type HeaderGetter = {
+  get: (name: string) => unknown;
+};
+
+type SafeOpenAIErrorLog = {
+  failureKind: LogoGenerationFailureKind;
+  operation: OpenAIImageOperation;
+  model: string;
+  errorName: string;
+  message?: string;
+  status?: number;
+  code?: string;
+  type?: string;
+  requestID?: string;
+  rateLimitHeaders?: Record<string, string>;
+};
+
+export type LogoGenerationFailureClassification = {
+  failureKind: LogoGenerationFailureKind;
+  reason: string;
+  status: number;
+  retryable: boolean;
+};
+
+export class LogoGenerationRequestValidationError extends Error {
+  constructor() {
+    super(invalidLogoGenerationRequestReason);
+    this.name = "LogoGenerationRequestValidationError";
+  }
+}
+
+class LogoGenerationUpstreamError extends Error {
+  readonly upstreamCause: unknown;
+
+  constructor(message: string, upstreamCause: unknown) {
+    super(message);
+    this.name = "LogoGenerationUpstreamError";
+    this.upstreamCause = upstreamCause;
+  }
+}
+
+class LogoGenerationInvalidRequestError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "LogoGenerationInvalidRequestError";
+  }
+}
+
+class LogoGenerationInternalStorageError extends Error {
+  readonly storageCause: unknown;
+
+  constructor(message: string, storageCause: unknown) {
+    super(message);
+    this.name = "LogoGenerationInternalStorageError";
+    this.storageCause = storageCause;
+  }
+}
+
+export class LogoGenerationExecutionError extends Error {
+  readonly classification: LogoGenerationFailureClassification;
+  readonly log: SafeOpenAIErrorLog | { failureKind: LogoGenerationFailureKind; errorName: string };
+
+  constructor(classification: LogoGenerationFailureClassification, log: SafeOpenAIErrorLog | { failureKind: LogoGenerationFailureKind; errorName: string }) {
+    super(classification.reason);
+    this.name = "LogoGenerationExecutionError";
+    this.classification = classification;
+    this.log = log;
+  }
+}
+
+function readOpenAIImageModel() {
+  const configuredModel = process.env.OPENAI_IMAGE_MODEL?.trim();
+
+  return configuredModel && supportedOpenAIImageModels.has(configuredModel) ? configuredModel : defaultOpenAIImageModel;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function readString(value: Record<string, unknown>, key: string) {
+  const field = value[key];
+
+  return typeof field === "string" ? field.trim() : "";
+}
+
+function readSafeString(value: Record<string, unknown>, key: string) {
+  const field = value[key];
+
+  return typeof field === "string" && field.trim().length > 0 ? field.trim() : undefined;
+}
+
+function readSafeNumber(value: Record<string, unknown>, key: string) {
+  const field = value[key];
+
+  return typeof field === "number" && Number.isFinite(field) ? field : undefined;
+}
+
+function readErrorName(error: unknown) {
+  if (error instanceof Error) {
+    return error.name;
+  }
+
+  if (isRecord(error)) {
+    return readSafeString(error, "name") ?? "UnknownError";
+  }
+
+  return "UnknownError";
+}
+
+function readErrorMessage(error: unknown) {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message.slice(0, 500);
+  }
+
+  if (isRecord(error)) {
+    return readSafeString(error, "message")?.slice(0, 500);
+  }
+
+  return undefined;
+}
+
+function unwrapUpstreamCause(error: unknown) {
+  return error instanceof LogoGenerationUpstreamError ? error.upstreamCause : error;
+}
+
+function hasHeaderGetter(value: unknown): value is HeaderGetter {
+  return isRecord(value) && typeof value.get === "function";
+}
+
+function readHeaderValue(headers: unknown, headerName: string) {
+  if (hasHeaderGetter(headers)) {
+    const value = headers.get(headerName);
+
+    return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+  }
+
+  if (isRecord(headers)) {
+    return readSafeString(headers, headerName);
+  }
+
+  return undefined;
+}
+
+function readSafeRateLimitHeaders(headers: unknown) {
+  const headerNames = ["x-ratelimit-limit-requests", "x-ratelimit-remaining-requests", "x-ratelimit-reset-requests", "x-ratelimit-limit-tokens", "x-ratelimit-remaining-tokens", "x-ratelimit-reset-tokens"];
+  const safeHeaders: Record<string, string> = {};
+
+  for (const headerName of headerNames) {
+    const value = readHeaderValue(headers, headerName);
+
+    if (value) {
+      safeHeaders[headerName] = value;
+    }
+  }
+
+  return Object.keys(safeHeaders).length > 0 ? safeHeaders : undefined;
+}
+
+function readSafeOpenAIErrorLog(error: unknown, classification: LogoGenerationFailureClassification, operation: OpenAIImageOperation): SafeOpenAIErrorLog {
+  const cause = unwrapUpstreamCause(error);
+  const metadata: SafeOpenAIErrorLog = {
+    failureKind: classification.failureKind,
+    operation,
+    model: readOpenAIImageModel(),
+    errorName: readErrorName(cause),
+  };
+
+  if (!isRecord(cause)) {
+    return metadata;
+  }
+
+  metadata.status = readSafeNumber(cause, "status");
+  metadata.message = readErrorMessage(cause);
+  metadata.code = readSafeString(cause, "code");
+  metadata.type = readSafeString(cause, "type");
+  metadata.requestID = readSafeString(cause, "requestID");
+  metadata.rateLimitHeaders = readSafeRateLimitHeaders(cause.headers);
+
+  return metadata;
+}
+
+function isConnectionOrTimeoutLike(error: unknown) {
+  const cause = unwrapUpstreamCause(error);
+  const name = readErrorName(cause).toLowerCase();
+  const code = isRecord(cause) ? readSafeString(cause, "code")?.toLowerCase() ?? "" : "";
+  const type = isRecord(cause) ? readSafeString(cause, "type")?.toLowerCase() ?? "" : "";
+  const markers = [name, code, type].join(" ");
+
+  return markers.includes("timeout") || markers.includes("connection") || markers.includes("network") || markers.includes("fetch") || markers.includes("econnreset") || markers.includes("etimedout");
+}
+
+function readFailureMarkers(error: unknown) {
+  const cause = unwrapUpstreamCause(error);
+  const name = readErrorName(cause).toLowerCase();
+  const code = isRecord(cause) ? readSafeString(cause, "code")?.toLowerCase() ?? "" : "";
+  const type = isRecord(cause) ? readSafeString(cause, "type")?.toLowerCase() ?? "" : "";
+
+  return [name, code, type].join(" ");
+}
+
+function hasQuotaMarker(markers: string) {
+  return markers.includes("insufficient_quota") || markers.includes("quota") || markers.includes("billing") || markers.includes("usage_limit");
+}
+
+function hasAuthMarker(markers: string) {
+  return markers.includes("invalid_api_key") || markers.includes("authentication") || markers.includes("auth");
+}
+
+function hasPermissionMarker(markers: string) {
+  return markers.includes("permission") || markers.includes("access_denied") || markers.includes("not_authorized");
+}
+
+function hasModelUnavailableMarker(markers: string) {
+  return markers.includes("model_not_found") || markers.includes("model_not_available") || markers.includes("model_unavailable");
+}
+
+function classifyUpstreamFailure(error: unknown): LogoGenerationFailureClassification {
+  const cause = unwrapUpstreamCause(error);
+  const status = isRecord(cause) ? readSafeNumber(cause, "status") : undefined;
+  const markers = readFailureMarkers(error);
+
+  if (status === 429 && hasQuotaMarker(markers)) {
+    return { failureKind: "usage_quota", reason: usageQuotaReason, status: 429, retryable: true };
+  }
+
+  if (status === 401 || hasAuthMarker(markers)) {
+    return { failureKind: "auth_config", reason: missingConfigurationReason, status: 503, retryable: false };
+  }
+
+  if (status === 403 || hasPermissionMarker(markers)) {
+    return { failureKind: "permission_model_access", reason: modelAccessReason, status: 502, retryable: false };
+  }
+
+  if (status === 404 || hasModelUnavailableMarker(markers)) {
+    return { failureKind: "model_unavailable", reason: modelUnavailableReason, status: 502, retryable: false };
+  }
+
+  if (status === 400) {
+    return { failureKind: "invalid_request", reason: upstreamInvalidRequestReason, status: 502, retryable: false };
+  }
+
+  if (status === 429) {
+    return { failureKind: "rate_limit", reason: rateLimitReason, status: 429, retryable: true };
+  }
+
+  if (status !== undefined && status >= 500) {
+    return { failureKind: "upstream_server", reason: upstreamServerReason, status: 503, retryable: true };
+  }
+
+  if (isConnectionOrTimeoutLike(error)) {
+    return { failureKind: "timeout_network", reason: upstreamTimeoutReason, status: 503, retryable: true };
+  }
+
+  return { failureKind: "unknown", reason: unknownUpstreamReason, status: 502, retryable: false };
+}
+
+function isWithinLength(value: string, minLength: number, maxLength: number) {
+  return value.length >= minLength && value.length <= maxLength;
+}
+
+function isDataPngUrl(value: string) {
+  return value.startsWith("data:image/png;base64,") && value.length > "data:image/png;base64,".length;
+}
+
+function isRevisionSourceLogoUrl(value: string) {
+  return isDataPngUrl(value) || isGeneratedLogoPublicUrl(value);
+}
+
+function readBase64PngData(imageUrl: string) {
+  return imageUrl.slice("data:image/png;base64,".length);
+}
+
+function readOptionalString(value: Record<string, unknown>, key: string) {
+  const field = value[key];
+
+  return typeof field === "string" && field.trim().length > 0 ? field.trim() : undefined;
+}
+
+function parseSourceLogo(value: unknown): LogoRevisionSourceLogo | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const id = readString(value, "id");
+  const imageUrl = readString(value, "imageUrl");
+
+  if (!isWithinLength(id, 1, 200) || !isRevisionSourceLogoUrl(imageUrl)) {
+    return undefined;
+  }
+
+  return {
+    id,
+    imageUrl,
+    label: readOptionalString(value, "label"),
+    description: readOptionalString(value, "description"),
+    promptSummary: readOptionalString(value, "promptSummary"),
+    lens: readOptionalString(value, "lens"),
+    designRequest: readOptionalString(value, "designRequest"),
+    requestSummary: readOptionalString(value, "requestSummary"),
+  };
+}
+
+export function parseLogoGenerationRequest(value: unknown): BrandLogoRequest {
+  if (!isRecord(value)) {
+    throw new LogoGenerationRequestValidationError();
+  }
+
+  const brandName = readString(value, "brandName");
+  const industry = readString(value, "industry") || readString(value, "category");
+  const mode = value.mode === "revision" ? "revision" : "initial";
+
+  if (!isWithinLength(brandName, 1, 100) || !isWithinLength(industry, 1, 100)) {
+    throw new LogoGenerationRequestValidationError();
+  }
+
+  if (mode === "revision") {
+    const revisionRequest = readString(value, "revisionRequest");
+    const sourceLogo = parseSourceLogo(value.sourceLogo);
+
+    if (!isWithinLength(revisionRequest, 1, 1000) || !sourceLogo) {
+      throw new LogoGenerationRequestValidationError();
+    }
+
+    return {
+      mode,
+      brandName,
+      industry,
+      revisionRequest,
+      sourceLogo,
+    };
+  }
+
+  const designRequest = readString(value, "designRequest");
+  const generationMode = value.generationMode === "auto" ? "auto" : value.generationMode === "reference" ? "reference" : "manual";
+  const referenceImageId = readOptionalString(value, "referenceImageId");
+
+  if (designRequest.length > 1500 || (generationMode === "reference" && !referenceImageId)) {
+    throw new LogoGenerationRequestValidationError();
+  }
+
+  return {
+    mode,
+    brandName,
+    industry,
+    designRequest,
+    generationMode,
+    referenceImageId,
+  };
+}
+
+function makeOpenAILogo(imageUrl: string, plan: LogoGenerationPlan, index: number): GeneratedLogoOption {
+  return {
+    id: `openai-${Date.now()}-${index + 1}`,
+    name: `${plan.label} 로고`,
+    label: plan.label,
+    description: plan.promptSummary,
+    imageUrl,
+    source: "openai",
+    prompt: plan.prompt,
+    promptSummary: plan.promptSummary,
+    planSource: plan.source,
+    lens: plan.lens,
+    designRequest: plan.designRequest,
+    requestSummary: plan.requestSummary,
+    variationLabel: plan.label,
+    keywords: [plan.lens, plan.requestSummary],
+    revisionOfLogoId: plan.revisionOfLogoId,
+    revisionRequest: plan.revisionRequest,
+  };
+}
+
+async function generateOpenAILogo(client: OpenAI, plan: LogoGenerationPlan, index: number) {
+  let imageData: string | undefined;
+
+  try {
+    const response = await client.images.generate({
+      model: readOpenAIImageModel(),
+      prompt: plan.prompt,
+      n: 1,
+      size: "1024x1024",
+      output_format: "png",
+    });
+    const image = response.data?.[0];
+
+    if (image?.b64_json) {
+      imageData = image.b64_json;
+    } else {
+      throw new Error("OpenAI image generation returned no image data.");
+    }
+  } catch (error) {
+    throw new LogoGenerationUpstreamError("OpenAI image generation failed.", error);
+  }
+
+  try {
+    const storedImage = await saveGeneratedLogoBytes(Buffer.from(imageData, "base64"));
+
+    return makeOpenAILogo(storedImage.publicUrl, plan, index);
+  } catch (error) {
+    throw new LogoGenerationInternalStorageError("Generated logo storage failed.", error);
+  }
+}
+
+async function generateOpenAIReferenceLogo(client: OpenAI, plan: LogoGenerationPlan, referenceImageId: string, index: number) {
+  const referenceImage = await readLogoReferenceImageBytesById(referenceImageId);
+
+  if (!referenceImage) {
+    throw new LogoGenerationInvalidRequestError("Logo reference image is missing or unreadable.");
+  }
+
+  const forcedInstructions = referenceImage.analysis?.forcedInstructions?.trim();
+  let imageData: string | undefined;
+
+  try {
+    const response = await client.images.edit({
+      model: readOpenAIImageModel(),
+      image: await toFile(referenceImage.bytes, referenceImage.contentType === "image/png" ? "reference.png" : "reference.jpg", { type: referenceImage.contentType }),
+      prompt: `${plan.prompt}\n\nUse the provided reference image only for visual direction such as mood, color, composition, and style. Do not copy protected logos, marks, characters, text, or distinctive artwork from the reference. Create a new original logo for this brand.${forcedInstructions ? `\n\nMandatory style requirements from admin: ${forcedInstructions}` : ""}`,
+      n: 1,
+      size: "1024x1024",
+      output_format: "png",
+    });
+    const editedImage = response.data?.[0];
+
+    if (editedImage?.b64_json) {
+      imageData = editedImage.b64_json;
+    } else {
+      throw new Error("OpenAI reference image edit returned no image data.");
+    }
+  } catch (error) {
+    if (error instanceof LogoGenerationInvalidRequestError) {
+      throw error;
+    }
+
+    throw new LogoGenerationUpstreamError("OpenAI reference image edit failed.", error);
+  }
+
+  try {
+    const storedImage = await saveGeneratedLogoBytes(Buffer.from(imageData, "base64"));
+
+    return makeOpenAILogo(storedImage.publicUrl, plan, index);
+  } catch (error) {
+    throw new LogoGenerationInternalStorageError("Generated reference logo storage failed.", error);
+  }
+}
+
+async function sourceLogoToUploadable(sourceLogo: LogoRevisionSourceLogo) {
+  const imageBuffer = isDataPngUrl(sourceLogo.imageUrl) ? Buffer.from(readBase64PngData(sourceLogo.imageUrl), "base64") : await readGeneratedLogoBytesByPublicUrl(sourceLogo.imageUrl);
+
+  if (!imageBuffer) {
+    return undefined;
+  }
+
+  return toFile(imageBuffer, "source-logo.png", { type: "image/png" });
+}
+
+async function generateOpenAIRevisionLogo(client: OpenAI, plan: LogoGenerationPlan, sourceLogo: LogoRevisionSourceLogo, index: number) {
+  const image = await sourceLogoToUploadable(sourceLogo);
+
+  if (!image) {
+    throw new LogoGenerationInvalidRequestError("Logo revision source image is missing or unreadable.");
+  }
+
+  let imageData: string | undefined;
+
+  try {
+    const response = await client.images.edit({
+      model: readOpenAIImageModel(),
+      image,
+      prompt: plan.prompt,
+      n: 1,
+      size: "1024x1024",
+      output_format: "png",
+    });
+    const editedImage = response.data?.[0];
+
+    if (editedImage?.b64_json) {
+      imageData = editedImage.b64_json;
+    } else {
+      throw new Error("OpenAI image edit returned no image data.");
+    }
+  } catch (error) {
+    if (error instanceof LogoGenerationInvalidRequestError) {
+      throw error;
+    }
+
+    throw new LogoGenerationUpstreamError("OpenAI image edit failed.", error);
+  }
+
+  try {
+    const storedImage = await saveGeneratedLogoBytes(Buffer.from(imageData, "base64"));
+
+    return makeOpenAILogo(storedImage.publicUrl, plan, index);
+  } catch (error) {
+    throw new LogoGenerationInternalStorageError("Generated revision logo storage failed.", error);
+  }
+}
+
+export function getLogoGenerationOperation(request: BrandLogoRequest): OpenAIImageOperation {
+  return request.mode === "revision" || request.generationMode === "reference" ? "images.edit" : "images.generate";
+}
+
+export function normalizeLogoGenerationError(error: unknown, operation: OpenAIImageOperation): LogoGenerationExecutionError {
+  if (error instanceof LogoGenerationInvalidRequestError || error instanceof LogoGenerationRequestValidationError) {
+    return new LogoGenerationExecutionError({ failureKind: "invalid_request", reason: invalidLogoGenerationRequestReason, status: 400, retryable: false }, { failureKind: "invalid_request", errorName: readErrorName(error) });
+  }
+
+  if (error instanceof LogoGenerationInternalStorageError) {
+    return new LogoGenerationExecutionError({ failureKind: "internal_storage", reason: internalStorageReason, status: 503, retryable: true }, { failureKind: "internal_storage", errorName: error.storageCause instanceof Error ? error.storageCause.name : "UnknownError" });
+  }
+
+  const classification = classifyUpstreamFailure(error);
+
+  return new LogoGenerationExecutionError(classification, readSafeOpenAIErrorLog(error, classification, operation));
+}
+
+export async function executeLogoGeneration(request: BrandLogoRequest): Promise<LogoGenerationResponse> {
+  const operation = getLogoGenerationOperation(request);
+
+  if (!process.env.OPENAI_API_KEY) {
+    throw new LogoGenerationExecutionError({ failureKind: "auth_config", reason: missingConfigurationReason, status: 503, retryable: false }, { failureKind: "auth_config", operation, model: readOpenAIImageModel(), errorName: "MissingOpenAIConfiguration" });
+  }
+
+  const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const plans = request.mode === "revision" ? createLogoRevisionPlans(request) : createLogoGenerationPlans(request, request.generationMode);
+  const plan = plans[0];
+
+  try {
+    const logo = request.mode === "revision" ? await generateOpenAIRevisionLogo(client, plan, request.sourceLogo, 0) : request.generationMode === "reference" && request.referenceImageId ? await generateOpenAIReferenceLogo(client, plan, request.referenceImageId, 0) : await generateOpenAILogo(client, plan, 0);
+
+    return {
+      status: "success",
+      logos: [logo],
+    };
+  } catch (error) {
+    throw normalizeLogoGenerationError(error, operation);
+  }
+}

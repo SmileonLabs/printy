@@ -1,4 +1,4 @@
-import type { GeneratedLogoOption, LogoGenerationIntent, LogoGenerationMode, LogoGenerationResponse } from "@/lib/types";
+import type { GeneratedLogoOption, LogoGenerationIntent, LogoGenerationJobCreateResponse, LogoGenerationJobResponse, LogoGenerationMode, LogoGenerationResponse } from "@/lib/types";
 import { isGeneratedLogoOption } from "@/lib/logo/logoValidation";
 
 type BrandGenerationDraft = {
@@ -37,4 +37,36 @@ export function isLogoGenerationErrorPayload(value: unknown): value is { reason:
   const record = value as Record<string, unknown>;
 
   return typeof record.reason === "string" && record.reason.trim().length > 0;
+}
+
+export function isLogoGenerationJobCreateResponse(value: unknown): value is LogoGenerationJobCreateResponse {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const record = value as Record<string, unknown>;
+
+  return typeof record.jobId === "string" && record.jobId.trim().length > 0 && (record.status === "queued" || record.status === "running");
+}
+
+export function isLogoGenerationJobResponse(value: unknown): value is LogoGenerationJobResponse {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const record = value as Record<string, unknown>;
+
+  if (typeof record.jobId !== "string" || record.jobId.trim().length === 0) {
+    return false;
+  }
+
+  if (record.status === "queued" || record.status === "running") {
+    return true;
+  }
+
+  if (record.status === "succeeded") {
+    return isLogoGenerationResponse(record.result);
+  }
+
+  return (record.status === "failed" || record.status === "cancelled") && typeof record.reason === "string" && record.reason.trim().length > 0;
 }
