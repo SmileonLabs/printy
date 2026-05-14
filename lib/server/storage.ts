@@ -971,15 +971,7 @@ export async function readBrandAssetBytesByPublicUrl(publicUrl: string): Promise
     return undefined;
   }
 
-  try {
-    return await readFile(path.join(brandAssetUploadDirectory, objectKey));
-  } catch (error) {
-    if (isMissingFileError(error)) {
-      return readUploadedFileBlob(brandAssetBucket, brandAssetPurpose, objectKey);
-    }
-
-    throw error;
-  }
+  return readUploadedFileBlob(brandAssetBucket, brandAssetPurpose, objectKey);
 }
 
 async function isGeneratedLogoPublicUrlReferenced(publicUrl: string, client: Pick<PoolClient, "query">) {
