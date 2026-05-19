@@ -93,7 +93,7 @@ function cookieOptions(expires: Date, request?: Request) {
 }
 
 function toPublicSession(row: SessionRow): PublicSession {
-  const contact = row.contact ?? row.email ?? "";
+  const contact = row.contact ?? row.email ?? row.id;
 
   return {
     user: {
@@ -106,7 +106,9 @@ function toPublicSession(row: SessionRow): PublicSession {
   };
 }
 
-export function readLocalLoginInput(value: unknown): { userId: string; password: string } | undefined {
+export type LocalPasswordAuthMode = "login" | "signup";
+
+export function readLocalLoginInput(value: unknown): { userId: string; password: string; mode: LocalPasswordAuthMode } | undefined {
   if (typeof value !== "object" || value === null) {
     return undefined;
   }
@@ -114,15 +116,16 @@ export function readLocalLoginInput(value: unknown): { userId: string; password:
   const record = value as Record<string, unknown>;
   const userId = typeof record.userId === "string" ? normalizeLocalUserId(record.userId) : "";
   const password = typeof record.password === "string" ? record.password : "";
+  const mode = record.mode === "signup" ? "signup" : record.mode === "login" ? "login" : undefined;
 
-  if (!isValidLocalUserId(userId) || password.length < 8 || password.length > 100) {
+  if (!isValidLocalUserId(userId) || password.length < 8 || password.length > 100 || !mode) {
     return undefined;
   }
 
-  return { userId, password };
+  return { userId, password, mode };
 }
 
-export async function findOrCreateLocalPasswordUser(input: { userId: string; password: string }) {
+export async function findLocalPasswordUser(input: { userId: string; password: string }) {
   const existingUser = await queryDb<UserRow>(
     `
       select id, name, contact, email, password_hash
@@ -140,6 +143,24 @@ export async function findOrCreateLocalPasswordUser(input: { userId: string; pas
     }
 
     return existing;
+  }
+
+  return undefined;
+}
+
+export async function createLocalPasswordUser(input: { userId: string; password: string }) {
+  const existingUser = await queryDb<UserRow>(
+    `
+      select id, name, contact, email, password_hash
+      from users
+      where contact = $1
+      limit 1
+    `,
+    [input.userId],
+  );
+
+  if (existingUser.rows[0]) {
+    return undefined;
   }
 
   const result = await queryDb<UserRow>(

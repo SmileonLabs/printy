@@ -23,7 +23,7 @@ export function LogoSaveScreen() {
   };
 
   return (
-    <Screen footer={<AppButton onClick={handleSaveLogo}>{logoGenerationTargetBrandId ? "로고 하나 더 추가" : "로고 저장하기"}</AppButton>}>
+    <Screen footer={<AppButton onClick={handleSaveLogo}>{logoGenerationTargetBrandId ? "저장하기" : "로고 저장하기"}</AppButton>}>
       <ProgressHeader eyebrow={logoGenerationTargetBrandId ? "로고 추가" : "브랜드 생성"} title={logoGenerationTargetBrandId ? "선택한 로고를 목록에 추가해요" : "선택한 로고를 브랜드에 저장해요"} description={logoGenerationTargetBrandId ? "기존 로고는 유지되고, 새 로고가 브랜드의 저장된 로고 목록에 추가됩니다." : "주문이나 명함 시안 없이 브랜드 공간만 먼저 만들어요. 저장 후 My Brand에서 명함 제작을 이어갈 수 있어요."} step={stepNumbers.logoSave} total={onboardingTotalSteps} action={<HomeExitAction />} titleClassName="whitespace-nowrap text-[clamp(1.55rem,6.2vw,1.875rem)]" />
       <SoftCard className="bg-[linear-gradient(180deg,var(--color-surface)_0%,var(--color-surface-blue)_100%)]">
         <div className="grid justify-items-center gap-5 py-3 text-center">

@@ -2,7 +2,6 @@
 
 import { LogoRevisionPanel } from "@/components/printy/logo/logo-revision-panel";
 import { findGeneratedLogoFromState } from "@/components/printy/logo/logo-state";
-import { HomeExitAction } from "@/components/printy/onboarding/home-exit-action";
 import { onboardingTotalSteps, stepNumbers } from "@/components/printy/shared/onboarding-progress";
 import { AppButton, ProgressHeader, Screen, SoftCard } from "@/components/ui";
 import { logoUiCopy } from "@/lib/logo/logoUiCopy";
@@ -14,7 +13,7 @@ export function LogoRevisionScreen() {
 
   return (
     <Screen>
-      <ProgressHeader eyebrow="로고 수정" title="선택한 로고를 기준으로 다듬기" description="마음에 든 시안의 정체성과 구도는 유지하고, 바꾸고 싶은 부분만 자연스럽게 적어주세요." step={stepNumbers.logoRevision} total={onboardingTotalSteps} action={<HomeExitAction />} />
+      <ProgressHeader eyebrow="로고 수정" title="선택한 로고를 기준으로 다듬기" description="마음에 든 시안의 정체성과 구도는 유지하고, 바꾸고 싶은 부분만 자연스럽게 적어주세요." step={stepNumbers.logoRevision} total={onboardingTotalSteps} action={<button className="rounded-md bg-surface-blue px-3 py-2 text-xs font-black text-primary-strong shadow-card" type="button" onClick={cancelLogoRevision}>요청 취소하기</button>} />
       {revisionSourceLogo ? (
         <LogoRevisionPanel logo={revisionSourceLogo} value={logoRevisionRequest} onChange={updateLogoRevisionRequest} onSubmit={submitLogoRevision} onCancel={cancelLogoRevision} />
       ) : (

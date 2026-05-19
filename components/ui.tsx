@@ -1,6 +1,7 @@
 "use client";
 
 import { type ButtonHTMLAttributes, type ReactNode } from "react";
+import { PrintyBrandLogo } from "@/components/ui/logo";
 import { bottomTabs } from "@/lib/mock-data";
 import type { MainTab } from "@/lib/types";
 
@@ -9,11 +10,19 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   full?: boolean;
 };
 
-export function PhoneShell({ children, topLeftAction }: { children: ReactNode; topLeftAction?: ReactNode }) {
+export function PhoneShell({ children, topLeftAction, topRightAction, onLogoClick }: { children: ReactNode; topLeftAction?: ReactNode; topRightAction?: ReactNode; onLogoClick?: () => void }) {
   return (
-    <main className="min-h-screen bg-surface text-ink">
-      <section className="relative flex min-h-screen w-full flex-col overflow-hidden bg-surface">
-        {topLeftAction ? <div className="flex shrink-0 justify-start px-5 pb-2 pt-1">{topLeftAction}</div> : null}
+    <main className="h-screen overflow-hidden bg-surface text-ink">
+      <section className="relative flex h-screen w-full flex-col overflow-hidden bg-surface">
+        <header className="z-30 grid h-16 shrink-0 grid-cols-[96px_1fr_96px] items-center border-b border-line bg-white/92 px-5 backdrop-blur-xl">
+          <div className="flex items-center justify-start">{topLeftAction}</div>
+          <div className="flex items-center justify-center">
+            <button className="rounded-md transition active:scale-95" type="button" onClick={onLogoClick} aria-label="홈으로 이동">
+              <PrintyBrandLogo size="sm" />
+            </button>
+          </div>
+          <div className="flex items-center justify-end">{topRightAction}</div>
+        </header>
         {children}
       </section>
     </main>
@@ -38,7 +47,7 @@ export function AppButton({ variant = "primary", full = true, className = "", ch
 
   return (
     <button
-      className={`${full ? "w-full" : ""} whitespace-nowrap rounded-md px-[clamp(0.75rem,4vw,1.25rem)] py-4 text-[clamp(0.78rem,3.7vw,1rem)] font-extrabold transition duration-200 hover:-translate-y-0.5 ${variants[variant]} ${className}`}
+      className={`${full ? "w-full" : ""} min-w-0 rounded-md px-[clamp(0.75rem,4vw,1.25rem)] py-4 text-center text-[clamp(0.78rem,3.7vw,1rem)] font-extrabold leading-tight transition duration-200 hover:-translate-y-0.5 ${variants[variant]} ${className}`}
       type="button"
       {...props}
     >
@@ -123,7 +132,7 @@ export function TextField({ label, value, placeholder, type = "text", onChange }
 
 export function BottomTabs({ activeTab, onChange }: { activeTab: MainTab; onChange: (tab: MainTab) => void }) {
   return (
-    <nav className="safe-bottom grid border-t border-line bg-white/95 px-3 pt-2 backdrop-blur-xl" style={{ gridTemplateColumns: `repeat(${bottomTabs.length}, minmax(0, 1fr))` }}>
+    <nav className="safe-bottom z-30 grid shrink-0 border-t border-line bg-white/95 px-3 pt-2 backdrop-blur-xl" style={{ gridTemplateColumns: `repeat(${bottomTabs.length}, minmax(0, 1fr))` }}>
       {bottomTabs.map((tab) => (
         <button
           key={tab.id}

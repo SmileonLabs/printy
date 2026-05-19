@@ -2,15 +2,14 @@ export type OnboardingStep =
   | "home"
   | "brandCreation"
   | "logoDirection"
+  | "logoUpload"
   | "generating"
   | "logoSelection"
   | "logoSave"
   | "logoRevision"
   | "memberInput"
   | "businessCardPreview"
-  | "businessCardBatchPreview"
   | "orderOptions"
-  | "templateSelection"
   | "login"
   | "checkout"
   | "success";
@@ -64,7 +63,9 @@ export type LogoReferenceImageAnalysis = {
   model?: string;
 };
 
-export type LogoGenerationIntent = "initial" | "revision";
+export type LogoGenerationIntent = "initial" | "revision" | "upload";
+
+export type BrandLogoSetupMode = "generate" | "upload";
 
 export type LogoRevisionSourceLogo = {
   id: string;
@@ -184,6 +185,11 @@ export type Member = {
   email: string;
   website?: string;
   address: string;
+  account?: string;
+  adLine1?: string;
+  adLine2?: string;
+  instagram?: string;
+  qrCodeImageUrl?: string;
 };
 
 export type Brand = {
@@ -210,6 +216,23 @@ export type BusinessCardDraft = {
   createdAt: string;
 };
 
+export type BusinessCardUserElementId = "logo" | "brandName" | "category" | "name" | "role" | "phone" | "mainPhone" | "fax" | "email" | "website" | "address" | "account" | "adLine1" | "adLine2" | "instagram" | "instagramIcon" | "qrCode";
+export type BusinessCardColorPaletteId = "black" | "white" | "green" | "yellow" | "blue" | "red";
+export type BusinessCardProductionOptions = {
+  frontElements: BusinessCardUserElementId[];
+  backElements: BusinessCardUserElementId[];
+  color: BusinessCardColorPaletteId;
+};
+
+export type AiBusinessCardMockup = {
+  id: string;
+  imageUrl: string;
+  cleanImageUrl?: string;
+  title: string;
+};
+
+export type AiBusinessCardMockupStatus = "idle" | "generating" | "ready" | "failed";
+
 export type OrderOptions = {
   quantity: string;
   paper: string;
@@ -219,11 +242,28 @@ export type OrderOptions = {
 
 export type PaymentMethod = "간편결제" | "카드" | "계좌이체";
 
+export type ShippingInfo = {
+  recipientName: string;
+  recipientPhone: string;
+  address: string;
+  memo: string;
+};
+
+export type BankAccountSettings = {
+  bankName: string;
+  accountNumber: string;
+  accountHolder: string;
+  memo: string;
+  updatedAt?: string;
+};
+
+export type OrderStatus = "pendingDeposit" | "paid" | "preparing" | "cancelled";
+
 export type OrderRecord = {
   id: string;
   orderNumber: string;
   title: string;
-  status: "paid" | "preparing";
+  status: OrderStatus;
   statusLabel: string;
   price: string;
   quantity: string;
@@ -233,6 +273,7 @@ export type OrderRecord = {
   brandId: string;
   cardDraftId: string;
   templateId?: string;
+  shippingInfo?: ShippingInfo;
 };
 
 export type LocalUser = {
@@ -269,7 +310,7 @@ export type PrintProduct = QuickProductionItem & {
 
 export type BusinessCardTemplateSideId = "front" | "back";
 
-export type BusinessCardTemplateTextFieldId = "role" | "name" | "phone" | "email" | "website" | "address" | "mainPhone" | "fax";
+export type BusinessCardTemplateTextFieldId = "role" | "name" | "phone" | "email" | "website" | "address" | "mainPhone" | "fax" | "account" | "adLine1" | "adLine2" | "instagram" | "qrCode";
 
 export type BusinessCardTemplateFontFamily = "sans" | "serif" | "rounded" | "mono" | "display" | "handwriting";
 
@@ -277,7 +318,7 @@ export type BusinessCardTemplateTextWeight = "regular" | "bold";
 
 export type BusinessCardTemplateTextAlign = "left" | "center" | "right";
 
-export type BusinessCardTemplateIconId = "phone" | "email" | "location" | "fax" | "building" | "web";
+export type BusinessCardTemplateIconId = "name" | "role" | "mobile" | "phone" | "email" | "location" | "address" | "fax" | "building" | "company" | "web" | "account" | "instagram";
 
 export type BusinessCardTemplateBox = {
   x: number;
@@ -393,8 +434,9 @@ export type ActiveBrandMockupJob = {
   brandId: string;
   logoId: string;
   sceneId: string;
-  status: "generating" | "failed";
+  status: "generating" | "ready" | "failed";
   message: string;
+  assetId?: string;
 };
 
 export type RecentOrder = {

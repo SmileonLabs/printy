@@ -1,9 +1,8 @@
 import type { StateCreator } from "zustand";
-import { findBusinessCardTemplate } from "@/lib/business-card-templates";
 import { findGeneratedLogoInState } from "@/lib/logo/generatedLogoLookup";
 import { logoOptions } from "@/lib/mock-data";
 import type { Brand, BusinessCardDraft, GeneratedLogoOption, OrderRecord } from "@/lib/types";
-import { defaultBrandDraft, defaultMember, defaultOrderOptions, defaultPaymentMethod } from "@/store/printy-store-defaults";
+import { defaultBrandDraft, defaultMember, defaultOrderOptions, defaultPaymentMethod, defaultShippingInfo } from "@/store/printy-store-defaults";
 import { saveGeneratedLogo } from "@/store/printy-store-generated-logos";
 import { getCreatedDate, getDisplayDate, makeId } from "@/store/printy-store-id-date";
 import { createOrderNumber, formatPrice, getOrderPriceAmount } from "@/store/printy-store-order";
@@ -12,14 +11,14 @@ import type { PrintyState } from "@/store/printy-store-types";
 type PrintyStoreSet = Parameters<StateCreator<PrintyState, [], [], PrintyState>>[0];
 type PrintyStoreGet = Parameters<StateCreator<PrintyState, [], [], PrintyState>>[1];
 
-type PrintyOnboardingActions = Pick<PrintyState, "setStep" | "saveBrandShell" | "ensureBusinessCardDraft" | "completeCheckout" | "startNewBrand">;
+type PrintyOnboardingActions = Pick<PrintyState, "setStep" | "saveBrandShell" | "ensureBusinessCardDraft" | "beginAiBusinessCardMockupGeneration" | "syncAiBusinessCardMockups" | "finishAiBusinessCardMockupGeneration" | "failAiBusinessCardMockupGeneration" | "dismissAiBusinessCardMockupNotice" | "selectAiBusinessCardMockup" | "deleteAiBusinessCardMockup" | "beginAiBusinessCardPdfGeneration" | "finishAiBusinessCardPdfGeneration" | "failAiBusinessCardPdfGeneration" | "dismissAiBusinessCardPdfNotice" | "completeCheckout" | "startNewBrand">;
 
 export function createPrintyOnboardingActions(set: PrintyStoreSet, get: PrintyStoreGet): PrintyOnboardingActions {
   return {
     setStep: (step, loginRedirectTarget) => {
       const currentStep = get().currentStep;
 
-      if (step === "businessCardPreview" || step === "templateSelection") {
+      if (step === "businessCardPreview") {
         get().ensureBusinessCardDraft();
       }
 
@@ -31,7 +30,12 @@ export function createPrintyOnboardingActions(set: PrintyStoreSet, get: PrintySt
     },
     saveBrandShell: () => {
       const state = get();
-      const brandName = state.brandDraft.name.trim() || "새 브랜드";
+      const brandName = state.brandDraft.name.trim();
+
+      if (!brandName) {
+        return;
+      }
+
       const designRequest = state.brandDraft.designRequest.trim();
       const existingBrand = state.logoGenerationTargetBrandId ? state.brands.find((brand) => brand.id === state.logoGenerationTargetBrandId) : undefined;
       const generatedLogoIds = state.generatedLogoOptions.map((logo) => logo.id);
@@ -41,7 +45,7 @@ export function createPrintyOnboardingActions(set: PrintyStoreSet, get: PrintySt
         name: brandName,
         category: state.brandDraft.category,
         designRequest,
-        selectedLogoId: state.selectedLogoId,
+        selectedLogoId: existingBrand?.selectedLogoId ?? state.selectedLogoId,
         logoIds,
         members: existingBrand?.members ?? [],
         createdAt: existingBrand?.createdAt ?? "방금 생성",
@@ -64,7 +68,6 @@ export function createPrintyOnboardingActions(set: PrintyStoreSet, get: PrintySt
     ensureBusinessCardDraft: () => {
       const state = get();
       const existingDraft = state.activeBusinessCardDraftId ? state.businessCardDrafts.find((draft) => draft.id === state.activeBusinessCardDraftId) : undefined;
-      const selectedTemplate = findBusinessCardTemplate(state.templates, state.selectedTemplateId);
       const nextDraft: BusinessCardDraft = {
         id: existingDraft?.id ?? makeId("card", state.businessCardDrafts.length),
         brandId: existingDraft?.brandId ?? state.selectedBrandId,
@@ -72,7 +75,7 @@ export function createPrintyOnboardingActions(set: PrintyStoreSet, get: PrintySt
         category: state.brandDraft.category,
         designRequest: state.brandDraft.designRequest.trim(),
         selectedLogoId: state.selectedLogoId,
-        templateId: existingDraft?.templateId ?? selectedTemplate?.id,
+        templateId: state.selectedTemplateId,
         member: { ...state.memberDraft },
         createdAt: existingDraft?.createdAt ?? getCreatedDate(),
       };
@@ -86,6 +89,150 @@ export function createPrintyOnboardingActions(set: PrintyStoreSet, get: PrintySt
 
       return nextDraft;
     },
+    beginAiBusinessCardMockupGeneration: (signature, message = "명함 목업 디자인을 만들고 있어요. 다른 페이지로 이동해도 완료되면 알림으로 알려드릴게요.") =>
+      set((state) => ({
+        aiBusinessCardMockupStatus: "generating",
+        aiBusinessCardMockupMessage: message,
+        aiBusinessCardMockupSignature: signature,
+        aiBusinessCardMockups: state.aiBusinessCardMockupSignature === signature ? state.aiBusinessCardMockups : [],
+        selectedAiBusinessCardMockupUrl: state.aiBusinessCardMockupSignature === signature ? state.selectedAiBusinessCardMockupUrl : undefined,
+      })),
+    syncAiBusinessCardMockups: (signature, mockups) =>
+      set((state) => {
+        if (state.aiBusinessCardMockupSignature === signature && state.aiBusinessCardMockupStatus === "generating") {
+          return {};
+        }
+
+        if (mockups.length === 0) {
+          return state.aiBusinessCardMockupSignature === signature ? {} : { aiBusinessCardMockupSignature: signature };
+        }
+
+        const nextMockups = state.aiBusinessCardMockupSignature === signature ? [...state.aiBusinessCardMockups] : [];
+
+        for (const mockup of mockups) {
+          if (!mockup.cleanImageUrl) {
+            continue;
+          }
+
+          if (!nextMockups.some((item) => item.imageUrl === mockup.imageUrl)) {
+            nextMockups.push(mockup);
+          }
+        }
+
+        return {
+          aiBusinessCardMockupStatus: "ready",
+          aiBusinessCardMockupMessage: state.aiBusinessCardMockupSignature === signature ? state.aiBusinessCardMockupMessage : undefined,
+          aiBusinessCardMockupSignature: signature,
+          aiBusinessCardMockups: nextMockups,
+          selectedAiBusinessCardMockupUrl: state.selectedAiBusinessCardMockupUrl ?? nextMockups[0]?.imageUrl,
+        };
+      }),
+    finishAiBusinessCardMockupGeneration: (signature, mockups) =>
+      set((state) => {
+        if (state.aiBusinessCardMockupSignature !== signature) {
+          return {};
+        }
+
+        const nextMockups = [...state.aiBusinessCardMockups];
+
+        for (const mockup of mockups) {
+          if (!mockup.cleanImageUrl) {
+            continue;
+          }
+
+          if (!nextMockups.some((item) => item.imageUrl === mockup.imageUrl)) {
+            nextMockups.push(mockup);
+          }
+        }
+
+        return {
+          aiBusinessCardMockupStatus: "ready",
+          aiBusinessCardMockupMessage: mockups.length > 0 ? "명함 목업 디자인이 준비됐어요." : "생성된 명함 목업 디자인이 없어요.",
+          aiBusinessCardMockups: nextMockups,
+          selectedAiBusinessCardMockupUrl: mockups[0]?.imageUrl ?? state.selectedAiBusinessCardMockupUrl,
+        };
+      }),
+    failAiBusinessCardMockupGeneration: (signature, message) =>
+      set((state) => {
+        if (state.aiBusinessCardMockupSignature !== signature) {
+          return {};
+        }
+
+        return {
+          aiBusinessCardMockupStatus: "failed",
+          aiBusinessCardMockupMessage: message,
+        };
+      }),
+    dismissAiBusinessCardMockupNotice: () => set({ aiBusinessCardMockupStatus: "idle", aiBusinessCardMockupMessage: undefined }),
+    selectAiBusinessCardMockup: (imageUrl) => set({ selectedAiBusinessCardMockupUrl: imageUrl }),
+    deleteAiBusinessCardMockup: (mockupId) => set((state) => {
+      const mockup = state.aiBusinessCardMockups.find((item) => item.id === mockupId);
+
+      if (!mockup) {
+        return {};
+      }
+
+      const nextMockups = state.aiBusinessCardMockups.filter((item) => item.id !== mockupId);
+      const nextRecords = Object.fromEntries(Object.entries(state.aiBusinessCardPdfRecords).filter(([signature]) => !signature.includes(`mockup:${mockup.imageUrl}`)));
+
+      return {
+        aiBusinessCardMockups: nextMockups,
+        selectedAiBusinessCardMockupUrl: state.selectedAiBusinessCardMockupUrl === mockup.imageUrl ? nextMockups[0]?.imageUrl : state.selectedAiBusinessCardMockupUrl,
+        aiBusinessCardMockupStatus: nextMockups.length > 0 ? state.aiBusinessCardMockupStatus : "idle",
+        aiBusinessCardMockupMessage: nextMockups.length > 0 ? state.aiBusinessCardMockupMessage : undefined,
+        aiBusinessCardPdfRecords: nextRecords,
+        aiBusinessCardPdfStatus: state.aiBusinessCardPdfSignature?.includes(`mockup:${mockup.imageUrl}`) ? "idle" : state.aiBusinessCardPdfStatus,
+        aiBusinessCardPdfMessage: state.aiBusinessCardPdfSignature?.includes(`mockup:${mockup.imageUrl}`) ? undefined : state.aiBusinessCardPdfMessage,
+        aiBusinessCardPdfUrl: state.aiBusinessCardPdfSignature?.includes(`mockup:${mockup.imageUrl}`) ? undefined : state.aiBusinessCardPdfUrl,
+        aiBusinessCardPdfFileName: state.aiBusinessCardPdfSignature?.includes(`mockup:${mockup.imageUrl}`) ? undefined : state.aiBusinessCardPdfFileName,
+        aiBusinessCardPdfSignature: state.aiBusinessCardPdfSignature?.includes(`mockup:${mockup.imageUrl}`) ? undefined : state.aiBusinessCardPdfSignature,
+      };
+    }),
+    beginAiBusinessCardPdfGeneration: (signature) => set((state) => ({
+      aiBusinessCardPdfStatus: "generating",
+      aiBusinessCardPdfMessage: "PDF 만드는 중... 다른 페이지로 이동해도 완료되면 알림으로 알려드릴게요.",
+      aiBusinessCardPdfUrl: undefined,
+      aiBusinessCardPdfFileName: undefined,
+      aiBusinessCardPdfSignature: signature,
+      aiBusinessCardPdfRecords: {
+        ...state.aiBusinessCardPdfRecords,
+        [signature]: { status: "generating", message: "PDF 만드는 중..." },
+      },
+    })),
+    finishAiBusinessCardPdfGeneration: (signature, url, fileName) => set((state) => {
+      if (state.aiBusinessCardPdfSignature !== signature) {
+        return {
+          aiBusinessCardPdfRecords: {
+            ...state.aiBusinessCardPdfRecords,
+            [signature]: { status: "ready", url, fileName, message: "인쇄용 양면 PDF가 준비됐어요." },
+          },
+        };
+      }
+
+      return {
+        aiBusinessCardPdfStatus: "ready",
+        aiBusinessCardPdfMessage: "인쇄용 양면 PDF가 준비됐어요. 해당 목업 카드에서 PDF 다운로드를 눌러 주세요.",
+        aiBusinessCardPdfUrl: url,
+        aiBusinessCardPdfFileName: fileName,
+        aiBusinessCardPdfRecords: {
+          ...state.aiBusinessCardPdfRecords,
+          [signature]: { status: "ready", url, fileName, message: "인쇄용 양면 PDF가 준비됐어요." },
+        },
+      };
+    }),
+    failAiBusinessCardPdfGeneration: (message) => set((state) => ({
+      aiBusinessCardPdfStatus: "failed",
+      aiBusinessCardPdfMessage: message,
+      aiBusinessCardPdfUrl: undefined,
+      aiBusinessCardPdfFileName: undefined,
+      aiBusinessCardPdfRecords: state.aiBusinessCardPdfSignature
+        ? {
+            ...state.aiBusinessCardPdfRecords,
+            [state.aiBusinessCardPdfSignature]: { status: "failed", message },
+          }
+        : state.aiBusinessCardPdfRecords,
+    })),
+    dismissAiBusinessCardPdfNotice: () => set({ aiBusinessCardPdfMessage: undefined }),
     completeCheckout: () => {
       const state = get();
       const draft = state.ensureBusinessCardDraft();
@@ -112,6 +259,12 @@ export function createPrintyOnboardingActions(set: PrintyStoreSet, get: PrintySt
       const batchMembers = selectedMembers.length > 0 ? selectedMembers : [state.memberDraft];
       const unitPrice = getOrderPriceAmount(state.orderOptions);
       const createdAt = getDisplayDate();
+      const shippingInfo = {
+        recipientName: state.shippingInfo.recipientName.trim(),
+        recipientPhone: state.shippingInfo.recipientPhone.trim(),
+        address: state.shippingInfo.address.trim(),
+        memo: state.shippingInfo.memo.trim(),
+      };
       const linkedDrafts: BusinessCardDraft[] = batchMembers.map((member, index) => ({
         ...linkedDraft,
         id: index === 0 ? linkedDraft.id : makeId("card", current.businessCardDrafts.length + index),
@@ -122,8 +275,8 @@ export function createPrintyOnboardingActions(set: PrintyStoreSet, get: PrintySt
         id: makeId("order", current.orders.length + index),
         orderNumber: createOrderNumber(current.orders.length + index),
         title: `${batchDraft.member.name} 명함 ${state.orderOptions.quantity}매`,
-        status: "paid",
-        statusLabel: "결제 완료",
+        status: "pendingDeposit",
+        statusLabel: "입금 대기",
         price: formatPrice(unitPrice),
         quantity: state.orderOptions.quantity,
         paper: state.orderOptions.paper,
@@ -131,7 +284,8 @@ export function createPrintyOnboardingActions(set: PrintyStoreSet, get: PrintySt
         createdAt,
         brandId: nextBrand.id,
         cardDraftId: batchDraft.id,
-        templateId: batchDraft.templateId,
+        templateId: undefined,
+        shippingInfo,
       }));
 
       set((latest) => ({
@@ -143,6 +297,7 @@ export function createPrintyOnboardingActions(set: PrintyStoreSet, get: PrintySt
         lastOrderId: nextOrders[0]?.id,
         currentStep: "success",
         selectedBusinessCardMemberIds: [],
+        shippingInfo,
         brandWorkspaceHasPendingLocalChanges: true,
         brandWorkspaceOwnerUserId: latest.isAuthenticated ? latest.brandWorkspaceOwnerUserId : undefined,
       }));
@@ -153,6 +308,7 @@ export function createPrintyOnboardingActions(set: PrintyStoreSet, get: PrintySt
         currentStep: "brandCreation",
         brandView: "list",
         brandDraft: defaultBrandDraft,
+        brandLogoSetupMode: "generate",
         selectedLogoId: logoOptions[0].id,
         selectedBrandId: undefined,
         generatedLogoOptions: [],
@@ -165,9 +321,21 @@ export function createPrintyOnboardingActions(set: PrintyStoreSet, get: PrintySt
         logoRevisionSourceLogoId: undefined,
         memberDraft: defaultMember,
         activeBusinessCardDraftId: undefined,
+        aiBusinessCardMockups: [],
+        aiBusinessCardMockupStatus: "idle",
+        aiBusinessCardMockupMessage: undefined,
+        aiBusinessCardMockupSignature: undefined,
+        selectedAiBusinessCardMockupUrl: undefined,
+        aiBusinessCardPdfStatus: "idle",
+        aiBusinessCardPdfMessage: undefined,
+        aiBusinessCardPdfUrl: undefined,
+        aiBusinessCardPdfFileName: undefined,
+        aiBusinessCardPdfSignature: undefined,
+        aiBusinessCardPdfRecords: {},
         lastOrderId: undefined,
         orderOptions: defaultOrderOptions,
         selectedPaymentMethod: defaultPaymentMethod,
+        shippingInfo: defaultShippingInfo,
         selectedBusinessCardMemberIds: [],
       }),
   };

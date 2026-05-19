@@ -43,7 +43,7 @@ export type OAuthStartConfig = {
   clientId?: string;
   redirectUri?: string;
   authorizeUrl: string;
-  scope: string;
+  scope?: string;
   redirectTarget: string;
 };
 
@@ -136,7 +136,9 @@ export function startOAuth(request: Request, config: OAuthStartConfig) {
   authorizeUrl.searchParams.set("client_id", config.clientId);
   authorizeUrl.searchParams.set("redirect_uri", config.redirectUri);
   authorizeUrl.searchParams.set("response_type", "code");
-  authorizeUrl.searchParams.set("scope", config.scope);
+  if (config.scope?.trim()) {
+    authorizeUrl.searchParams.set("scope", config.scope.trim());
+  }
   authorizeUrl.searchParams.set("state", state);
 
   const response = NextResponse.redirect(authorizeUrl);

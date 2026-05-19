@@ -28,19 +28,24 @@ export class PrintyContainer extends Container {
 }
 
 function shouldUseNativeContainer(pathname) {
+  if (pathname === "/api/admin/session" || pathname.startsWith("/api/admin/file-archive") || pathname.startsWith("/api/admin/brand-transfer")) {
+    return false;
+  }
+
   return (
     pathname.startsWith("/api/admin/") ||
     pathname === "/api/logo-reference-images" ||
     pathname === "/api/brand-mockups" ||
+    pathname.startsWith("/api/ai-business-cards") ||
     pathname.startsWith("/api/brand-mockups/jobs/") ||
     pathname === "/api/logos/generate" ||
+    pathname === "/api/logos/upload" ||
     pathname.startsWith("/api/logos/generation-jobs/") ||
     pathname === "/api/logos/vectorize" ||
     /^\/uploads\/logo-reference-images\/[^/]+$/.test(pathname) ||
     /^\/uploads\/generated-logos\/[^/]+$/.test(pathname) ||
     /^\/uploads\/brand-assets\/[^/]+$/.test(pathname) ||
-    /^\/uploads\/admin\/business-card-backgrounds\/[^/]+$/.test(pathname) ||
-    /^\/api\/templates\/[^/]+\/business-card-pdf$/.test(pathname)
+    /^\/uploads\/admin\/business-card-backgrounds\/[^/]+$/.test(pathname)
   );
 }
 
@@ -68,7 +73,7 @@ export default {
       return proxyToMainWorker(request, env);
     }
 
-    const container = env.PRINTY_CONTAINER.getByName("printy-main-v6");
+    const container = env.PRINTY_CONTAINER.getByName("printy-main-v76");
     await container.startAndWaitForPorts(3000, {
       instanceGetTimeoutMS: 30_000,
       portReadyTimeoutMS: 90_000,

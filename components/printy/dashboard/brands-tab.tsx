@@ -5,7 +5,7 @@ import { useState } from "react";
 import { BrandDetail } from "@/components/printy/dashboard/brand-detail";
 import { resolveLogoFromState } from "@/components/printy/logo/logo-state";
 import { AppButton, ProgressHeader, SoftCard } from "@/components/ui";
-import { LogoMark, PrintyBrandLogo } from "@/components/ui/logo";
+import { LogoMark } from "@/components/ui/logo";
 import type { Brand } from "@/lib/types";
 import { usePrintyStore } from "@/store/use-printy-store";
 
@@ -19,7 +19,6 @@ export function BrandList() {
 
   return (
     <div className="pb-2">
-      <DashboardHeader onStartNewBrand={startNewBrand} />
       <ProgressHeader eyebrow="브랜드" title="저장한 브랜드를 한눈에" description="로고, 구성원, 명함 시안과 주문 기록을 브랜드별로 이어서 관리하세요." />
       {brands.length > 0 ? (
         <div className="grid grid-cols-2 gap-3">
@@ -43,21 +42,6 @@ export function EmptyBrands({ onStartNewBrand }: { onStartNewBrand: () => void }
         첫 브랜드 만들기
       </AppButton>
     </SoftCard>
-  );
-}
-
-export function DashboardHeader({ onStartNewBrand }: { onStartNewBrand: () => void }) {
-  const openNotifications = usePrintyStore((state) => state.openNotifications);
-  const activityCount = usePrintyStore((state) => state.orders.length + state.brands.length + state.businessCardDrafts.length);
-
-  return (
-    <header className="mb-6 flex items-center justify-between">
-      <PrintyBrandLogo size="sm" />
-      <div className="flex items-center gap-2">
-        <IconButton label={`활동 알림 보기${activityCount > 0 ? ` ${activityCount}개` : ""}`} icon="notification" onClick={openNotifications} />
-        <IconButton label="새 브랜드 만들기" icon="plus" onClick={onStartNewBrand} />
-      </div>
-    </header>
   );
 }
 
@@ -95,19 +79,19 @@ export function BrandCard({ brand, onOpen }: { brand: Brand; onOpen: () => void 
   const logo = usePrintyStore((state) => resolveLogoFromState(state, brand.selectedLogoId));
 
   return (
-    <button className="group relative min-h-44 overflow-hidden rounded-lg border border-line bg-[#f3f4f6] p-4 text-left shadow-card transition duration-200 hover:-translate-y-0.5" type="button" onClick={onOpen}>
+    <button className="group relative overflow-hidden rounded-lg border border-line bg-[#f3f4f6] p-3 text-left shadow-card transition duration-200 hover:-translate-y-0.5" type="button" onClick={onOpen}>
       {"imageUrl" in logo && !imageFailed ? (
-        <Image src={logo.imageUrl} alt="" fill sizes="(max-width: 430px) 50vw, 190px" className="object-contain p-3 opacity-100 transition duration-300 group-hover:scale-105" unoptimized aria-hidden="true" onError={() => setImageFailed(true)} />
+        <Image src={logo.imageUrl} alt="" width={512} height={512} sizes="(max-width: 430px) 50vw, 190px" className="h-auto w-full rounded-sm opacity-100 transition duration-300 group-hover:scale-105" unoptimized aria-hidden="true" onError={() => setImageFailed(true)} />
       ) : (
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_12%,rgba(255,255,255,0.8)_0%,transparent_44%),linear-gradient(135deg,#f8fafc_0%,#e5e7eb_100%)]" aria-hidden="true">
-          <div className="absolute inset-0 grid place-items-center opacity-80 transition duration-300 group-hover:scale-105">
+        <div className="grid aspect-square w-full place-items-center rounded-sm bg-[radial-gradient(circle_at_82%_12%,rgba(255,255,255,0.8)_0%,transparent_44%),linear-gradient(135deg,#f8fafc_0%,#e5e7eb_100%)]" aria-hidden="true">
+          <div className="opacity-80 transition duration-300 group-hover:scale-105">
             <div className="scale-150">
               <LogoMark logo={logo} size="xl" />
             </div>
           </div>
         </div>
       )}
-      <span className="relative z-10 flex min-h-36 justify-end">
+      <span className="mt-3 flex justify-end">
         <span className="flex items-start gap-3">
           <span className="rounded-md bg-white/90 px-2 py-1 text-[10px] font-black text-primary-strong shadow-soft backdrop-blur-xl">{brand.category}</span>
         </span>

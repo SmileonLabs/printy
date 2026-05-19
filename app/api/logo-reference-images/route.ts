@@ -53,7 +53,7 @@ function isUploadRateLimited(clientKey: string) {
 
 export async function GET() {
   try {
-    const images = await listLogoReferenceImages();
+    const images = await listLogoReferenceImages({ includeAnalysis: false, verifyBytes: false });
 
     return NextResponse.json({ images: images.map(toReferenceImage) });
   } catch (error) {

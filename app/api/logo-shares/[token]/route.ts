@@ -28,11 +28,11 @@ export async function POST(_request: Request, context: RouteContext) {
   }
 
   const { token } = await context.params;
-  const claimed = await claimLogoShare(token, session.user.id, session.user.name).catch(() => undefined);
+  const claimed = await claimLogoShare(token, session.user.id).catch(() => undefined);
 
   if (!claimed) {
     return NextResponse.json({ reason: "이미 사용된 공유 링크예요." }, { status: 409 });
   }
 
-  return NextResponse.json({ claimed: true, brand: claimed.brand, logo: claimed.logo });
+  return NextResponse.json({ claimed: true, brand: claimed.brand, logos: claimed.logos });
 }

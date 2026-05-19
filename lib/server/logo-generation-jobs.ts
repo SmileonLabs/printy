@@ -42,42 +42,45 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export function getLogoGenerationClientKey(request: Request) {
+  const cfConnectingIp = request.headers.get("cf-connecting-ip")?.trim();
+  const trueClientIp = request.headers.get("true-client-ip")?.trim();
   const forwardedFor = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
   const realIp = request.headers.get("x-real-ip")?.trim();
 
-  return forwardedFor || realIp || "local-dev-client";
+  return cfConnectingIp || trueClientIp || forwardedFor || realIp || "local-dev-client";
 }
 
-async function isClientRateLimited(clientKey: string) {
+async function isClientRateLimited(input: { clientKey: string; userId?: string }) {
   const cutoffDate = new Date(Date.now() - clientRateLimitWindowMs);
+  const ownerFilter = input.userId ? "user_id = $1" : "client_key = $1";
   const result = await queryDb<{ count: string }>(
     `
       select count(*)::text as count
       from logo_generation_jobs
-      where client_key = $1
+      where ${ownerFilter}
         and created_at >= $2
-        and status <> 'cancelled'
+        and status in ('queued', 'running')
     `,
-    [clientKey, cutoffDate],
+    [input.userId ?? input.clientKey, cutoffDate],
   );
 
   return Number(result.rows[0]?.count ?? 0) >= maxQueuedJobsPerClientWindow;
 }
 
-export async function createLogoGenerationJob(requestPayload: unknown, clientKey: string): Promise<{ jobId: string; status: "queued" }> {
+export async function createLogoGenerationJob(requestPayload: unknown, input: { clientKey: string; userId?: string }): Promise<{ jobId: string; status: "queued" }> {
   const parsed = parseLogoGenerationRequest(requestPayload);
 
-  if (await isClientRateLimited(clientKey)) {
+  if (await isClientRateLimited(input)) {
     throw new LogoGenerationExecutionError({ failureKind: "rate_limit", reason: "요청이 너무 많아요. 10분 정도 기다린 뒤 다시 시도해 주세요.", status: 429, retryable: true }, { failureKind: "rate_limit", errorName: "LogoGenerationClientRateLimited" });
   }
 
   const jobId = `logo-generation-job-${randomUUID()}`;
   await queryDb(
     `
-      insert into logo_generation_jobs (id, client_key, status, mode, generation_mode, request_payload)
-      values ($1, $2, 'queued', $3, $4, $5::jsonb)
+      insert into logo_generation_jobs (id, user_id, client_key, status, mode, generation_mode, request_payload)
+      values ($1, $2, $3, 'queued', $4, $5, $6::jsonb)
     `,
-    [jobId, clientKey, parsed.mode, parsed.mode === "initial" ? parsed.generationMode : null, JSON.stringify(parsed)],
+    [jobId, input.userId ?? null, input.clientKey, parsed.mode, parsed.mode === "initial" ? parsed.generationMode : null, JSON.stringify(parsed)],
   );
 
   return { jobId, status: "queued" };

@@ -27,6 +27,9 @@ const brandAssetPurpose = "brand-asset";
 const brandAssetUploadDirectory = path.join(process.cwd(), "data", "uploads", "brand-assets");
 const brandAssetPublicPath = "/uploads/brand-assets";
 const brandAssetPublicPathPrefix = `${brandAssetPublicPath}/`;
+const userArchiveBucket = "user-file-archive";
+const userArchivePurpose = "user-file-archive";
+const userArchiveUploadDirectory = path.join(process.cwd(), "data", "uploads", "user-file-archive");
 
 export type BusinessCardBackgroundStoredFile = {
   id: string;
@@ -70,6 +73,13 @@ export type BrandAssetStoredFile = {
   size: number;
 };
 
+export type UserArchiveStoredFile = {
+  id: string;
+  objectKey: string;
+  contentType: string;
+  size: number;
+};
+
 type StaleGeneratedLogoUploadRow = {
   id: string;
   object_key: string;
@@ -92,6 +102,10 @@ function isBusinessCardBackgroundObjectKey(objectKey: string) {
 
 function isGeneratedLogoObjectKey(objectKey: string) {
   return /^[A-Za-z0-9_-]+\.png$/.test(objectKey) && !objectKey.includes("..");
+}
+
+function isUserArchiveObjectKey(objectKey: string) {
+  return /^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9]{1,12})?$/.test(objectKey) && !objectKey.includes("..");
 }
 
 function toPublicUrl(objectKey: string) {
@@ -254,6 +268,12 @@ function logoReferenceExtensionForContentType(contentType: "image/png" | "image/
 
 function toNumber(value: string | number) {
   return typeof value === "number" ? value : Number(value);
+}
+
+function safeArchiveExtension(fileName: string) {
+  const match = /\.([A-Za-z0-9]{1,12})$/.exec(fileName.trim());
+
+  return match ? `.${match[1].toLowerCase()}` : "";
 }
 
 async function writeUploadedFileBlob(uploadedFileId: string, bytes: Uint8Array) {
@@ -437,34 +457,55 @@ function removeBackgroundMatteFromPixel(data: Buffer, pixelIndex: number, backgr
   return nextAlpha !== currentAlpha;
 }
 
-function softenPixelsNearTransparentBackground(data: Buffer, width: number, height: number, backgroundColor: BackgroundColor) {
-  const alphaSnapshot = Buffer.alloc(width * height);
-  for (let offset = 0, pixel = 0; offset < data.length; offset += 4, pixel += 1) {
-    alphaSnapshot[pixel] = data[offset + 3] ?? 0;
+function isLikelyBackgroundMattePixel(data: Buffer, pixelIndex: number, backgroundColor: BackgroundColor) {
+  const { red, green, blue, alpha } = readPixel(data, pixelIndex);
+
+  if (alpha === 0) {
+    return false;
   }
 
+  const distanceFromBackground = colorDistance({ red, green, blue }, backgroundColor);
+  const maxChannel = Math.max(red, green, blue);
+  const minChannel = Math.min(red, green, blue);
+
+  return distanceFromBackground < 185 && maxChannel - minChannel <= 96;
+}
+
+function softenPixelsNearTransparentBackground(data: Buffer, width: number, height: number, backgroundColor: BackgroundColor) {
   let changedPixels = 0;
-  for (let y = 1; y < height - 1; y += 1) {
-    for (let x = 1; x < width - 1; x += 1) {
-      const pixelIndex = y * width + x;
-      const currentAlpha = alphaSnapshot[pixelIndex] ?? 0;
+  const maxPasses = 3;
 
-      if (currentAlpha === 0) {
-        continue;
+  for (let pass = 0; pass < maxPasses; pass += 1) {
+    const alphaSnapshot = Buffer.alloc(width * height);
+    for (let offset = 0, pixel = 0; offset < data.length; offset += 4, pixel += 1) {
+      alphaSnapshot[pixel] = data[offset + 3] ?? 0;
+    }
+
+    let passChangedPixels = 0;
+
+    for (let y = 1; y < height - 1; y += 1) {
+      for (let x = 1; x < width - 1; x += 1) {
+        const pixelIndex = y * width + x;
+        const currentAlpha = alphaSnapshot[pixelIndex] ?? 0;
+
+        if (currentAlpha === 0 || !isLikelyBackgroundMattePixel(data, pixelIndex, backgroundColor)) {
+          continue;
+        }
+
+        const minNeighborAlpha = Math.min(alphaSnapshot[pixelIndex - 1] ?? 255, alphaSnapshot[pixelIndex + 1] ?? 255, alphaSnapshot[pixelIndex - width] ?? 255, alphaSnapshot[pixelIndex + width] ?? 255);
+        const alphaLimit = pass === 0 ? 48 : pass === 1 ? 96 : 144;
+        if (minNeighborAlpha >= alphaLimit) {
+          continue;
+        }
+
+        passChangedPixels += removeBackgroundMatteFromPixel(data, pixelIndex, backgroundColor) ? 1 : 0;
       }
+    }
 
-      const minNeighborAlpha = Math.min(alphaSnapshot[pixelIndex - 1] ?? 255, alphaSnapshot[pixelIndex + 1] ?? 255, alphaSnapshot[pixelIndex - width] ?? 255, alphaSnapshot[pixelIndex + width] ?? 255);
-      if (minNeighborAlpha >= 32) {
-        continue;
-      }
+    changedPixels += passChangedPixels;
 
-      const offset = pixelIndex * 4;
-      const { red, green, blue } = readPixel(data, pixelIndex);
-      if (colorDistance({ red, green, blue }, backgroundColor) >= 170) {
-        continue;
-      }
-
-      changedPixels += removeBackgroundMatteFromPixel(data, pixelIndex, backgroundColor) ? 1 : 0;
+    if (passChangedPixels === 0) {
+      break;
     }
   }
 
@@ -828,7 +869,64 @@ export async function saveBrandAssetImageBytes(bytes: Uint8Array): Promise<Brand
   };
 }
 
-export async function listLogoReferenceImages(): Promise<LogoReferenceImageStoredFile[]> {
+export async function saveUserArchiveFileBytes(bytes: Uint8Array, contentType: string, originalName: string): Promise<UserArchiveStoredFile> {
+  const safeContentType = contentType.trim() || "application/octet-stream";
+  const id = `uploaded-file-${randomUUID()}`;
+  const objectKey = `${randomUUID()}${safeArchiveExtension(originalName)}`;
+  const publicUrl = `/api/file-archive/downloads/${objectKey}`;
+  const filePath = path.join(userArchiveUploadDirectory, objectKey);
+  const result = await queryDb<UploadedFileRow>(
+    `
+      insert into uploaded_files (id, bucket, object_key, public_url, content_type, size, purpose)
+      values ($1, $2, $3, $4, $5, $6, $7)
+      returning id, object_key, public_url, content_type, size
+    `,
+    [id, userArchiveBucket, objectKey, publicUrl, safeContentType, bytes.byteLength, userArchivePurpose],
+  );
+  const row = result.rows[0];
+  await writeUploadedFileBlob(row.id, bytes);
+  await writeFileCacheBestEffort(userArchiveUploadDirectory, filePath, bytes, "User archive file");
+
+  return {
+    id: row.id,
+    objectKey: row.object_key,
+    contentType: row.content_type,
+    size: toNumber(row.size),
+  };
+}
+
+export async function readUserArchiveFileBytes(uploadedFileId: string): Promise<{ bytes: Uint8Array; contentType: string } | undefined> {
+  const result = await queryDb<UploadedFileRow>(
+    `
+      select id, object_key, public_url, content_type, size
+      from uploaded_files
+      where id = $1 and bucket = $2 and purpose = $3
+      limit 1
+    `,
+    [uploadedFileId, userArchiveBucket, userArchivePurpose],
+  );
+  const row = result.rows[0];
+
+  if (!row || !isUserArchiveObjectKey(row.object_key)) {
+    return undefined;
+  }
+
+  try {
+    return { bytes: await readFile(path.join(userArchiveUploadDirectory, row.object_key)), contentType: row.content_type };
+  } catch (error) {
+    if (isMissingFileError(error)) {
+      const bytes = await readUploadedFileBlob(userArchiveBucket, userArchivePurpose, row.object_key);
+
+      return bytes ? { bytes, contentType: row.content_type } : undefined;
+    }
+
+    throw error;
+  }
+}
+
+export async function listLogoReferenceImages(options?: { includeAnalysis?: boolean; verifyBytes?: boolean }): Promise<LogoReferenceImageStoredFile[]> {
+  const includeAnalysis = options?.includeAnalysis ?? true;
+  const verifyBytes = options?.verifyBytes ?? true;
   const result = await queryDb<UploadedFileRow>(
     `
       select id, object_key, public_url, content_type, size, created_at
@@ -840,15 +938,21 @@ export async function listLogoReferenceImages(): Promise<LogoReferenceImageStore
   );
 
   const images = await Promise.all<LogoReferenceImageStoredFile | undefined>(
-    result.rows.map(async (row): Promise<LogoReferenceImageStoredFile | undefined> => ((await uploadedFileBytesExist(logoReferenceBucket, logoReferencePurpose, row.object_key, logoReferenceUploadDirectory)) ? {
-      id: row.id,
-      name: row.object_key,
-      publicUrl: row.public_url,
-      contentType: row.content_type === "image/png" ? "image/png" : "image/jpeg",
-      size: toNumber(row.size),
-      createdAt: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString(),
-      analysis: await readLogoReferenceAnalysis(row.object_key),
-    } : undefined)),
+    result.rows.map(async (row): Promise<LogoReferenceImageStoredFile | undefined> => {
+      if (verifyBytes && !(await uploadedFileBytesExist(logoReferenceBucket, logoReferencePurpose, row.object_key, logoReferenceUploadDirectory))) {
+        return undefined;
+      }
+
+      return {
+        id: row.id,
+        name: row.object_key,
+        publicUrl: row.public_url,
+        contentType: row.content_type === "image/png" ? "image/png" : "image/jpeg",
+        size: toNumber(row.size),
+        createdAt: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString(),
+        analysis: includeAnalysis ? await readLogoReferenceAnalysis(row.object_key) : undefined,
+      };
+    }),
   );
 
   return images.filter((image): image is LogoReferenceImageStoredFile => image !== undefined);
@@ -983,12 +1087,31 @@ export async function readBrandAssetBytesByPublicUrl(publicUrl: string): Promise
     return undefined;
   }
 
-  return readUploadedFileBlob(brandAssetBucket, brandAssetPurpose, objectKey);
+  try {
+    return await readFile(path.join(brandAssetUploadDirectory, objectKey));
+  } catch (error) {
+    if (isMissingFileError(error)) {
+      return readUploadedFileBlob(brandAssetBucket, brandAssetPurpose, objectKey);
+    }
+
+    throw error;
+  }
 }
 
 async function isGeneratedLogoPublicUrlReferenced(publicUrl: string, client: Pick<PoolClient, "query">) {
   const result = await client.query<{ exists: boolean }>(
-    "select exists (select 1 from generated_logos where payload->>'imageUrl' = $1) as exists",
+    `
+      select exists (
+        select 1
+        from generated_logos
+        where payload->>'imageUrl' = $1
+      ) or exists (
+        select 1
+        from logo_generation_jobs job
+        cross join lateral jsonb_array_elements(coalesce(job.result_payload->'logos', '[]'::jsonb)) as logo(value)
+        where logo.value->>'imageUrl' = $1
+      ) as exists
+    `,
     [publicUrl],
   );
 
@@ -1063,6 +1186,12 @@ export async function deleteGeneratedLogoFileByPublicUrl(publicUrl: string): Pro
               from generated_logos
               where payload->>'imageUrl' = $4
             )
+            and not exists (
+              select 1
+              from logo_generation_jobs job
+              cross join lateral jsonb_array_elements(coalesce(job.result_payload->'logos', '[]'::jsonb)) as logo(value)
+              where logo.value->>'imageUrl' = $4
+            )
           returning id
         `,
         [candidateRow.id, generatedLogoBucket, generatedLogoPurpose, publicUrl, storedObjectKey],
@@ -1117,6 +1246,12 @@ export async function assertGeneratedLogoStorageAvailableForPublicUrls(publicUrl
       fileStats = await stat(path.join(generatedLogoUploadDirectory, objectKey));
     } catch (error) {
       if (isMissingFileError(error)) {
+        const blobBytes = await readUploadedFileBlob(generatedLogoBucket, generatedLogoPurpose, objectKey);
+
+        if (blobBytes && blobBytes.byteLength > 0) {
+          continue;
+        }
+
         throw new Error("Generated logo storage is unavailable.");
       }
 
@@ -1162,6 +1297,12 @@ export async function cleanupStaleUnreferencedGeneratedLogoUploads(options?: Cle
           select 1
           from generated_logos
           where payload->>'imageUrl' = uploaded_files.public_url
+        )
+        and not exists (
+          select 1
+          from logo_generation_jobs job
+          cross join lateral jsonb_array_elements(coalesce(job.result_payload->'logos', '[]'::jsonb)) as logo(value)
+          where logo.value->>'imageUrl' = uploaded_files.public_url
         )
       order by created_at asc
       limit $4

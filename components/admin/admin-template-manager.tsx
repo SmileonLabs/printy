@@ -5,9 +5,8 @@ import Image from "next/image";
 import { BusinessCardLayoutBuilder, type BusinessCardLayoutManagedBackground } from "@/components/admin/business-card-layout-builder";
 import { BusinessCardTemplateRenderer } from "@/components/printy/templates/business-card-template-renderer";
 import { AppButton, SoftCard } from "@/components/ui";
-import { PrintyBrandLogo } from "@/components/ui/logo";
 import { businessCardTemplateStatuses, defaultBusinessCardTemplateLayout, getBusinessCardTemplateOrientation, type BusinessCardTemplateStatus } from "@/lib/business-card-templates";
-import type { BusinessCardTemplateBackground, BusinessCardTemplateLayout, LogoReferenceImage, Member, PrintTemplate, ResolvedLogoOption } from "@/lib/types";
+import type { BankAccountSettings, BusinessCardTemplateBackground, BusinessCardTemplateLayout, LogoReferenceImage, Member, OrderRecord, PrintTemplate, ResolvedLogoOption } from "@/lib/types";
 
 type AdminTemplatesResponse = {
   templates: PrintTemplate[];
@@ -46,6 +45,118 @@ type AdminLogoReferenceImageUploadResponse = {
   image: LogoReferenceImage;
 };
 
+type AdminOrderSummary = {
+  order: OrderRecord;
+  user: {
+    id: string;
+    name: string;
+    contact: string;
+    email: string;
+  };
+  brandName: string;
+  templateTitle: string;
+  memberName: string;
+  updatedAt: string;
+};
+
+type AdminOrdersResponse = {
+  orders: AdminOrderSummary[];
+};
+
+type AdminLogoGenerationBrandStatus = {
+  brandId: string | null;
+  brandName: string;
+  category: string;
+  selectedLogoId: string;
+  logoCount: number;
+  latestLogoImageUrl: string;
+  latestLogoUpdatedAt: string;
+  jobs: {
+    total: number;
+    queued: number;
+    running: number;
+    succeeded: number;
+    failed: number;
+    cancelled: number;
+  };
+  latestJobUpdatedAt: string;
+  latestFailureKind: string;
+  latestFailureReason: string;
+};
+
+type AdminLogoGenerationAccountStatus = {
+  user: {
+    id: string;
+    name: string;
+    contact: string;
+    email: string;
+  };
+  brands: AdminLogoGenerationBrandStatus[];
+};
+
+type AdminLogoGenerationStatusResponse = {
+  accounts: AdminLogoGenerationAccountStatus[];
+};
+
+type AdminFileArchiveUser = {
+  id: string;
+  name: string;
+  contact: string;
+  email: string;
+};
+
+type AdminFileArchiveFile = {
+  id: string;
+  userId: string;
+  originalName: string;
+  displayName: string;
+  note: string;
+  contentType: string;
+  size: number;
+  createdAt: string;
+};
+
+type AdminFileArchiveResponse = {
+  users: AdminFileArchiveUser[];
+  files: AdminFileArchiveFile[];
+};
+
+type AdminBrandTransferUser = AdminFileArchiveUser;
+
+type AdminBrandTransferBrand = {
+  userId: string;
+  id: string;
+  name: string;
+  category: string;
+  selectedLogoId: string;
+  logoCount: number;
+  draftCount: number;
+  orderCount: number;
+  assetCount: number;
+  updatedAt: string;
+};
+
+type AdminBrandTransferResponse = {
+  users: AdminBrandTransferUser[];
+  brands: AdminBrandTransferBrand[];
+};
+
+type AdminBrandTransferResult = {
+  brand: AdminBrandTransferBrand;
+  fromUserId: string;
+  toUserId: string;
+  moved: {
+    logos: number;
+    drafts: number;
+    orders: number;
+    assets: number;
+  };
+};
+
+type AdminBankAccountResponse = {
+  bankAccount: BankAccountSettings;
+};
+
 type PublicTemplatesResponse = {
   templates: PrintTemplate[];
 };
@@ -60,7 +171,7 @@ type AdminFormState = {
 };
 
 type RequestStatus = "idle" | "loading" | "error" | "success";
-type AdminSectionId = "dashboard" | "templates" | "editor" | "settings" | "logoReferences";
+type AdminSectionId = "dashboard" | "templates" | "orders" | "logoGeneration" | "brandTransfer" | "fileArchive" | "editor" | "settings" | "logoReferences";
 type PrepressStatus = "source-only" | "prepress-unavailable" | "pdfx-candidate" | "validation-failed" | "pdfx-validated";
 
 type PrepressCheck = {
@@ -91,8 +202,12 @@ type ManagedBusinessCardBackgroundWithUsage = ManagedBusinessCardBackground & {
 const adminSections: Array<{ id: AdminSectionId; label: string; helper: string }> = [
   { id: "dashboard", label: "대시보드", helper: "공개 상태 요약" },
   { id: "templates", label: "명함 템플릿 목록", helper: "편집과 삭제" },
+  { id: "orders", label: "주문 관리", helper: "주문/배송 확인" },
+  { id: "logoGeneration", label: "로고 생성 현황", helper: "계정/브랜드별 상태" },
+  { id: "brandTransfer", label: "브랜드 이관", helper: "계정 간 브랜드 이동" },
+  { id: "fileArchive", label: "파일 보관함", helper: "유저 파일 업로드" },
   { id: "editor", label: "새 템플릿 만들기", helper: "생성/수정 빌더" },
-  { id: "settings", label: "배경 관리", helper: "공통 설정" },
+  { id: "settings", label: "공통 설정", helper: "배경과 입금 계좌" },
   { id: "logoReferences", label: "로고 레퍼런스", helper: "참고 이미지 관리" },
 ];
 
@@ -324,6 +439,108 @@ function readAdminLogoReferenceImageUploadResponse(value: unknown): AdminLogoRef
   return { image: value.image };
 }
 
+function isBankAccountSettings(value: unknown): value is BankAccountSettings {
+  return isRecord(value) && typeof value.bankName === "string" && typeof value.accountNumber === "string" && typeof value.accountHolder === "string" && typeof value.memo === "string" && (value.updatedAt === undefined || typeof value.updatedAt === "string");
+}
+
+function readAdminBankAccountResponse(value: unknown): AdminBankAccountResponse | undefined {
+  if (!isRecord(value) || !isBankAccountSettings(value.bankAccount)) {
+    return undefined;
+  }
+
+  return { bankAccount: value.bankAccount };
+}
+
+function isOrderRecord(value: unknown): value is OrderRecord {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return typeof value.id === "string" && typeof value.orderNumber === "string" && typeof value.title === "string" && typeof value.statusLabel === "string" && typeof value.price === "string" && typeof value.quantity === "string" && typeof value.paper === "string" && typeof value.paymentMethod === "string" && typeof value.createdAt === "string" && typeof value.brandId === "string" && typeof value.cardDraftId === "string";
+}
+
+function isAdminOrderSummary(value: unknown): value is AdminOrderSummary {
+  return isRecord(value) && isOrderRecord(value.order) && isRecord(value.user) && typeof value.user.id === "string" && typeof value.user.name === "string" && typeof value.user.contact === "string" && typeof value.user.email === "string" && typeof value.brandName === "string" && typeof value.templateTitle === "string" && typeof value.memberName === "string" && typeof value.updatedAt === "string";
+}
+
+function readAdminOrdersResponse(value: unknown): AdminOrdersResponse | undefined {
+  if (!isRecord(value) || !Array.isArray(value.orders) || !value.orders.every(isAdminOrderSummary)) {
+    return undefined;
+  }
+
+  return { orders: value.orders };
+}
+
+function isAdminLogoGenerationJobCounts(value: unknown): value is AdminLogoGenerationBrandStatus["jobs"] {
+  return isRecord(value) && typeof value.total === "number" && typeof value.queued === "number" && typeof value.running === "number" && typeof value.succeeded === "number" && typeof value.failed === "number" && typeof value.cancelled === "number";
+}
+
+function isAdminLogoGenerationBrandStatus(value: unknown): value is AdminLogoGenerationBrandStatus {
+  return isRecord(value) && (typeof value.brandId === "string" || value.brandId === null) && typeof value.brandName === "string" && typeof value.category === "string" && typeof value.selectedLogoId === "string" && typeof value.logoCount === "number" && typeof value.latestLogoImageUrl === "string" && typeof value.latestLogoUpdatedAt === "string" && isAdminLogoGenerationJobCounts(value.jobs) && typeof value.latestJobUpdatedAt === "string" && typeof value.latestFailureKind === "string" && typeof value.latestFailureReason === "string";
+}
+
+function isAdminLogoGenerationAccountStatus(value: unknown): value is AdminLogoGenerationAccountStatus {
+  return isRecord(value) && isRecord(value.user) && typeof value.user.id === "string" && typeof value.user.name === "string" && typeof value.user.contact === "string" && typeof value.user.email === "string" && Array.isArray(value.brands) && value.brands.every(isAdminLogoGenerationBrandStatus);
+}
+
+function readAdminLogoGenerationStatusResponse(value: unknown): AdminLogoGenerationStatusResponse | undefined {
+  if (!isRecord(value) || !Array.isArray(value.accounts) || !value.accounts.every(isAdminLogoGenerationAccountStatus)) {
+    return undefined;
+  }
+
+  return { accounts: value.accounts };
+}
+
+function isAdminFileArchiveUser(value: unknown): value is AdminFileArchiveUser {
+  return isRecord(value) && typeof value.id === "string" && typeof value.name === "string" && typeof value.contact === "string" && typeof value.email === "string";
+}
+
+function isAdminFileArchiveFile(value: unknown): value is AdminFileArchiveFile {
+  return isRecord(value) && typeof value.id === "string" && typeof value.userId === "string" && typeof value.originalName === "string" && typeof value.displayName === "string" && typeof value.note === "string" && typeof value.contentType === "string" && typeof value.size === "number" && typeof value.createdAt === "string";
+}
+
+function readAdminFileArchiveResponse(value: unknown): AdminFileArchiveResponse | undefined {
+  if (!isRecord(value) || !Array.isArray(value.users) || !value.users.every(isAdminFileArchiveUser) || !Array.isArray(value.files) || !value.files.every(isAdminFileArchiveFile)) {
+    return undefined;
+  }
+
+  return { users: value.users, files: value.files };
+}
+
+function readAdminFileArchiveUploadResponse(value: unknown): { file: AdminFileArchiveFile } | undefined {
+  if (!isRecord(value) || !isAdminFileArchiveFile(value.file)) {
+    return undefined;
+  }
+
+  return { file: value.file };
+}
+
+function isAdminBrandTransferBrand(value: unknown): value is AdminBrandTransferBrand {
+  return isRecord(value) && typeof value.userId === "string" && typeof value.id === "string" && typeof value.name === "string" && typeof value.category === "string" && typeof value.selectedLogoId === "string" && typeof value.logoCount === "number" && typeof value.draftCount === "number" && typeof value.orderCount === "number" && typeof value.assetCount === "number" && typeof value.updatedAt === "string";
+}
+
+function readAdminBrandTransferResponse(value: unknown): AdminBrandTransferResponse | undefined {
+  if (!isRecord(value) || !Array.isArray(value.users) || !value.users.every(isAdminFileArchiveUser) || !Array.isArray(value.brands) || !value.brands.every(isAdminBrandTransferBrand)) {
+    return undefined;
+  }
+
+  return { users: value.users, brands: value.brands };
+}
+
+function readAdminBrandTransferResultResponse(value: unknown): { result: AdminBrandTransferResult } | undefined {
+  if (!isRecord(value) || !isRecord(value.result) || !isAdminBrandTransferBrand(value.result.brand) || typeof value.result.fromUserId !== "string" || typeof value.result.toUserId !== "string" || !isRecord(value.result.moved)) {
+    return undefined;
+  }
+
+  const moved = value.result.moved;
+
+  if (typeof moved.logos !== "number" || typeof moved.drafts !== "number" || typeof moved.orders !== "number" || typeof moved.assets !== "number") {
+    return undefined;
+  }
+
+  return { result: { brand: value.result.brand, fromUserId: value.result.fromUserId, toUserId: value.result.toUserId, moved: { logos: moved.logos, drafts: moved.drafts, orders: moved.orders, assets: moved.assets } } };
+}
+
 function readApiErrorReason(value: unknown, fallback: string) {
   return isRecord(value) && typeof value.reason === "string" ? value.reason : fallback;
 }
@@ -435,11 +652,30 @@ export function AdminTemplateManager() {
   const [backgroundFileInputKey, setBackgroundFileInputKey] = useState(0);
   const [logoReferenceImages, setLogoReferenceImages] = useState<LogoReferenceImage[]>([]);
   const [logoReferenceFile, setLogoReferenceFile] = useState<File>();
+  const [logoReferencePrompt, setLogoReferencePrompt] = useState("");
   const [logoReferenceFileInputKey, setLogoReferenceFileInputKey] = useState(0);
   const [isUploadingLogoReferenceImage, setIsUploadingLogoReferenceImage] = useState(false);
   const [deletingLogoReferenceImageId, setDeletingLogoReferenceImageId] = useState<string>();
   const [updatingLogoReferenceImageId, setUpdatingLogoReferenceImageId] = useState<string>();
   const [activeSection, setActiveSection] = useState<AdminSectionId>("dashboard");
+  const [adminOrders, setAdminOrders] = useState<AdminOrderSummary[]>([]);
+  const [logoGenerationStatusAccounts, setLogoGenerationStatusAccounts] = useState<AdminLogoGenerationAccountStatus[]>([]);
+  const [brandTransferUsers, setBrandTransferUsers] = useState<AdminBrandTransferUser[]>([]);
+  const [brandTransferBrands, setBrandTransferBrands] = useState<AdminBrandTransferBrand[]>([]);
+  const [brandTransferSourceUserId, setBrandTransferSourceUserId] = useState("");
+  const [brandTransferBrandId, setBrandTransferBrandId] = useState("");
+  const [brandTransferTargetUserId, setBrandTransferTargetUserId] = useState("");
+  const [isTransferringBrand, setIsTransferringBrand] = useState(false);
+  const [fileArchiveUsers, setFileArchiveUsers] = useState<AdminFileArchiveUser[]>([]);
+  const [fileArchiveFiles, setFileArchiveFiles] = useState<AdminFileArchiveFile[]>([]);
+  const [fileArchiveUserId, setFileArchiveUserId] = useState("");
+  const [fileArchiveDisplayName, setFileArchiveDisplayName] = useState("");
+  const [fileArchiveNote, setFileArchiveNote] = useState("");
+  const [fileArchiveFile, setFileArchiveFile] = useState<File>();
+  const [fileArchiveFileInputKey, setFileArchiveFileInputKey] = useState(0);
+  const [isUploadingFileArchiveFile, setIsUploadingFileArchiveFile] = useState(false);
+  const [bankAccount, setBankAccount] = useState<BankAccountSettings>({ bankName: "", accountNumber: "", accountHolder: "", memo: "" });
+  const [isSavingBankAccount, setIsSavingBankAccount] = useState(false);
 
   const selectedTemplate = useMemo(() => templates.find((template) => template.id === selectedTemplateId), [selectedTemplateId, templates]);
   const publishedCount = templates.filter((template) => template.status === "published").length;
@@ -516,6 +752,102 @@ export function AdminTemplateManager() {
     setLogoReferenceImages(data.images);
   };
 
+  const loadAdminOrders = async () => {
+    const response = await fetch("/api/admin/orders", { credentials: "include", cache: "no-store" });
+
+    if (!response.ok) {
+      setAuthenticated(false);
+      throw new Error("주문 목록을 불러오지 못했어요.");
+    }
+
+    const data = readAdminOrdersResponse(await response.json());
+
+    if (!data) {
+      throw new Error("주문 목록 응답이 올바르지 않아요.");
+    }
+
+    setAdminOrders(data.orders);
+  };
+
+  const loadLogoGenerationStatus = async () => {
+    const response = await fetch("/api/admin/logo-generation-status", { credentials: "include", cache: "no-store" });
+
+    if (!response.ok) {
+      setAuthenticated(false);
+      throw new Error("로고 생성 현황을 불러오지 못했어요.");
+    }
+
+    const data = readAdminLogoGenerationStatusResponse(await response.json());
+
+    if (!data) {
+      throw new Error("로고 생성 현황 응답이 올바르지 않아요.");
+    }
+
+    setLogoGenerationStatusAccounts(data.accounts);
+  };
+
+  const loadBrandTransferData = async () => {
+    const response = await fetch("/api/admin/brand-transfer", { credentials: "include", cache: "no-store" });
+
+    if (!response.ok) {
+      setAuthenticated(false);
+      throw new Error("브랜드 이관 정보를 불러오지 못했어요.");
+    }
+
+    const data = readAdminBrandTransferResponse(await response.json());
+
+    if (!data) {
+      throw new Error("브랜드 이관 응답이 올바르지 않아요.");
+    }
+
+    const firstBrand = data.brands[0];
+    const nextSourceUserId = brandTransferSourceUserId && data.users.some((user) => user.id === brandTransferSourceUserId) ? brandTransferSourceUserId : firstBrand?.userId ?? "";
+    const nextBrandId = brandTransferBrandId && data.brands.some((brand) => brand.userId === nextSourceUserId && brand.id === brandTransferBrandId) ? brandTransferBrandId : data.brands.find((brand) => brand.userId === nextSourceUserId)?.id ?? "";
+    const nextTargetUserId = brandTransferTargetUserId && data.users.some((user) => user.id === brandTransferTargetUserId && user.id !== nextSourceUserId) ? brandTransferTargetUserId : data.users.find((user) => user.id !== nextSourceUserId)?.id ?? "";
+
+    setBrandTransferUsers(data.users);
+    setBrandTransferBrands(data.brands);
+    setBrandTransferSourceUserId(nextSourceUserId);
+    setBrandTransferBrandId(nextBrandId);
+    setBrandTransferTargetUserId(nextTargetUserId);
+  };
+
+  const loadFileArchive = async () => {
+    const response = await fetch("/api/admin/file-archive", { credentials: "include", cache: "no-store" });
+
+    if (!response.ok) {
+      setAuthenticated(false);
+      throw new Error("파일 보관함 정보를 불러오지 못했어요.");
+    }
+
+    const data = readAdminFileArchiveResponse(await response.json());
+
+    if (!data) {
+      throw new Error("파일 보관함 응답이 올바르지 않아요.");
+    }
+
+    setFileArchiveUsers(data.users);
+    setFileArchiveFiles(data.files);
+    setFileArchiveUserId((current) => current || data.users[0]?.id || "");
+  };
+
+  const loadBankAccount = async () => {
+    const response = await fetch("/api/admin/settings/bank-account", { credentials: "include", cache: "no-store" });
+
+    if (!response.ok) {
+      setAuthenticated(false);
+      throw new Error("입금 계좌 정보를 불러오지 못했어요.");
+    }
+
+    const data = readAdminBankAccountResponse(await response.json());
+
+    if (!data) {
+      throw new Error("입금 계좌 응답이 올바르지 않아요.");
+    }
+
+    setBankAccount(data.bankAccount);
+  };
+
   const refreshPublicTemplates = async () => {
     const response = await fetch("/api/templates", { cache: "no-store" });
 
@@ -551,7 +883,7 @@ export function AdminTemplateManager() {
 
       setAuthenticated(true);
       setToken("");
-      await Promise.all([loadTemplates(), refreshPublicTemplates(), loadManagedBackgrounds(), loadLogoReferenceImages()]);
+      await Promise.all([loadTemplates(), refreshPublicTemplates(), loadManagedBackgrounds(), loadLogoReferenceImages(), loadAdminOrders(), loadLogoGenerationStatus(), loadBrandTransferData(), loadFileArchive(), loadBankAccount()]);
       setActiveSection("dashboard");
       setStatus("success");
       setMessage("관리자 화면이 열렸어요. 토큰은 화면 상태에서만 사용했어요.");
@@ -573,6 +905,21 @@ export function AdminTemplateManager() {
     setBackgroundFile(undefined);
     setBackgroundFileInputKey((current) => current + 1);
     setLogoReferenceImages([]);
+    setAdminOrders([]);
+    setLogoGenerationStatusAccounts([]);
+    setBrandTransferUsers([]);
+    setBrandTransferBrands([]);
+    setBrandTransferSourceUserId("");
+    setBrandTransferBrandId("");
+    setBrandTransferTargetUserId("");
+    setFileArchiveUsers([]);
+    setFileArchiveFiles([]);
+    setFileArchiveUserId("");
+    setFileArchiveDisplayName("");
+    setFileArchiveNote("");
+    setFileArchiveFile(undefined);
+    setFileArchiveFileInputKey((current) => current + 1);
+    setBankAccount({ bankName: "", accountNumber: "", accountHolder: "", memo: "" });
     setLogoReferenceFile(undefined);
     setLogoReferenceFileInputKey((current) => current + 1);
     setActiveSection("dashboard");
@@ -680,6 +1027,124 @@ export function AdminTemplateManager() {
     setLogoReferenceFile(event.target.files?.[0]);
   };
 
+  const handleFileArchiveFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const nextFile = event.target.files?.[0];
+    setFileArchiveFile(nextFile);
+    setFileArchiveDisplayName((current) => current || nextFile?.name.replace(/\.[^.]+$/, "") || "");
+  };
+
+  const handleBrandTransferSourceUserChange = (userId: string) => {
+    const nextBrandId = brandTransferBrands.find((brand) => brand.userId === userId)?.id ?? "";
+    const nextTargetUserId = brandTransferTargetUserId && brandTransferTargetUserId !== userId ? brandTransferTargetUserId : brandTransferUsers.find((user) => user.id !== userId)?.id ?? "";
+
+    setBrandTransferSourceUserId(userId);
+    setBrandTransferBrandId(nextBrandId);
+    setBrandTransferTargetUserId(nextTargetUserId);
+  };
+
+  const handleTransferBrand = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const sourceUser = brandTransferUsers.find((user) => user.id === brandTransferSourceUserId);
+    const targetUser = brandTransferUsers.find((user) => user.id === brandTransferTargetUserId);
+    const brand = brandTransferBrands.find((item) => item.userId === brandTransferSourceUserId && item.id === brandTransferBrandId);
+
+    if (!sourceUser || !targetUser || !brand || sourceUser.id === targetUser.id) {
+      setStatus("error");
+      setMessage("원본 계정, 대상 계정, 브랜드를 올바르게 선택해 주세요.");
+      return;
+    }
+
+    const sourceLabel = sourceUser.name || sourceUser.contact || sourceUser.email || sourceUser.id;
+    const targetLabel = targetUser.name || targetUser.contact || targetUser.email || targetUser.id;
+
+    if (!window.confirm(`${brand.name} 브랜드를 ${sourceLabel} 계정에서 ${targetLabel} 계정으로 이관할까요? 저장 로고, 명함 초안, 주문, 브랜드 에셋도 함께 이동돼요.`)) {
+      return;
+    }
+
+    setIsTransferringBrand(true);
+    setStatus("loading");
+    setMessage("브랜드를 대상 계정으로 이관하고 있어요.");
+
+    try {
+      const response = await fetch("/api/admin/brand-transfer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ sourceUserId: sourceUser.id, targetUserId: targetUser.id, brandId: brand.id }),
+      });
+      const data: unknown = await response.json().catch(() => undefined);
+
+      if (!response.ok) {
+        throw new Error(readApiErrorReason(data, "브랜드를 이관하지 못했어요."));
+      }
+
+      const result = readAdminBrandTransferResultResponse(data);
+
+      if (!result) {
+        throw new Error("브랜드 이관 응답이 올바르지 않아요.");
+      }
+
+      await Promise.all([loadBrandTransferData(), loadLogoGenerationStatus(), loadAdminOrders()]);
+      setBrandTransferSourceUserId(result.result.toUserId);
+      setBrandTransferBrandId(result.result.brand.id);
+      setBrandTransferTargetUserId(result.result.fromUserId);
+      setStatus("success");
+      setMessage(`브랜드를 이관했어요. 로고 ${result.result.moved.logos}개, 초안 ${result.result.moved.drafts}개, 주문 ${result.result.moved.orders}개, 에셋 ${result.result.moved.assets}개를 함께 이동했어요.`);
+    } catch (error) {
+      setStatus("error");
+      setMessage(error instanceof Error ? error.message : "브랜드를 이관하지 못했어요.");
+    } finally {
+      setIsTransferringBrand(false);
+    }
+  };
+
+  const handleUploadFileArchiveFile = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!fileArchiveUserId || !fileArchiveFile) {
+      setStatus("error");
+      setMessage("파일을 받을 유저와 업로드할 파일을 선택해 주세요.");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("userId", fileArchiveUserId);
+    formData.append("displayName", fileArchiveDisplayName);
+    formData.append("note", fileArchiveNote);
+    formData.append("file", fileArchiveFile);
+
+    setIsUploadingFileArchiveFile(true);
+    setStatus("loading");
+    setMessage("유저 파일 보관함에 파일을 등록하고 있어요.");
+
+    try {
+      const response = await fetch("/api/admin/file-archive", { method: "POST", credentials: "include", body: formData });
+      const data: unknown = await response.json().catch(() => undefined);
+
+      if (!response.ok) {
+        throw new Error(readApiErrorReason(data, "파일을 등록하지 못했어요."));
+      }
+
+      if (!readAdminFileArchiveUploadResponse(data)) {
+        throw new Error("파일 등록 응답이 올바르지 않아요.");
+      }
+
+      await loadFileArchive();
+      setFileArchiveDisplayName("");
+      setFileArchiveNote("");
+      setFileArchiveFile(undefined);
+      setFileArchiveFileInputKey((current) => current + 1);
+      setStatus("success");
+      setMessage("유저 파일 보관함에 파일을 등록했어요.");
+    } catch (error) {
+      setStatus("error");
+      setMessage(error instanceof Error ? error.message : "파일을 등록하지 못했어요.");
+    } finally {
+      setIsUploadingFileArchiveFile(false);
+    }
+  };
+
   const handleUploadLogoReferenceImage = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -690,7 +1155,13 @@ export function AdminTemplateManager() {
     }
 
     const formData = new FormData();
+    const trimmedPrompt = logoReferencePrompt.trim();
     formData.append("file", logoReferenceFile);
+
+    if (trimmedPrompt) {
+      formData.append("forcedInstructions", trimmedPrompt);
+    }
+
     setIsUploadingLogoReferenceImage(true);
     setStatus("loading");
     setMessage("로고 참고 이미지를 등록하고 있어요.");
@@ -709,6 +1180,7 @@ export function AdminTemplateManager() {
 
       await loadLogoReferenceImages();
       setLogoReferenceFile(undefined);
+      setLogoReferencePrompt("");
       setLogoReferenceFileInputKey((current) => current + 1);
       setStatus("success");
       setMessage("로고 참고 이미지를 등록했어요. 사용자 로고 제작 화면에서 선택할 수 있어요.");
@@ -924,6 +1396,62 @@ export function AdminTemplateManager() {
     }
   };
 
+  const handleSaveBankAccount = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsSavingBankAccount(true);
+    setStatus("loading");
+    setMessage("입금 계좌 정보를 저장하고 있어요.");
+
+    try {
+      const response = await fetch("/api/admin/settings/bank-account", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(bankAccount),
+      });
+      const data = readAdminBankAccountResponse(await response.json().catch(() => undefined));
+
+      if (!response.ok || !data) {
+        throw new Error("입금 계좌 정보를 저장하지 못했어요.");
+      }
+
+      setBankAccount(data.bankAccount);
+      setStatus("success");
+      setMessage("입금 계좌 정보를 저장했어요. 주문 완료 페이지에 표시됩니다.");
+    } catch (error) {
+      setStatus("error");
+      setMessage(error instanceof Error ? error.message : "입금 계좌 정보를 저장하지 못했어요.");
+    } finally {
+      setIsSavingBankAccount(false);
+    }
+  };
+
+  const handleUpdateOrderStatus = async (orderId: string, status: OrderRecord["status"]) => {
+    setStatus("loading");
+    setMessage("주문 상태를 변경하고 있어요.");
+
+    try {
+      const response = await fetch("/api/admin/orders", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ orderId, status }),
+      });
+      const data: unknown = await response.json().catch(() => undefined);
+
+      if (!response.ok) {
+        throw new Error(readApiErrorReason(data, "주문 상태를 변경하지 못했어요."));
+      }
+
+      await loadAdminOrders();
+      setStatus("success");
+      setMessage("주문 상태를 변경했어요.");
+    } catch (error) {
+      setStatus("error");
+      setMessage(error instanceof Error ? error.message : "주문 상태를 변경하지 못했어요.");
+    }
+  };
+
   const handleSectionChange = (sectionId: AdminSectionId) => {
     if (sectionId === "editor") {
       handleNewTemplate();
@@ -938,10 +1466,18 @@ export function AdminTemplateManager() {
       <DashboardPanel templates={templates} publishedCount={publishedCount} draftCount={draftCount} publicTemplateCount={publicTemplateCount} status={status} message={message} selectedTemplate={selectedTemplate} />
     ) : activeSection === "templates" ? (
       <TemplateListPanel templates={templates} selectedTemplateId={selectedTemplateId} isSaving={isSaving} onSelectTemplate={handleSelectTemplate} onCopyTemplate={handleCopyTemplate} onDeleteTemplate={deleteTemplate} />
+    ) : activeSection === "orders" ? (
+      <OrdersPanel orders={adminOrders} onRefresh={loadAdminOrders} onUpdateOrderStatus={handleUpdateOrderStatus} />
+    ) : activeSection === "logoGeneration" ? (
+      <LogoGenerationStatusPanel accounts={logoGenerationStatusAccounts} onRefresh={loadLogoGenerationStatus} />
+    ) : activeSection === "brandTransfer" ? (
+      <BrandTransferPanel users={brandTransferUsers} brands={brandTransferBrands} sourceUserId={brandTransferSourceUserId} brandId={brandTransferBrandId} targetUserId={brandTransferTargetUserId} isTransferring={isTransferringBrand} status={status} message={message} onSourceUserChange={handleBrandTransferSourceUserChange} onBrandChange={setBrandTransferBrandId} onTargetUserChange={setBrandTransferTargetUserId} onTransfer={handleTransferBrand} onRefresh={loadBrandTransferData} />
+    ) : activeSection === "fileArchive" ? (
+      <FileArchivePanel users={fileArchiveUsers} files={fileArchiveFiles} selectedUserId={fileArchiveUserId} displayName={fileArchiveDisplayName} note={fileArchiveNote} fileInputKey={fileArchiveFileInputKey} selectedFile={fileArchiveFile} isUploading={isUploadingFileArchiveFile} status={status} message={message} onUserChange={setFileArchiveUserId} onDisplayNameChange={setFileArchiveDisplayName} onNoteChange={setFileArchiveNote} onFileChange={handleFileArchiveFileChange} onUpload={handleUploadFileArchiveFile} onRefresh={loadFileArchive} />
     ) : activeSection === "settings" ? (
-      <CommonSettingsPanel backgrounds={managedBackgrounds} backgroundName={backgroundName} backgroundTagsText={backgroundTagsText} backgroundFile={backgroundFile} backgroundFilePreviewUrl={backgroundFilePreviewUrl} backgroundFileInputKey={backgroundFileInputKey} status={status} message={message} isUploadingBackgroundImage={isUploadingBackgroundImage} isCleaningBackgroundImages={isCleaningBackgroundImages} deletingBackgroundId={deletingBackgroundId} updatingBackgroundId={updatingBackgroundId} onBackgroundNameChange={setBackgroundName} onBackgroundTagsTextChange={setBackgroundTagsText} onBackgroundFileChange={handleBackgroundFileChange} onUploadBackground={handleUploadManagedBackground} onUpdateBackground={handleUpdateManagedBackground} onDeleteBackground={handleDeleteManagedBackground} onCleanupBackgroundImages={handleCleanupBackgroundImages} />
+      <CommonSettingsPanel backgrounds={managedBackgrounds} bankAccount={bankAccount} backgroundName={backgroundName} backgroundTagsText={backgroundTagsText} backgroundFile={backgroundFile} backgroundFilePreviewUrl={backgroundFilePreviewUrl} backgroundFileInputKey={backgroundFileInputKey} status={status} message={message} isUploadingBackgroundImage={isUploadingBackgroundImage} isCleaningBackgroundImages={isCleaningBackgroundImages} isSavingBankAccount={isSavingBankAccount} deletingBackgroundId={deletingBackgroundId} updatingBackgroundId={updatingBackgroundId} onBankAccountChange={setBankAccount} onSaveBankAccount={handleSaveBankAccount} onBackgroundNameChange={setBackgroundName} onBackgroundTagsTextChange={setBackgroundTagsText} onBackgroundFileChange={handleBackgroundFileChange} onUploadBackground={handleUploadManagedBackground} onUpdateBackground={handleUpdateManagedBackground} onDeleteBackground={handleDeleteManagedBackground} onCleanupBackgroundImages={handleCleanupBackgroundImages} />
     ) : activeSection === "logoReferences" ? (
-      <LogoReferencePanel logoReferenceImages={logoReferenceImages} logoReferenceFile={logoReferenceFile} logoReferenceFileInputKey={logoReferenceFileInputKey} status={status} message={message} isUploadingLogoReferenceImage={isUploadingLogoReferenceImage} deletingLogoReferenceImageId={deletingLogoReferenceImageId} updatingLogoReferenceImageId={updatingLogoReferenceImageId} onLogoReferenceFileChange={handleLogoReferenceFileChange} onUploadLogoReferenceImage={handleUploadLogoReferenceImage} onDeleteLogoReferenceImage={handleDeleteLogoReferenceImage} onUpdateForcedInstructions={handleUpdateLogoReferenceForcedInstructions} />
+      <LogoReferencePanel logoReferenceImages={logoReferenceImages} logoReferenceFile={logoReferenceFile} logoReferencePrompt={logoReferencePrompt} logoReferenceFileInputKey={logoReferenceFileInputKey} status={status} message={message} isUploadingLogoReferenceImage={isUploadingLogoReferenceImage} deletingLogoReferenceImageId={deletingLogoReferenceImageId} updatingLogoReferenceImageId={updatingLogoReferenceImageId} onLogoReferenceFileChange={handleLogoReferenceFileChange} onLogoReferencePromptChange={setLogoReferencePrompt} onUploadLogoReferenceImage={handleUploadLogoReferenceImage} onDeleteLogoReferenceImage={handleDeleteLogoReferenceImage} onUpdateForcedInstructions={handleUpdateLogoReferenceForcedInstructions} />
     ) : (
       <TemplateEditorPanel form={form} selectedTemplate={selectedTemplate} managedBackgrounds={managedBackgrounds} status={status} message={message} isSaving={isSaving} onChange={updateForm} onSubmit={handleSubmitTemplate} onDelete={handleDeleteTemplate} />
     );
@@ -952,7 +1488,6 @@ export function AdminTemplateManager() {
         <header className="animate-float-in rounded-[28px] border border-white/80 bg-white/86 p-5 shadow-floating backdrop-blur-xl sm:p-6">
           <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center gap-4">
-              <PrintyBrandLogo size="sm" />
               <div>
                 <p className="text-xs font-black text-primary-strong">관리자 템플릿 센터</p>
                 <h1 className="mt-1 text-3xl font-black tracking-[-0.05em] text-ink sm:text-4xl">명함 템플릿을 공개까지 관리해요</h1>
@@ -1106,9 +1641,395 @@ function TemplateListPanel({ templates, selectedTemplateId, isSaving, onSelectTe
   );
 }
 
-function CommonSettingsPanel({ backgrounds, backgroundName, backgroundTagsText, backgroundFile, backgroundFilePreviewUrl, backgroundFileInputKey, status, message, isUploadingBackgroundImage, isCleaningBackgroundImages, deletingBackgroundId, updatingBackgroundId, onBackgroundNameChange, onBackgroundTagsTextChange, onBackgroundFileChange, onUploadBackground, onUpdateBackground, onDeleteBackground, onCleanupBackgroundImages }: { backgrounds: ManagedBusinessCardBackgroundWithUsage[]; backgroundName: string; backgroundTagsText: string; backgroundFile?: File; backgroundFilePreviewUrl: string; backgroundFileInputKey: number; status: RequestStatus; message: string; isUploadingBackgroundImage: boolean; isCleaningBackgroundImages: boolean; deletingBackgroundId?: string; updatingBackgroundId?: string; onBackgroundNameChange: (value: string) => void; onBackgroundTagsTextChange: (value: string) => void; onBackgroundFileChange: (event: ChangeEvent<HTMLInputElement>) => void; onUploadBackground: (event: FormEvent<HTMLFormElement>) => void; onUpdateBackground: (background: ManagedBusinessCardBackgroundWithUsage, name: string, tagsText: string) => void; onDeleteBackground: (background: ManagedBusinessCardBackgroundWithUsage) => void; onCleanupBackgroundImages: () => void }) {
+function OrdersPanel({ orders, onRefresh, onUpdateOrderStatus }: { orders: AdminOrderSummary[]; onRefresh: () => Promise<void>; onUpdateOrderStatus: (orderId: string, status: OrderRecord["status"]) => void }) {
+  return (
+    <section className="grid content-start gap-4">
+      <SoftCard className="bg-[linear-gradient(180deg,var(--color-surface)_0%,var(--color-surface-blue)_100%)] p-5 sm:p-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div>
+            <p className="text-xs font-black text-primary-strong">주문 관리</p>
+            <h2 className="mt-1 text-2xl font-black tracking-[-0.05em] text-ink">최근 주문 {orders.length}건</h2>
+            <p className="mt-2 text-sm font-bold leading-6 text-muted">고객, 브랜드, 명함, 배송 정보를 함께 확인해요.</p>
+          </div>
+          <button className="rounded-md bg-surface px-4 py-3 text-sm font-black text-primary-strong shadow-soft transition hover:-translate-y-0.5" type="button" onClick={() => void onRefresh()}>
+            새로고침
+          </button>
+        </div>
+      </SoftCard>
+      {orders.length === 0 ? (
+        <SoftCard>
+          <p className="text-sm font-black text-ink">아직 주문이 없어요.</p>
+          <p className="mt-2 text-xs font-bold leading-5 text-muted">고객 주문이 생성되면 입금 대기 상태로 표시돼요.</p>
+        </SoftCard>
+      ) : null}
+      {orders.map((item) => {
+        const shippingInfo = item.order.shippingInfo;
+
+        return (
+          <article key={item.order.id} className="rounded-lg border border-line bg-surface p-4 shadow-card">
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-md bg-primary-soft px-3 py-1 text-xs font-black text-primary-strong">{item.order.statusLabel}</span>
+                  <span className="rounded-md bg-surface-blue px-3 py-1 text-xs font-black text-primary-strong">{item.order.paymentMethod}</span>
+                </div>
+                <h3 className="mt-3 text-lg font-black tracking-[-0.04em] text-ink">{item.order.title}</h3>
+                <p className="mt-1 text-xs font-bold text-muted">{item.order.orderNumber} · {item.order.createdAt}</p>
+              </div>
+              <p className="text-base font-black text-ink">{item.order.price}</p>
+            </div>
+            <div className="mt-4 grid gap-2 md:grid-cols-2">
+              <OrderInfoRow label="고객" value={`${item.user.name}${item.user.contact ? ` · ${item.user.contact}` : item.user.email ? ` · ${item.user.email}` : ""}`} />
+              <OrderInfoRow label="브랜드" value={item.brandName} />
+              <OrderInfoRow label="구성원" value={item.memberName} />
+              <OrderInfoRow label="템플릿" value={item.templateTitle} />
+              <OrderInfoRow label="수량/용지" value={`${item.order.quantity}매 · ${item.order.paper}`} />
+              <OrderInfoRow label="배송" value={shippingInfo ? `${shippingInfo.recipientName} · ${shippingInfo.recipientPhone}` : "배송 정보 없음"} />
+            </div>
+            {shippingInfo ? <p className="mt-3 rounded-md bg-surface-blue px-3 py-2 text-xs font-bold leading-5 text-muted">{shippingInfo.address}{shippingInfo.memo ? ` · ${shippingInfo.memo}` : ""}</p> : null}
+            {item.order.status === "pendingDeposit" ? (
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                <button className="rounded-md bg-primary px-4 py-3 text-sm font-black text-white shadow-soft transition hover:-translate-y-0.5" type="button" onClick={() => onUpdateOrderStatus(item.order.id, "paid")}>
+                  입금 확인
+                </button>
+                <button className="rounded-md bg-danger px-4 py-3 text-sm font-black text-white shadow-soft transition hover:-translate-y-0.5" type="button" onClick={() => onUpdateOrderStatus(item.order.id, "cancelled")}>
+                  주문 취소 처리
+                </button>
+              </div>
+            ) : null}
+          </article>
+        );
+      })}
+    </section>
+  );
+}
+
+function formatAdminDate(value: string) {
+  if (!value) {
+    return "-";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleString("ko-KR", { dateStyle: "short", timeStyle: "short" });
+}
+
+function getLatestLogoGenerationActivity(brand: AdminLogoGenerationBrandStatus) {
+  return brand.latestJobUpdatedAt || brand.latestLogoUpdatedAt;
+}
+
+function LogoGenerationStatusPanel({ accounts, onRefresh }: { accounts: AdminLogoGenerationAccountStatus[]; onRefresh: () => Promise<void> }) {
+  const brandCount = accounts.reduce((sum, account) => sum + account.brands.length, 0);
+  const jobCount = accounts.reduce((sum, account) => sum + account.brands.reduce((brandSum, brand) => brandSum + brand.jobs.total, 0), 0);
+  const runningCount = accounts.reduce((sum, account) => sum + account.brands.reduce((brandSum, brand) => brandSum + brand.jobs.queued + brand.jobs.running, 0), 0);
+  const failedCount = accounts.reduce((sum, account) => sum + account.brands.reduce((brandSum, brand) => brandSum + brand.jobs.failed, 0), 0);
+
+  return (
+    <section className="grid content-start gap-4">
+      <SoftCard className="bg-[linear-gradient(180deg,var(--color-surface)_0%,var(--color-surface-blue)_100%)] p-5 sm:p-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div>
+            <p className="text-xs font-black text-primary-strong">로고 생성 현황</p>
+            <h2 className="mt-1 text-2xl font-black tracking-[-0.05em] text-ink">계정 {accounts.length}개 · 브랜드 {brandCount}개</h2>
+            <p className="mt-2 text-sm font-bold leading-6 text-muted">계정별 브랜드의 저장 로고 수, 최근 생성 작업, 실패 사유를 한 화면에서 확인해요.</p>
+          </div>
+          <button className="rounded-md bg-surface px-4 py-3 text-sm font-black text-primary-strong shadow-soft transition hover:-translate-y-0.5" type="button" onClick={() => void onRefresh()}>
+            새로고침
+          </button>
+        </div>
+        <div className="mt-6 grid gap-3 text-center sm:grid-cols-4">
+          <Metric label="전체 작업" value={`${jobCount}`} />
+          <Metric label="대기/진행" value={`${runningCount}`} />
+          <Metric label="실패" value={`${failedCount}`} />
+          <Metric label="계정" value={`${accounts.length}`} />
+        </div>
+      </SoftCard>
+      {accounts.length === 0 ? (
+        <SoftCard>
+          <p className="text-sm font-black text-ink">아직 로고 생성 기록이 없어요.</p>
+          <p className="mt-2 text-xs font-bold leading-5 text-muted">사용자가 로고를 만들거나 등록하면 계정과 브랜드별 상태가 표시돼요.</p>
+        </SoftCard>
+      ) : null}
+      {accounts.map((account) => (
+        <SoftCard key={account.user.id} className="grid gap-4">
+          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+            <div className="min-w-0">
+              <p className="text-xs font-black text-primary-strong">{account.user.name || "이름 없음"}</p>
+              <h3 className="mt-1 truncate text-xl font-black tracking-[-0.04em] text-ink">{account.user.contact || account.user.email || account.user.id}</h3>
+              <p className="mt-1 truncate text-xs font-bold text-muted">{account.user.id}</p>
+            </div>
+            <span className="w-fit rounded-md bg-primary-soft px-3 py-1 text-xs font-black text-primary-strong">브랜드 {account.brands.length}개</span>
+          </div>
+          <div className="grid gap-3">
+            {account.brands.map((brand) => (
+              <LogoGenerationBrandCard key={`${account.user.id}:${brand.brandId ?? brand.brandName}:${brand.latestJobUpdatedAt}`} brand={brand} />
+            ))}
+          </div>
+        </SoftCard>
+      ))}
+    </section>
+  );
+}
+
+function LogoGenerationBrandCard({ brand }: { brand: AdminLogoGenerationBrandStatus }) {
+  const latestActivity = getLatestLogoGenerationActivity(brand);
+
+  return (
+    <article className="rounded-lg border border-line bg-surface-blue p-4 shadow-soft">
+      <div className="grid gap-4 lg:grid-cols-[96px_minmax(0,1fr)] lg:items-start">
+        <div className="grid h-24 w-24 place-items-center overflow-hidden rounded-lg border border-line bg-surface">
+          {brand.latestLogoImageUrl ? <Image src={brand.latestLogoImageUrl} alt="최근 로고" width={96} height={96} className="h-full w-full object-contain p-2" unoptimized /> : <span className="px-2 text-center text-xs font-black text-soft">로고 없음</span>}
+        </div>
+        <div className="min-w-0">
+          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+            <div className="min-w-0">
+              <h4 className="truncate text-lg font-black tracking-[-0.04em] text-ink">{brand.brandName}</h4>
+              <p className="mt-1 truncate text-xs font-bold text-muted">{brand.category || "업종 미입력"}</p>
+              <p className="mt-1 truncate text-[11px] font-bold text-soft">{brand.brandId ? `brand: ${brand.brandId}` : "브랜드 row 미매칭 작업"}</p>
+            </div>
+            <span className="w-fit rounded-md bg-surface px-3 py-1 text-xs font-black text-primary-strong">저장 로고 {brand.logoCount}개</span>
+          </div>
+          <div className="mt-4 grid gap-2 sm:grid-cols-3 xl:grid-cols-6">
+            <LogoGenerationJobMetric label="전체" value={brand.jobs.total} />
+            <LogoGenerationJobMetric label="대기" value={brand.jobs.queued} />
+            <LogoGenerationJobMetric label="진행" value={brand.jobs.running} />
+            <LogoGenerationJobMetric label="성공" value={brand.jobs.succeeded} />
+            <LogoGenerationJobMetric label="실패" value={brand.jobs.failed} tone={brand.jobs.failed > 0 ? "danger" : "default"} />
+            <LogoGenerationJobMetric label="취소" value={brand.jobs.cancelled} />
+          </div>
+          <div className="mt-3 grid gap-2 md:grid-cols-2">
+            <OrderInfoRow label="대표 로고" value={brand.selectedLogoId || "-"} />
+            <OrderInfoRow label="최근 활동" value={formatAdminDate(latestActivity)} />
+          </div>
+          {brand.latestFailureReason ? (
+            <p className="mt-3 rounded-md bg-danger/10 px-3 py-2 text-xs font-bold leading-5 text-danger">최근 실패: {brand.latestFailureKind || "unknown"} · {brand.latestFailureReason}</p>
+          ) : null}
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function LogoGenerationJobMetric({ label, value, tone = "default" }: { label: string; value: number; tone?: "default" | "danger" }) {
+  return (
+    <div className={`rounded-md px-3 py-2 text-center ${tone === "danger" ? "bg-danger text-white" : "bg-surface text-ink"}`}>
+      <p className={`text-[11px] font-black ${tone === "danger" ? "text-white/80" : "text-soft"}`}>{label}</p>
+      <p className="mt-1 text-base font-black">{value}</p>
+    </div>
+  );
+}
+
+function formatFileSize(size: number) {
+  if (size >= 1024 * 1024) {
+    return `${(size / 1024 / 1024).toFixed(1)}MB`;
+  }
+
+  if (size >= 1024) {
+    return `${Math.ceil(size / 1024)}KB`;
+  }
+
+  return `${size}B`;
+}
+
+function BrandTransferPanel({ users, brands, sourceUserId, brandId, targetUserId, isTransferring, status, message, onSourceUserChange, onBrandChange, onTargetUserChange, onTransfer, onRefresh }: { users: AdminBrandTransferUser[]; brands: AdminBrandTransferBrand[]; sourceUserId: string; brandId: string; targetUserId: string; isTransferring: boolean; status: RequestStatus; message: string; onSourceUserChange: (value: string) => void; onBrandChange: (value: string) => void; onTargetUserChange: (value: string) => void; onTransfer: (event: FormEvent<HTMLFormElement>) => void; onRefresh: () => Promise<void> }) {
+  const usersById = new Map(users.map((user) => [user.id, user]));
+  const sourceBrands = brands.filter((brand) => brand.userId === sourceUserId);
+  const selectedBrand = sourceBrands.find((brand) => brand.id === brandId);
+  const targetUsers = users.filter((user) => user.id !== sourceUserId);
+  const canTransfer = Boolean(sourceUserId && brandId && targetUserId && sourceUserId !== targetUserId && selectedBrand);
+
+  return (
+    <section className="grid content-start gap-4">
+      <SoftCard className="bg-[linear-gradient(180deg,var(--color-surface)_0%,var(--color-surface-blue)_100%)] p-5 sm:p-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div>
+            <p className="text-xs font-black text-primary-strong">브랜드 이관</p>
+            <h2 className="mt-1 text-2xl font-black tracking-[-0.05em] text-ink">계정 간 브랜드 이동</h2>
+            <p className="mt-2 text-sm font-bold leading-6 text-muted">선택한 브랜드와 저장 로고, 명함 초안, 주문, 브랜드 에셋을 대상 계정으로 실제 이동해요.</p>
+          </div>
+          <button className="rounded-md bg-surface px-4 py-3 text-sm font-black text-primary-strong shadow-soft transition hover:-translate-y-0.5" type="button" onClick={() => void onRefresh()}>
+            새로고침
+          </button>
+        </div>
+      </SoftCard>
+      <SoftCard>
+        <form className="grid gap-4" onSubmit={onTransfer}>
+          <label className="block">
+            <span className="mb-2 block text-xs font-extrabold text-soft">원본 계정</span>
+            <select className="w-full rounded-md border border-line bg-surface px-4 py-4 text-sm font-bold text-ink outline-none transition focus:border-primary focus:shadow-soft" value={sourceUserId} onChange={(event) => onSourceUserChange(event.target.value)} disabled={isTransferring}>
+              {users.length === 0 ? <option value="">계정 없음</option> : null}
+              {users.map((user) => (
+                <option key={user.id} value={user.id}>{user.name || user.contact || user.email || user.id}</option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="mb-2 block text-xs font-extrabold text-soft">이관할 브랜드</span>
+            <select className="w-full rounded-md border border-line bg-surface px-4 py-4 text-sm font-bold text-ink outline-none transition focus:border-primary focus:shadow-soft" value={brandId} onChange={(event) => onBrandChange(event.target.value)} disabled={isTransferring || sourceBrands.length === 0}>
+              {sourceBrands.length === 0 ? <option value="">브랜드 없음</option> : null}
+              {sourceBrands.map((brand) => (
+                <option key={brand.id} value={brand.id}>{brand.name} · {brand.category || "업종 미입력"}</option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="mb-2 block text-xs font-extrabold text-soft">대상 계정</span>
+            <select className="w-full rounded-md border border-line bg-surface px-4 py-4 text-sm font-bold text-ink outline-none transition focus:border-primary focus:shadow-soft" value={targetUserId} onChange={(event) => onTargetUserChange(event.target.value)} disabled={isTransferring || targetUsers.length === 0}>
+              {targetUsers.length === 0 ? <option value="">대상 계정 없음</option> : null}
+              {targetUsers.map((user) => (
+                <option key={user.id} value={user.id}>{user.name || user.contact || user.email || user.id}</option>
+              ))}
+            </select>
+          </label>
+          {selectedBrand ? (
+            <div className="grid gap-2 rounded-lg border border-line bg-surface-blue p-4 sm:grid-cols-2">
+              <OrderInfoRow label="브랜드 ID" value={selectedBrand.id} />
+              <OrderInfoRow label="대표 로고" value={selectedBrand.selectedLogoId || "-"} />
+              <OrderInfoRow label="저장 로고" value={`${selectedBrand.logoCount}개`} />
+              <OrderInfoRow label="명함 초안" value={`${selectedBrand.draftCount}개`} />
+              <OrderInfoRow label="주문" value={`${selectedBrand.orderCount}개`} />
+              <OrderInfoRow label="브랜드 에셋" value={`${selectedBrand.assetCount}개`} />
+            </div>
+          ) : null}
+          <p className="rounded-md bg-danger/10 px-3 py-2 text-xs font-bold leading-5 text-danger">이관 후 원본 계정에서는 해당 브랜드가 사라지고, 대상 계정에 같은 브랜드 ID나 하위 데이터 ID가 있으면 이관을 중단해요.</p>
+          <StatusMessage status={status} message={message} />
+          <button className="rounded-md bg-primary px-4 py-3 text-sm font-black text-white shadow-soft transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0" type="submit" disabled={isTransferring || !canTransfer}>
+            {isTransferring ? "이관 중" : "브랜드 이관"}
+          </button>
+        </form>
+      </SoftCard>
+      <div className="grid gap-3">
+        {brands.length === 0 ? <SoftCard><p className="text-sm font-black text-ink">이관할 브랜드가 아직 없어요.</p></SoftCard> : null}
+        {brands.map((brand) => {
+          const user = usersById.get(brand.userId);
+
+          return (
+            <article key={`${brand.userId}:${brand.id}`} className="rounded-lg border border-line bg-surface p-4 shadow-card">
+              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div className="min-w-0">
+                  <p className="truncate text-base font-black text-ink">{brand.name}</p>
+                  <p className="mt-1 text-xs font-bold text-muted">{brand.category || "업종 미입력"} · {formatAdminDate(brand.updatedAt)}</p>
+                  <p className="mt-1 truncate text-[11px] font-bold text-soft">{brand.id}</p>
+                </div>
+                <span className="w-fit rounded-md bg-primary-soft px-3 py-1 text-xs font-black text-primary-strong">{user?.name || user?.contact || user?.email || brand.userId}</span>
+              </div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-4">
+                <OrderInfoRow label="로고" value={`${brand.logoCount}`} />
+                <OrderInfoRow label="초안" value={`${brand.draftCount}`} />
+                <OrderInfoRow label="주문" value={`${brand.orderCount}`} />
+                <OrderInfoRow label="에셋" value={`${brand.assetCount}`} />
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function FileArchivePanel({ users, files, selectedUserId, displayName, note, fileInputKey, selectedFile, isUploading, status, message, onUserChange, onDisplayNameChange, onNoteChange, onFileChange, onUpload, onRefresh }: { users: AdminFileArchiveUser[]; files: AdminFileArchiveFile[]; selectedUserId: string; displayName: string; note: string; fileInputKey: number; selectedFile?: File; isUploading: boolean; status: RequestStatus; message: string; onUserChange: (value: string) => void; onDisplayNameChange: (value: string) => void; onNoteChange: (value: string) => void; onFileChange: (event: ChangeEvent<HTMLInputElement>) => void; onUpload: (event: FormEvent<HTMLFormElement>) => void; onRefresh: () => Promise<void> }) {
+  const usersById = new Map(users.map((user) => [user.id, user]));
+
+  return (
+    <section className="grid content-start gap-4">
+      <SoftCard className="bg-[linear-gradient(180deg,var(--color-surface)_0%,var(--color-surface-blue)_100%)] p-5 sm:p-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div>
+            <p className="text-xs font-black text-primary-strong">파일 보관함</p>
+            <h2 className="mt-1 text-2xl font-black tracking-[-0.05em] text-ink">유저 지정 파일 업로드</h2>
+            <p className="mt-2 text-sm font-bold leading-6 text-muted">관리자가 유저를 지정해 파일과 파일 내용을 등록하면, 해당 유저가 파일 보관함에서 다운로드할 수 있어요.</p>
+          </div>
+          <button className="rounded-md bg-surface px-4 py-3 text-sm font-black text-primary-strong shadow-soft transition hover:-translate-y-0.5" type="button" onClick={() => void onRefresh()}>
+            새로고침
+          </button>
+        </div>
+      </SoftCard>
+      <SoftCard>
+        <form className="grid gap-4" onSubmit={onUpload}>
+          <label className="block">
+            <span className="mb-2 block text-xs font-extrabold text-soft">파일 받을 유저</span>
+            <select className="w-full rounded-md border border-line bg-surface px-4 py-4 text-sm font-bold text-ink outline-none transition focus:border-primary focus:shadow-soft" value={selectedUserId} onChange={(event) => onUserChange(event.target.value)} disabled={isUploading}>
+              {users.length === 0 ? <option value="">유저 없음</option> : null}
+              {users.map((user) => (
+                <option key={user.id} value={user.id}>{user.name || user.contact || user.email || user.id}</option>
+              ))}
+            </select>
+          </label>
+          <AdminTextField label="파일 이름" value={displayName} placeholder="예: 최종 명함 인쇄 파일" maxLength={160} onChange={onDisplayNameChange} />
+          <label className="block">
+            <span className="mb-2 block text-xs font-extrabold text-soft">파일 내용</span>
+            <textarea className="min-h-28 w-full rounded-md border border-line bg-surface px-4 py-4 text-sm font-bold text-ink outline-none transition focus:border-primary focus:shadow-soft" value={note} maxLength={1000} placeholder="유저에게 보여줄 파일 설명, 사용 방법, 주의사항을 입력해 주세요." onChange={(event) => onNoteChange(event.target.value)} />
+          </label>
+          <label className="block rounded-md border border-dashed border-primary-soft bg-surface-blue p-3">
+            <span className="mb-2 block text-xs font-extrabold text-primary-strong">파일 선택</span>
+            <input key={fileInputKey} className="block w-full text-xs font-bold text-muted file:mr-3 file:rounded-sm file:border-0 file:bg-primary file:px-3 file:py-2 file:text-xs file:font-black file:text-white disabled:cursor-not-allowed disabled:opacity-60" type="file" disabled={isUploading} onChange={onFileChange} />
+            {selectedFile ? <span className="mt-2 block text-xs font-bold text-muted">{selectedFile.name} · {formatFileSize(selectedFile.size)}</span> : null}
+          </label>
+          <StatusMessage status={status} message={message} />
+          <button className="rounded-md bg-primary px-4 py-3 text-sm font-black text-white shadow-soft transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0" type="submit" disabled={isUploading || !selectedUserId || !selectedFile}>
+            {isUploading ? "업로드 중" : "파일 보관함에 등록"}
+          </button>
+        </form>
+      </SoftCard>
+      <div className="grid gap-3">
+        {files.length === 0 ? <SoftCard><p className="text-sm font-black text-ink">등록된 보관함 파일이 아직 없어요.</p></SoftCard> : null}
+        {files.map((file) => {
+          const user = usersById.get(file.userId);
+
+          return (
+            <article key={file.id} className="rounded-lg border border-line bg-surface p-4 shadow-card">
+              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div className="min-w-0">
+                  <p className="truncate text-base font-black text-ink">{file.displayName}</p>
+                  <p className="mt-1 text-xs font-bold text-muted">{file.originalName} · {formatFileSize(file.size)} · {formatAdminDate(file.createdAt)}</p>
+                  {file.note ? <p className="mt-2 rounded-md bg-surface-blue px-3 py-2 text-xs font-bold leading-5 text-muted">{file.note}</p> : null}
+                </div>
+                <span className="w-fit rounded-md bg-primary-soft px-3 py-1 text-xs font-black text-primary-strong">{user?.name || user?.contact || user?.email || file.userId}</span>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function OrderInfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-md bg-surface-blue px-3 py-2">
+      <span className="shrink-0 text-[11px] font-black text-soft">{label}</span>
+      <span className="min-w-0 truncate text-right text-xs font-black text-ink">{value}</span>
+    </div>
+  );
+}
+
+function CommonSettingsPanel({ backgrounds, bankAccount, backgroundName, backgroundTagsText, backgroundFile, backgroundFilePreviewUrl, backgroundFileInputKey, status, message, isUploadingBackgroundImage, isCleaningBackgroundImages, isSavingBankAccount, deletingBackgroundId, updatingBackgroundId, onBankAccountChange, onSaveBankAccount, onBackgroundNameChange, onBackgroundTagsTextChange, onBackgroundFileChange, onUploadBackground, onUpdateBackground, onDeleteBackground, onCleanupBackgroundImages }: { backgrounds: ManagedBusinessCardBackgroundWithUsage[]; bankAccount: BankAccountSettings; backgroundName: string; backgroundTagsText: string; backgroundFile?: File; backgroundFilePreviewUrl: string; backgroundFileInputKey: number; status: RequestStatus; message: string; isUploadingBackgroundImage: boolean; isCleaningBackgroundImages: boolean; isSavingBankAccount: boolean; deletingBackgroundId?: string; updatingBackgroundId?: string; onBankAccountChange: (settings: BankAccountSettings) => void; onSaveBankAccount: (event: FormEvent<HTMLFormElement>) => void; onBackgroundNameChange: (value: string) => void; onBackgroundTagsTextChange: (value: string) => void; onBackgroundFileChange: (event: ChangeEvent<HTMLInputElement>) => void; onUploadBackground: (event: FormEvent<HTMLFormElement>) => void; onUpdateBackground: (background: ManagedBusinessCardBackgroundWithUsage, name: string, tagsText: string) => void; onDeleteBackground: (background: ManagedBusinessCardBackgroundWithUsage) => void; onCleanupBackgroundImages: () => void }) {
   return (
     <div className="grid gap-4">
+      <SoftCard className="bg-[linear-gradient(180deg,var(--color-surface)_0%,var(--color-surface-blue)_100%)] p-5 sm:p-6">
+        <div>
+          <p className="text-xs font-black text-primary-strong">입금 계좌</p>
+          <h2 className="mt-1 text-2xl font-black tracking-[-0.05em] text-ink">주문 완료 페이지 계좌 표시</h2>
+          <p className="mt-2 text-sm font-bold leading-6 text-muted">고객이 주문 완료 후 확인할 입금 계좌를 등록해요.</p>
+        </div>
+        <form className="mt-5 grid gap-4 rounded-lg border border-line bg-surface p-4 shadow-soft md:grid-cols-3" onSubmit={onSaveBankAccount}>
+          <AdminTextField label="은행명" value={bankAccount.bankName} placeholder="예: 국민은행" onChange={(value) => onBankAccountChange({ ...bankAccount, bankName: value })} />
+          <AdminTextField label="계좌번호" value={bankAccount.accountNumber} placeholder="000000-00-000000" onChange={(value) => onBankAccountChange({ ...bankAccount, accountNumber: value })} />
+          <AdminTextField label="예금주" value={bankAccount.accountHolder} placeholder="예: 프린티" onChange={(value) => onBankAccountChange({ ...bankAccount, accountHolder: value })} />
+          <div className="md:col-span-3">
+            <AdminTextField label="안내 문구" value={bankAccount.memo} placeholder="예: 입금 확인 후 제작이 시작돼요." onChange={(value) => onBankAccountChange({ ...bankAccount, memo: value })} />
+          </div>
+          <div className="md:col-span-3">
+            <button className="rounded-md bg-primary px-4 py-3 text-sm font-black text-white shadow-soft transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0" type="submit" disabled={isSavingBankAccount}>
+              {isSavingBankAccount ? "저장 중" : "입금 계좌 저장"}
+            </button>
+          </div>
+        </form>
+      </SoftCard>
       <SoftCard className="bg-[linear-gradient(180deg,var(--color-surface)_0%,var(--color-surface-blue)_100%)] p-5 sm:p-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
@@ -1161,7 +2082,7 @@ function CommonSettingsPanel({ backgrounds, backgroundName, backgroundTagsText, 
   );
 }
 
-function LogoReferencePanel({ logoReferenceImages, logoReferenceFile, logoReferenceFileInputKey, status, message, isUploadingLogoReferenceImage, deletingLogoReferenceImageId, updatingLogoReferenceImageId, onLogoReferenceFileChange, onUploadLogoReferenceImage, onDeleteLogoReferenceImage, onUpdateForcedInstructions }: { logoReferenceImages: LogoReferenceImage[]; logoReferenceFile?: File; logoReferenceFileInputKey: number; status: RequestStatus; message: string; isUploadingLogoReferenceImage: boolean; deletingLogoReferenceImageId?: string; updatingLogoReferenceImageId?: string; onLogoReferenceFileChange: (event: ChangeEvent<HTMLInputElement>) => void; onUploadLogoReferenceImage: (event: FormEvent<HTMLFormElement>) => void; onDeleteLogoReferenceImage: (image: LogoReferenceImage) => void; onUpdateForcedInstructions: (image: LogoReferenceImage, forcedInstructions: string) => void }) {
+function LogoReferencePanel({ logoReferenceImages, logoReferenceFile, logoReferencePrompt, logoReferenceFileInputKey, status, message, isUploadingLogoReferenceImage, deletingLogoReferenceImageId, updatingLogoReferenceImageId, onLogoReferenceFileChange, onLogoReferencePromptChange, onUploadLogoReferenceImage, onDeleteLogoReferenceImage, onUpdateForcedInstructions }: { logoReferenceImages: LogoReferenceImage[]; logoReferenceFile?: File; logoReferencePrompt: string; logoReferenceFileInputKey: number; status: RequestStatus; message: string; isUploadingLogoReferenceImage: boolean; deletingLogoReferenceImageId?: string; updatingLogoReferenceImageId?: string; onLogoReferenceFileChange: (event: ChangeEvent<HTMLInputElement>) => void; onLogoReferencePromptChange: (value: string) => void; onUploadLogoReferenceImage: (event: FormEvent<HTMLFormElement>) => void; onDeleteLogoReferenceImage: (image: LogoReferenceImage) => void; onUpdateForcedInstructions: (image: LogoReferenceImage, forcedInstructions: string) => void }) {
   return (
     <div className="grid gap-4">
       <SoftCard className="bg-[linear-gradient(180deg,var(--color-surface)_0%,var(--color-surface-blue)_100%)] p-5 sm:p-6">
@@ -1173,11 +2094,16 @@ function LogoReferencePanel({ logoReferenceImages, logoReferenceFile, logoRefere
           </div>
           <span className="rounded-md bg-surface px-4 py-3 text-sm font-black text-primary-strong shadow-soft">{logoReferenceImages.length}개 등록</span>
         </div>
-        <form className="mt-5 grid gap-3 rounded-lg border border-line bg-surface p-4 sm:grid-cols-[1fr_auto] sm:items-end" onSubmit={onUploadLogoReferenceImage}>
+        <form className="mt-5 grid gap-3 rounded-lg border border-line bg-surface p-4" onSubmit={onUploadLogoReferenceImage}>
           <label className="block rounded-md border border-dashed border-primary-soft bg-surface-blue p-3">
             <span className="mb-2 block text-xs font-extrabold text-primary-strong">참고 이미지 업로드</span>
             <input key={logoReferenceFileInputKey} className="block w-full text-xs font-bold text-muted file:mr-3 file:rounded-sm file:border-0 file:bg-primary file:px-3 file:py-2 file:text-xs file:font-black file:text-white disabled:cursor-not-allowed disabled:opacity-60" type="file" accept="image/png,image/jpeg" disabled={isUploadingLogoReferenceImage} onChange={onLogoReferenceFileChange} />
             <span className="mt-2 block text-xs font-bold text-muted">PNG/JPG, 5MB 이하</span>
+          </label>
+          <label className="grid gap-2">
+            <span className="text-xs font-black text-primary-strong">등록 시 강제사항</span>
+            <textarea className="min-h-24 resize-y rounded-md border border-line bg-surface-blue px-3 py-3 text-sm font-bold leading-6 text-ink outline-none transition focus:border-primary focus:bg-surface focus:shadow-soft disabled:cursor-not-allowed disabled:opacity-60" value={logoReferencePrompt} maxLength={500} placeholder="예: 캘리그라피 느낌의 휘갈겨쓴 서체" disabled={isUploadingLogoReferenceImage} onChange={(event) => onLogoReferencePromptChange(event.target.value)} />
+            <span className="text-xs font-bold text-muted">입력하면 업로드된 레퍼런스 카드의 강제사항에 바로 저장돼요.</span>
           </label>
           <button className="rounded-md bg-primary px-4 py-3 text-sm font-black text-white shadow-soft transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0" type="submit" disabled={isUploadingLogoReferenceImage || !logoReferenceFile}>
             {isUploadingLogoReferenceImage ? "등록 중" : "참고 이미지 등록"}

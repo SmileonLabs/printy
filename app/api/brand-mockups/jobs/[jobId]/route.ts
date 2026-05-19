@@ -16,7 +16,7 @@ export async function GET(_request: Request, context: BrandMockupJobRouteContext
     return NextResponse.json({ reason: "목업 생성 작업을 찾지 못했어요." }, { status: 404 });
   }
 
-  if (job.status === "queued") {
+  if (job.status === "queued" || job.status === "running") {
     wakeBrandMockupProcessor();
   }
 

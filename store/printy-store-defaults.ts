@@ -1,4 +1,4 @@
-import type { Member, OrderOptions, PaymentMethod } from "@/lib/types";
+import type { Member, OrderOptions, PaymentMethod, ShippingInfo } from "@/lib/types";
 
 export type BrandDraft = {
   name: string;
@@ -16,6 +16,11 @@ export const defaultMember: Member = {
   email: "",
   website: "",
   address: "",
+  account: "",
+  adLine1: "",
+  adLine2: "",
+  instagram: "",
+  qrCodeImageUrl: "",
 };
 
 export const defaultBrandDraft: BrandDraft = {
@@ -32,3 +37,10 @@ export const defaultOrderOptions: OrderOptions = {
 };
 
 export const defaultPaymentMethod: PaymentMethod = "간편결제";
+
+export const defaultShippingInfo: ShippingInfo = {
+  recipientName: "",
+  recipientPhone: "",
+  address: "",
+  memo: "",
+};

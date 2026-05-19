@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { getBrandGenerationKey, isLogoGenerationErrorPayload, isLogoGenerationJobCreateResponse, isLogoGenerationJobResponse } from "@/components/printy/logo/logo-generation";
 import { findGeneratedLogoFromState, makeRevisionSourceLogo } from "@/components/printy/logo/logo-state";
+import { isPlaceholderBrandName, readGeneratedLogoBrandContext } from "@/lib/logo/generatedLogoBrandContext";
 import { logoUiCopy } from "@/lib/logo/logoUiCopy";
 import { usePrintyStore } from "@/store/use-printy-store";
 
@@ -12,6 +13,28 @@ const GENERATION_JOB_POLL_INTERVAL_MS = 2000;
 const GENERATION_JOB_TIMEOUT_MS = 10 * 60 * 1000;
 const GENERATION_REQUEST_TIMEOUT_MS = GENERATION_JOB_TIMEOUT_MS + 10000;
 const clientLogoGenerationFailureReason = "OpenAI 응답이 지연됐어요. 잠시 후 다시 시도해 주세요.";
+
+function getRevisionBrandDraft() {
+  const state = usePrintyStore.getState();
+  const sourceLogoId = state.logoRevisionSourceLogoId;
+  const sourceLogo = sourceLogoId ? findGeneratedLogoFromState(state, sourceLogoId) : undefined;
+  const targetBrand = (state.logoGenerationTargetBrandId ? state.brands.find((brand) => brand.id === state.logoGenerationTargetBrandId) : undefined) ?? (sourceLogoId ? state.brands.find((brand) => brand.selectedLogoId === sourceLogoId || brand.logoIds?.includes(sourceLogoId)) : undefined);
+  const logoContext = sourceLogo ? readGeneratedLogoBrandContext(sourceLogo) : {};
+
+  if (targetBrand) {
+    return {
+      name: !isPlaceholderBrandName(targetBrand.name) ? targetBrand.name : logoContext.name ?? targetBrand.name,
+      category: targetBrand.category.trim() ? targetBrand.category : logoContext.category ?? state.brandDraft.category,
+      designRequest: targetBrand.designRequest.trim() ? targetBrand.designRequest : sourceLogo?.designRequest ?? state.brandDraft.designRequest,
+    };
+  }
+
+  return {
+    name: logoContext.name ?? state.brandDraft.name,
+    category: logoContext.category ?? state.brandDraft.category,
+    designRequest: sourceLogo?.designRequest ?? state.brandDraft.designRequest,
+  };
+}
 
 class LogoGenerationRequestFailure extends Error {
   readonly reason: string;
@@ -31,20 +54,20 @@ export function LogoGenerationController() {
   const logoGenerationIntent = usePrintyStore((state) => state.logoGenerationIntent);
   const logoRevisionRequest = usePrintyStore((state) => state.logoRevisionRequest);
   const logoRevisionSourceLogoId = usePrintyStore((state) => state.logoRevisionSourceLogoId);
-  const activeLogoGenerationJobId = usePrintyStore((state) => state.activeLogoGenerationJobId);
   const setStep = usePrintyStore((state) => state.setStep);
   const startLogoGeneration = usePrintyStore((state) => state.startLogoGeneration);
   const setActiveLogoGenerationJob = usePrintyStore((state) => state.setActiveLogoGenerationJob);
-  const beginBackgroundLogoGeneration = usePrintyStore((state) => state.beginBackgroundLogoGeneration);
   const finishLogoGeneration = usePrintyStore((state) => state.finishLogoGeneration);
   const failLogoGeneration = usePrintyStore((state) => state.failLogoGeneration);
 
   useEffect(() => {
-    if (currentStep !== "generating") {
+    if (currentStep !== "generating" || logoGenerationIntent === "upload") {
       return;
     }
 
-    const generationKey = getBrandGenerationKey(brandDraft, logoGenerationMode, logoGenerationIntent, logoRevisionRequest, logoRevisionSourceLogoId, selectedLogoReferenceImageId);
+    const requestBrandDraft = logoGenerationIntent === "revision" ? getRevisionBrandDraft() : brandDraft;
+    const generationKey = getBrandGenerationKey(requestBrandDraft, logoGenerationMode, logoGenerationIntent, logoRevisionRequest, logoRevisionSourceLogoId, selectedLogoReferenceImageId);
+    const storedLogoGenerationJobId = usePrintyStore.getState().activeLogoGenerationJobId;
 
     if (activeLogoGenerationKey === generationKey) {
       return;
@@ -133,8 +156,8 @@ export function LogoGenerationController() {
       throw new LogoGenerationRequestFailure(clientLogoGenerationFailureReason);
     };
 
-    const generationPromise = activeLogoGenerationJobId
-      ? pollLogoGenerationJob(activeLogoGenerationJobId)
+    const generationPromise = storedLogoGenerationJobId
+      ? pollLogoGenerationJob(storedLogoGenerationJobId)
       : fetch("/api/logos/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -143,16 +166,16 @@ export function LogoGenerationController() {
             logoGenerationIntent === "revision" && revisionSourceLogo
               ? {
                   mode: "revision",
-                  brandName: brandDraft.name,
-                  industry: brandDraft.category,
-                  revisionRequest: logoRevisionRequest,
+                  brandName: requestBrandDraft.name,
+                  industry: requestBrandDraft.category,
+                  revisionRequest: logoRevisionRequest.trim(),
                   sourceLogo: makeRevisionSourceLogo(revisionSourceLogo),
                 }
               : {
                   mode: "initial",
                   brandName: brandDraft.name,
                   industry: brandDraft.category,
-                  designRequest: logoGenerationMode === "manual" ? brandDraft.designRequest : "",
+                  designRequest: logoGenerationMode === "manual" || logoGenerationMode === "reference" ? brandDraft.designRequest : "",
                   generationMode: logoGenerationMode,
                   referenceImageId: logoGenerationMode === "reference" ? selectedLogoReferenceImageId : undefined,
                 },
@@ -171,32 +194,42 @@ export function LogoGenerationController() {
 
             setActiveLogoGenerationJob(payload.jobId);
 
-            const targetBrandId = usePrintyStore.getState().logoGenerationTargetBrandId;
-
-            if (targetBrandId) {
-              beginBackgroundLogoGeneration(targetBrandId);
-            }
-
             return pollLogoGenerationJob(payload.jobId);
           });
 
     generationPromise
       .then((payload) => {
         const latestState = usePrintyStore.getState();
+        const isActiveGenerationScreen = latestState.currentStep === "generating";
+        const isBackgroundGeneration = Boolean(latestState.logoGenerationTargetBrandId && latestState.backgroundLogoGenerationNotice?.brandId === latestState.logoGenerationTargetBrandId && latestState.backgroundLogoGenerationNotice.status === "generating");
 
-        if (latestState.currentStep !== "generating" || getBrandGenerationKey(latestState.brandDraft, latestState.logoGenerationMode, latestState.logoGenerationIntent, latestState.logoRevisionRequest, latestState.logoRevisionSourceLogoId, latestState.selectedLogoReferenceImageId) !== generationKey) {
+        const latestBrandDraft = latestState.logoGenerationIntent === "revision" ? getRevisionBrandDraft() : latestState.brandDraft;
+
+        if ((!isActiveGenerationScreen && !isBackgroundGeneration) || getBrandGenerationKey(latestBrandDraft, latestState.logoGenerationMode, latestState.logoGenerationIntent, latestState.logoRevisionRequest, latestState.logoRevisionSourceLogoId, latestState.selectedLogoReferenceImageId) !== generationKey) {
           return;
         }
 
+        const revisionSourceLogoId = latestState.logoRevisionSourceLogoId;
+        const targetBrandId = latestState.logoGenerationTargetBrandId ?? (revisionSourceLogoId ? latestState.brands.find((brand) => brand.selectedLogoId === revisionSourceLogoId || brand.logoIds?.includes(revisionSourceLogoId))?.id : undefined);
+        const isRevisionGeneration = latestState.logoGenerationIntent === "revision";
+
         finishLogoGeneration(payload.status, payload.logos, payload.reason);
-        setStep("logoSelection");
+        if (isActiveGenerationScreen && !targetBrandId) {
+          setStep(isRevisionGeneration ? "logoSave" : "logoSelection");
+        }
       })
       .catch((error: unknown) => {
         const latestState = usePrintyStore.getState();
+        const isActiveGenerationScreen = latestState.currentStep === "generating";
+        const isBackgroundGeneration = Boolean(latestState.logoGenerationTargetBrandId && latestState.backgroundLogoGenerationNotice?.brandId === latestState.logoGenerationTargetBrandId && latestState.backgroundLogoGenerationNotice.status === "generating");
 
-        if (latestState.currentStep === "generating" && getBrandGenerationKey(latestState.brandDraft, latestState.logoGenerationMode, latestState.logoGenerationIntent, latestState.logoRevisionRequest, latestState.logoRevisionSourceLogoId, latestState.selectedLogoReferenceImageId) === generationKey) {
+        const latestBrandDraft = latestState.logoGenerationIntent === "revision" ? getRevisionBrandDraft() : latestState.brandDraft;
+
+        if ((isActiveGenerationScreen || isBackgroundGeneration) && getBrandGenerationKey(latestBrandDraft, latestState.logoGenerationMode, latestState.logoGenerationIntent, latestState.logoRevisionRequest, latestState.logoRevisionSourceLogoId, latestState.selectedLogoReferenceImageId) === generationKey) {
           failLogoGeneration(error instanceof LogoGenerationRequestFailure ? error.reason : clientLogoGenerationFailureReason);
-          setStep("logoSelection");
+          if (isActiveGenerationScreen) {
+            setStep("logoSelection");
+          }
         }
       })
       .finally(() => {
@@ -211,7 +244,7 @@ export function LogoGenerationController() {
       controller.abort();
       window.clearTimeout(timeoutId);
     };
-  }, [activeLogoGenerationJobId, beginBackgroundLogoGeneration, brandDraft, currentStep, failLogoGeneration, finishLogoGeneration, logoGenerationIntent, logoGenerationMode, logoRevisionRequest, logoRevisionSourceLogoId, selectedLogoReferenceImageId, setActiveLogoGenerationJob, setStep, startLogoGeneration]);
+  }, [brandDraft, currentStep, failLogoGeneration, finishLogoGeneration, logoGenerationIntent, logoGenerationMode, logoRevisionRequest, logoRevisionSourceLogoId, selectedLogoReferenceImageId, setActiveLogoGenerationJob, setStep, startLogoGeneration]);
 
   return null;
 }

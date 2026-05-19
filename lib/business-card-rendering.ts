@@ -1,14 +1,14 @@
 import type { BusinessCardTemplateBackground, BusinessCardTemplateBox, BusinessCardTemplateFontFamily, BusinessCardTemplateIconElement, BusinessCardTemplateTextElement, BusinessCardTemplateTextFieldId } from "@/lib/types";
 
-export const defaultTrimWidthMm = 90;
-export const defaultTrimHeightMm = 50;
+export const defaultTrimWidthMm = 92;
+export const defaultTrimHeightMm = 52;
 export const cssPxPerMm = 96 / 25.4;
 export const adminCanvasReferenceWidthPx = 720;
 export const businessCardLogoShapeBorderColor = "#e4eaf3";
 export const businessCardInfoBlockIconTextGapPx = 13;
 export const businessCardContactItemGapPx = 2.5;
-export const businessCardInfoBlockIconVisualWidthRatio = 0.55;
-export const businessCardInfoBlockIconSvgPreserveAspectRatio = "xMaxYMid meet";
+export const businessCardInfoBlockIconVisualWidthRatio = 1;
+export const businessCardInfoBlockIconSvgPreserveAspectRatio = "xMidYMid meet";
 
 export const sampleBusinessCardFieldValues: Record<BusinessCardTemplateTextFieldId, string> = {
   role: "대표",
@@ -19,26 +19,16 @@ export const sampleBusinessCardFieldValues: Record<BusinessCardTemplateTextField
   email: "prity@prity.com",
   website: "www.prity.com",
   address: "서울특별시 강남구 서초동 12-3 456동",
+  account: "국민 123456-04-123456",
+  adLine1: "프리미엄 맞춤 제작",
+  adLine2: "빠르고 정확한 상담",
+  instagram: "@printy.official",
+  qrCode: "QR 코드",
 };
 
-const contactFieldIds = new Set<BusinessCardTemplateTextFieldId>(["phone", "mainPhone", "fax", "email", "website", "address"]);
+const contactFieldIds = new Set<BusinessCardTemplateTextFieldId>(["phone", "mainPhone", "fax", "email", "website", "address", "account"]);
 
-export type BusinessCardInfoBlockId = "contact" | "email" | "website" | "address";
-
-type BusinessCardInfoBlockConfig = {
-  id: BusinessCardInfoBlockId;
-  fieldIds: BusinessCardTemplateTextFieldId[];
-  icon?: BusinessCardIconBlockName;
-};
-
-type BusinessCardIconBlockName = "phone" | "email" | "web" | "building";
-
-const businessCardInfoBlocks: BusinessCardInfoBlockConfig[] = [
-  { id: "contact", fieldIds: ["phone", "mainPhone", "fax"], icon: "phone" },
-  { id: "email", fieldIds: ["email"], icon: "email" },
-  { id: "website", fieldIds: ["website"], icon: "web" },
-  { id: "address", fieldIds: ["address"], icon: "building" },
-];
+export type BusinessCardInfoBlockId = "phone" | "mainPhone" | "fax" | "email" | "website" | "address" | "account";
 
 export type BusinessCardContactRowItem = {
   field: BusinessCardTemplateTextElement;
@@ -95,65 +85,17 @@ function rowBox(row: BusinessCardContactRow) {
   return unionBoxes(row.items.map((item) => item.field.box));
 }
 
-function alignSingleContactItemToFirstSlot(blockId: BusinessCardInfoBlockId, items: BusinessCardContactRowItem[], fieldById: Map<BusinessCardTemplateTextFieldId, BusinessCardTemplateTextElement>) {
-  if (blockId !== "contact" || items.length !== 1) {
-    return items;
-  }
-
-  const firstContactField = fieldById.get("phone");
-
-  if (!firstContactField?.visible) {
-    return items;
-  }
-
-  return [{ ...items[0], field: { ...items[0].field, box: firstContactField.box } }];
-}
-
 export function resolveBusinessCardContactLayout(fields: BusinessCardTemplateTextElement[], icons: BusinessCardTemplateIconElement[], valueForField: (field: BusinessCardTemplateTextElement) => string): BusinessCardContactLayout {
-  const fieldById = new Map(fields.map((field) => [field.id, field]));
-  const iconByName = new Map(icons.filter((icon) => icon.visible).map((icon) => [icon.icon, icon]));
-  const blocks: BusinessCardInfoBlock[] = [];
-  const usedFieldIds = new Set<BusinessCardTemplateTextFieldId>();
-  const usedIconIds = new Set<string>();
+  const resolvedFields = fields.map((field) => {
+    valueForField(field);
 
-  for (const blockConfig of businessCardInfoBlocks) {
-    const rawItems = blockConfig.fieldIds.flatMap((fieldId) => {
-      const field = fieldById.get(fieldId);
-
-      if (!field?.visible) {
-        return [];
-      }
-
-      const value = displayBusinessCardFieldValue(field.id, valueForField(field));
-
-      return value.length > 0 ? [{ field, value }] : [];
-    });
-    const items = alignSingleContactItemToFirstSlot(blockConfig.id, rawItems, fieldById);
-
-    if (items.length === 0) {
-      continue;
-    }
-
-    for (const item of items) {
-      usedFieldIds.add(item.field.id);
-    }
-
-    const icon = blockConfig.icon ? iconByName.get(blockConfig.icon) : undefined;
-
-    if (icon) {
-      usedIconIds.add(icon.id);
-    }
-
-    const rows = [{ id: blockConfig.id, items }];
-    const rawBlockBox = unionBoxes([...items.map((item) => item.field.box), ...(icon ? [icon.box] : [])]);
-
-    blocks.push({ id: blockConfig.id, box: rawBlockBox, icon, rows });
-  }
+    return field;
+  });
 
   return {
-    blocks,
-    fields: fields.filter((field) => !usedFieldIds.has(field.id)),
-    icons: icons.filter((icon) => !usedIconIds.has(icon.id)),
+    blocks: [],
+    fields: resolvedFields,
+    icons,
   };
 }
 
@@ -224,9 +166,7 @@ export function normalizeBusinessCardText(value: string) {
 }
 
 export function businessCardFaxText(value: string) {
-  const number = value.trim().replace(/^fax\s*[:：-]?\s*/i, "");
-
-  return number ? `FAX ${number}` : "";
+  return value.trim().replace(/^fax\s*[:：-]?\s*/i, "");
 }
 
 export function displayBusinessCardFieldValue(fieldId: BusinessCardTemplateTextFieldId, value: string) {
@@ -271,7 +211,7 @@ export function getBusinessCardTrimMetrics(trim: { widthMm: number; heightMm: nu
 export function businessCardIconChromeStyle(cssPixelScale: number) {
   return {
     borderWidthPx: formatPercent(cssPixelScale, 0.5),
-    paddingPx: formatPercent(4 * cssPixelScale, 2),
+    paddingPx: 0,
   };
 }
 

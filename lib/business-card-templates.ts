@@ -3,10 +3,10 @@ import type { BusinessCardTemplateBackground, BusinessCardTemplateBox, BusinessC
 export const businessCardProductId = "business-card";
 export const businessCardTemplateStatuses = ["draft", "published"] as const;
 export const businessCardTemplatePreviewVariants = ["clean", "band", "editorial", "frame", "signal"] as const;
-export const businessCardTemplateFieldIds = ["role", "name", "phone", "email", "website", "address", "mainPhone", "fax"] as const;
+export const businessCardTemplateFieldIds = ["role", "name", "phone", "email", "website", "address", "mainPhone", "fax", "account", "adLine1", "adLine2", "instagram", "qrCode"] as const;
 export const businessCardTemplateFontFamilies = ["sans", "serif", "rounded", "mono", "display", "handwriting"] as const;
 export const businessCardTemplateTextWeights = ["regular", "bold"] as const;
-export const businessCardTemplateIconIds = ["phone", "email", "location", "fax", "building", "web"] as const;
+export const businessCardTemplateIconIds = ["name", "role", "mobile", "phone", "email", "location", "address", "fax", "building", "company", "web", "account", "instagram"] as const;
 
 export type BusinessCardTemplateIconArtwork = {
   viewBox: string;
@@ -14,12 +14,19 @@ export type BusinessCardTemplateIconArtwork = {
 };
 
 export const businessCardTemplateIconArtwork: Record<BusinessCardTemplateIconId, BusinessCardTemplateIconArtwork> = {
+  name: { viewBox: "0 0 24 24", path: "M9 3.5h3.2v17H9v-17Z" },
+  role: { viewBox: "0 0 24 24", path: "M10.5 7h2v10h-2V7Z" },
+  mobile: { viewBox: "0 0 24 24", path: "M8.2 3.5h7.6c1 0 1.8.8 1.8 1.8v13.4c0 1-.8 1.8-1.8 1.8H8.2c-1 0-1.8-.8-1.8-1.8V5.3c0-1 .8-1.8 1.8-1.8Zm.7 2.2v11.8h6.2V5.7H8.9Zm2.3 12.5v1h1.6v-1h-1.6Z" },
   phone: { viewBox: "0 0 24 24", path: "M7.2 4.5 5.4 6.3c-.6.6-.8 1.5-.5 2.3 1.9 5.3 6.2 9.6 11.5 11.5.8.3 1.7.1 2.3-.5l1.8-1.8c.5-.5.5-1.4-.1-1.9l-2.6-2.1c-.5-.4-1.2-.4-1.7-.1l-1.4.9c-2.3-1.2-4.1-3-5.3-5.3l.9-1.4c.3-.5.3-1.2-.1-1.7L8.1 4.6c-.5-.6-1.4-.6-1.9-.1Z" },
   email: { viewBox: "0 0 24 24", path: "M4 6.8C4 5.8 4.8 5 5.8 5h12.4c1 0 1.8.8 1.8 1.8v10.4c0 1-.8 1.8-1.8 1.8H5.8c-1 0-1.8-.8-1.8-1.8V6.8Zm2.2.5 5.1 4.1c.4.3 1 .3 1.4 0l5.1-4.1H6.2Zm11.6 9.4V9.8L14 12.9c-1.2 1-2.8 1-4 0L6.2 9.8v6.9h11.6Z" },
   location: { viewBox: "0 0 24 24", path: "M12 3.8c-3.4 0-6.2 2.7-6.2 6.1 0 4.5 5.2 9.5 5.7 10 .3.3.7.3 1 0 .6-.5 5.7-5.5 5.7-10 0-3.4-2.8-6.1-6.2-6.1Zm0 8.5a2.4 2.4 0 1 1 0-4.8 2.4 2.4 0 0 1 0 4.8Z" },
+  address: { viewBox: "0 0 24 24", path: "M12 3.8c-3.4 0-6.2 2.7-6.2 6.1 0 4.5 5.2 9.5 5.7 10 .3.3.7.3 1 0 .6-.5 5.7-5.5 5.7-10 0-3.4-2.8-6.1-6.2-6.1Zm0 8.5a2.4 2.4 0 1 1 0-4.8 2.4 2.4 0 0 1 0 4.8Z" },
   fax: { viewBox: "0 0 24 24", path: "M7 3.8h9.2c.8 0 1.4.6 1.4 1.4v4H7v-4c0-.8.6-1.4 1.4-1.4Zm-1.8 7h13.6c1 0 1.8.8 1.8 1.8V18c0 .8-.6 1.4-1.4 1.4h-2.1v-4.1H6.9v4.1H4.8c-.8 0-1.4-.6-1.4-1.4v-5.4c0-1 .8-1.8 1.8-1.8Zm3.4 6.1h6.8v3.3H8.6v-3.3Zm8.5-2.8a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" },
   building: { viewBox: "0 0 24 24", path: "M5 20.2V5.6c0-.9.7-1.6 1.6-1.6h7.8c.9 0 1.6.7 1.6 1.6v4.1h1.4c.9 0 1.6.7 1.6 1.6v8.9h-5v-4.1h-4v4.1H5Zm3-12.8v2h2v-2H8Zm0 4v2h2v-2H8Zm5-4v2h2v-2h-2Zm0 4v2h2v-2h-2Z" },
+  company: { viewBox: "0 0 24 24", path: "M5 20.2V5.6c0-.9.7-1.6 1.6-1.6h7.8c.9 0 1.6.7 1.6 1.6v4.1h1.4c.9 0 1.6.7 1.6 1.6v8.9h-5v-4.1h-4v4.1H5Zm3-12.8v2h2v-2H8Zm0 4v2h2v-2H8Zm5-4v2h2v-2h-2Zm0 4v2h2v-2h-2Z" },
   web: { viewBox: "0 0 24 24", path: "M12 3.8a8.2 8.2 0 1 0 0 16.4 8.2 8.2 0 0 0 0-16.4Zm5.6 7.1h-3.1a12.5 12.5 0 0 0-1-4 5.9 5.9 0 0 1 4.1 4Zm-5.6-4.6c.4.7.8 2.2 1 4.6h-2c.2-2.4.6-3.9 1-4.6Zm-1.5.6a12.5 12.5 0 0 0-1 4H6.4a5.9 5.9 0 0 1 4.1-4Zm-4.1 6.2h3.1c.1 1.5.4 2.9 1 4a5.9 5.9 0 0 1-4.1-4Zm5.6 4.6c-.4-.7-.8-2.2-1-4.6h2c-.2 2.4-.6 3.9-1 4.6Zm1.5-.6c.6-1.1.9-2.5 1-4h3.1a5.9 5.9 0 0 1-4.1 4Z" },
+  account: { viewBox: "0 0 24 24", path: "M4 7.2c0-.9.7-1.6 1.6-1.6h12.8c.9 0 1.6.7 1.6 1.6v9.6c0 .9-.7 1.6-1.6 1.6H5.6c-.9 0-1.6-.7-1.6-1.6V7.2Zm2.1 1v2h11.8v-2H6.1Zm0 4.2v3.9h11.8v-3.9H6.1Zm1.3 1.2h5.3v1.4H7.4v-1.4Z" },
+  instagram: { viewBox: "0 0 24 24", path: "M7.2 3.8h9.6c1.9 0 3.4 1.5 3.4 3.4v9.6c0 1.9-1.5 3.4-3.4 3.4H7.2c-1.9 0-3.4-1.5-3.4-3.4V7.2c0-1.9 1.5-3.4 3.4-3.4Zm0 2.2C6.5 6 6 6.5 6 7.2v9.6c0 .7.5 1.2 1.2 1.2h9.6c.7 0 1.2-.5 1.2-1.2V7.2c0-.7-.5-1.2-1.2-1.2H7.2Zm4.8 2.5a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7Zm0 2a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Zm4.2-2.5a1 1 0 1 1 0 2 1 1 0 0 1 0-2Z" },
 };
 
 export type BusinessCardTemplateStatus = (typeof businessCardTemplateStatuses)[number];
@@ -65,6 +72,11 @@ const defaultBusinessCardTextElements: BusinessCardTemplateTextElement[] = busin
     { x: 58, y: 88, width: 32, height: 8 },
     { x: 58, y: 44, width: 32, height: 8 },
     { x: 58, y: 88, width: 32, height: 8 },
+    { x: 58, y: 88, width: 32, height: 8 },
+    { x: 12, y: 12, width: 76, height: 8 },
+    { x: 12, y: 22, width: 76, height: 8 },
+    { x: 58, y: 88, width: 32, height: 8 },
+    { x: 78, y: 68, width: 14, height: 24 },
   ][index],
   fontFamily: "sans",
   fontSize: 18,
@@ -88,7 +100,7 @@ const defaultBusinessCardSideLayout: BusinessCardTemplateSideLayout = {
 
 export const defaultBusinessCardTemplateLayout: BusinessCardTemplateLayout = {
   canvas: {
-    trim: { widthMm: 90, heightMm: 50 },
+    trim: { widthMm: 92, heightMm: 52 },
     edit: { x: 1.087, y: 1.923, width: 97.826, height: 96.154 },
     safe: { x: 3.261, y: 5.769, width: 93.478, height: 88.462 },
   },
@@ -195,7 +207,7 @@ function readCanvas(value: unknown): BusinessCardTemplateCanvas | undefined {
     return undefined;
   }
 
-  return { trim: { widthMm: value.trim.widthMm, heightMm: value.trim.heightMm }, edit, safe };
+  return { trim: { widthMm: 92, heightMm: 52 }, edit, safe };
 }
 
 function readBackground(value: unknown): BusinessCardTemplateBackground | undefined {

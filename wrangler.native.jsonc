@@ -19,6 +19,10 @@
       "zone_name": "smileon.app"
     },
     {
+      "pattern": "printy.smileon.app/api/ai-business-cards*",
+      "zone_name": "smileon.app"
+    },
+    {
       "pattern": "printy.smileon.app/api/admin/*",
       "zone_name": "smileon.app"
     },
@@ -51,7 +55,7 @@
       "class_name": "PrintyContainer",
       "image": "./Dockerfile",
       "instance_type": "basic",
-      "max_instances": 1
+      "max_instances": 2
     }
   ],
   "durable_objects": {

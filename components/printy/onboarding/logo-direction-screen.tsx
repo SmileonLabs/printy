@@ -83,6 +83,7 @@ export function LogoDirectionScreen() {
 
     const formData = new FormData();
     formData.append("file", referenceFile);
+
     setIsUploadingReference(true);
     setReferenceUploadMessage("참고 이미지를 등록하고 있어요.");
 
@@ -121,16 +122,16 @@ export function LogoDirectionScreen() {
           <SoftCard className="bg-[linear-gradient(180deg,var(--color-surface)_0%,var(--color-surface-blue)_100%)]">
             <p className="text-xs font-black text-primary-strong">참고 이미지 선택</p>
             <p className="mt-2 text-sm font-bold leading-6 text-muted">참고 이미지는 그대로 복사하지 않고 색감, 분위기, 구도만 참고해서 새 로고를 만들어요.</p>
-            <form className="mt-4 grid gap-3 rounded-lg border border-dashed border-primary-soft bg-surface p-3 sm:grid-cols-[1fr_auto] sm:items-end" onSubmit={handleUploadReferenceImage}>
+            <form className="mt-4 grid gap-3 rounded-lg border border-dashed border-primary-soft bg-surface p-3" onSubmit={handleUploadReferenceImage}>
               <label className="block">
                 <span className="mb-2 block text-xs font-black text-primary-strong">내 참고 이미지 업로드</span>
                 <input key={referenceFileInputKey} className="block w-full text-xs font-bold text-muted file:mr-3 file:rounded-sm file:border-0 file:bg-primary file:px-3 file:py-2 file:text-xs file:font-black file:text-white disabled:cursor-not-allowed disabled:opacity-60" type="file" accept="image/png,image/jpeg" disabled={isUploadingReference} onChange={handleReferenceFileChange} />
-                <span className="mt-2 block text-xs font-bold leading-5 text-muted">PNG/JPG, 5MB 이하. 업로드하면 관리자 레퍼런스 목록에도 함께 저장돼요.</span>
+                <span className="mt-2 block text-xs font-bold leading-5 text-muted">PNG/JPG, 5MB 이하. 업로드한 이미지는 참고 이미지 목록에 추가돼요.</span>
               </label>
               <button className="rounded-md bg-primary px-4 py-3 text-sm font-black text-white shadow-soft transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0" type="submit" disabled={isUploadingReference || !referenceFile}>
                 {isUploadingReference ? "등록 중" : "업로드"}
               </button>
-              {referenceUploadMessage ? <p className="text-xs font-bold text-muted sm:col-span-2">{referenceUploadMessage}</p> : null}
+              {referenceUploadMessage ? <p className="text-xs font-bold text-muted">{referenceUploadMessage}</p> : null}
             </form>
             <div className="mt-4 grid gap-3">
               {referenceImages.length === 0 ? <p className="rounded-md border border-line bg-surface px-4 py-3 text-xs font-bold text-muted">관리자가 등록한 참고 이미지가 아직 없어요.</p> : null}
@@ -147,6 +148,11 @@ export function LogoDirectionScreen() {
                 </button>
               ))}
             </div>
+            <label className="mt-4 block rounded-lg border border-line bg-surface p-3">
+              <span className="mb-2 block text-xs font-black text-primary-strong">이번 생성 요구사항</span>
+              <textarea className="min-h-24 w-full resize-y rounded-md border border-line bg-surface-blue px-3 py-3 text-sm font-bold leading-6 text-ink outline-none transition focus:border-primary focus:bg-surface focus:shadow-soft" value={brandDraft.designRequest} maxLength={1500} placeholder="예: 선택한 이미지의 부드러운 선과 따뜻한 베이지 톤은 참고하되, 브랜드명은 더 또렷하고 미니멀하게 만들어 주세요." onChange={(event) => updateBrandDraft("designRequest", event.target.value)} />
+              <span className="mt-2 block text-xs font-bold leading-5 text-muted">이 내용은 관리자 강제사항에 저장되지 않고, 지금 만드는 로고 프롬프트에만 반영돼요.</span>
+            </label>
           </SoftCard>
         ) : (
           <SoftCard className="bg-[linear-gradient(180deg,var(--color-surface)_0%,var(--color-surface-blue)_100%)]">

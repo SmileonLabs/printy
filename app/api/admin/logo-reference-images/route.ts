@@ -21,6 +21,12 @@ function toReferenceImage(image: Awaited<ReturnType<typeof listLogoReferenceImag
   return { id: image.id, name: image.name, imageUrl: image.publicUrl, contentType: image.contentType, size: image.size, createdAt: image.createdAt, analysis: image.analysis };
 }
 
+function readForcedInstructions(formData: FormData | undefined) {
+  const value = formData?.get("forcedInstructions");
+
+  return typeof value === "string" ? value.trim() : "";
+}
+
 export async function GET(request: Request) {
   if (!isAdminRequestAuthenticated(request)) {
     return unauthorizedResponse();
@@ -38,6 +44,7 @@ export async function POST(request: Request) {
 
   const formData = await request.formData().catch(() => undefined);
   const file = formData?.get("file");
+  const forcedInstructions = readForcedInstructions(formData);
 
   if (!isUploadedFormFile(file)) {
     return NextResponse.json({ reason: "업로드할 참고 이미지를 선택해 주세요." }, { status: 400 });
@@ -53,9 +60,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ reason: "참고 이미지는 5MB 이하로 등록해 주세요." }, { status: 400 });
   }
 
+  if (forcedInstructions.length > 500) {
+    return NextResponse.json({ reason: "강제사항은 500자 이하로 입력해 주세요." }, { status: 400 });
+  }
+
   const bytes = new Uint8Array(await file.arrayBuffer());
   const analysis = await analyzeLogoReferenceImage(bytes, contentType, "admin");
-  const image = await saveLogoReferenceImageBytes(bytes, contentType, readUploadedFormFileName(file, "reference-image"), analysis);
+  const image = await saveLogoReferenceImageBytes(bytes, contentType, readUploadedFormFileName(file, "reference-image"), forcedInstructions ? { ...analysis, forcedInstructions } : analysis);
 
   return NextResponse.json({ image: toReferenceImage(image) }, { status: 201 });
 }

@@ -1,7 +1,7 @@
 ﻿import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { logoOptions, seedPrintProducts } from "@/lib/mock-data";
-import { defaultBrandDraft, defaultMember, defaultOrderOptions, defaultPaymentMethod } from "@/store/printy-store-defaults";
+import { defaultBrandDraft, defaultMember, defaultOrderOptions, defaultPaymentMethod, defaultShippingInfo } from "@/store/printy-store-defaults";
 import { createPrintyCatalogActions } from "@/store/printy-store-catalog-actions";
 import { createPrintyDraftActions } from "@/store/printy-store-draft-actions";
 import { createPrintyLogoActions } from "@/store/printy-store-logo-actions";
@@ -25,6 +25,7 @@ export const usePrintyStore = create<PrintyState>()(
       brandView: "list",
       activeBrandSection: "style",
       brandDraft: defaultBrandDraft,
+      brandLogoSetupMode: "generate",
       memberDraft: defaultMember,
       selectedLogoId: logoOptions[0].id,
       generatedLogoOptions: [],
@@ -41,6 +42,7 @@ export const usePrintyStore = create<PrintyState>()(
       logoRevisionSourceLogoId: undefined,
       orderOptions: defaultOrderOptions,
       selectedPaymentMethod: defaultPaymentMethod,
+      shippingInfo: defaultShippingInfo,
       isAuthenticated: false,
       users: [],
       authSession: undefined,
@@ -49,6 +51,17 @@ export const usePrintyStore = create<PrintyState>()(
       lastOrderId: undefined,
       brands: [],
       businessCardDrafts: [],
+      aiBusinessCardMockups: [],
+      aiBusinessCardMockupStatus: "idle",
+      aiBusinessCardMockupMessage: undefined,
+      aiBusinessCardMockupSignature: undefined,
+      selectedAiBusinessCardMockupUrl: undefined,
+      aiBusinessCardPdfStatus: "idle",
+      aiBusinessCardPdfMessage: undefined,
+      aiBusinessCardPdfUrl: undefined,
+      aiBusinessCardPdfFileName: undefined,
+      aiBusinessCardPdfSignature: undefined,
+      aiBusinessCardPdfRecords: {},
       orders: [],
       printProducts: seedPrintProducts,
       templates: [],
@@ -57,6 +70,7 @@ export const usePrintyStore = create<PrintyState>()(
       selectedProductId: undefined,
       selectedTemplateId: undefined,
       selectedBusinessCardMemberIds: [],
+      businessCardProductionOptions: { frontElements: [], backElements: [], color: "black" },
       loginRedirectTarget: undefined,
       loginBackStep: undefined,
       brandWorkspaceHasPendingLocalChanges: false,

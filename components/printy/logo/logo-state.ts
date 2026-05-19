@@ -15,10 +15,5 @@ export function makeRevisionSourceLogo(logo: GeneratedLogoOption): LogoRevisionS
     id: logo.id,
     imageUrl: logo.imageUrl,
     label: logo.label,
-    description: logo.description,
-    promptSummary: logo.promptSummary,
-    lens: logo.lens,
-    designRequest: logo.designRequest,
-    requestSummary: logo.requestSummary,
   };
 }

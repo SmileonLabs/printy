@@ -25,5 +25,9 @@ export function normalizeMemberContact(member: Member | (Partial<Member> & Pick<
     email: normalizeOptionalContactValue(member.email, phone, legacyMemberContactDefaults.email),
     website: normalizeOptionalContactValue(member.website, phone, legacyMemberContactDefaults.website),
     address: normalizeOptionalContactValue(member.address, phone, legacyMemberContactDefaults.address),
+    adLine1: member.adLine1?.trim() ?? "",
+    adLine2: member.adLine2?.trim() ?? "",
+    instagram: member.instagram?.trim() ?? "",
+    qrCodeImageUrl: member.qrCodeImageUrl?.trim() ?? "",
   };
 }

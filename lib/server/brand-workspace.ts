@@ -3,7 +3,7 @@ import "server-only";
 import type { PoolClient } from "pg";
 import type { Brand, BrandAsset, BusinessCardDraft, GeneratedLogoOption, OrderRecord } from "@/lib/types";
 import { logoOptions } from "@/lib/mock-data";
-import { isBrand, isBrandAsset, isBusinessCardDraft, isOrderRecord, readBrandWorkspace, type BrandWorkspace } from "@/lib/brand-workspace";
+import { hasBrandWorkspaceData, isBrand, isBrandAsset, isBusinessCardDraft, isOrderRecord, readBrandWorkspace, type BrandWorkspace } from "@/lib/brand-workspace";
 import { isGeneratedLogoOption } from "@/lib/logo/logoValidation";
 import { withDbClient } from "@/lib/server/db";
 import { assertGeneratedLogoStorageAvailableForPublicUrls, cleanupUnreferencedGeneratedLogoFiles, isGeneratedLogoPublicUrl } from "@/lib/server/storage";
@@ -179,6 +179,12 @@ export async function saveBrandWorkspace(userId: string, workspace: BrandWorkspa
   }
 
   return withDbClient(async (client) => {
+    const currentWorkspace = await loadBrandWorkspaceWithClient(client, userId);
+
+    if (!hasBrandWorkspaceData(validWorkspace) && hasBrandWorkspaceData(currentWorkspace)) {
+      return currentWorkspace;
+    }
+
     let prunedGeneratedLogoPublicUrls: string[] = [];
 
     await client.query("begin");

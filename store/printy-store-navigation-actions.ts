@@ -6,7 +6,7 @@ type PrintyStoreGet = Parameters<StateCreator<PrintyState, [], [], PrintyState>>
 
 type PrintyNavigationActions = Pick<
   PrintyState,
-  "setActiveTab" | "openNotifications" | "openBrandDetail" | "closeBrandDetail" | "goBack" | "setBrandSection" | "startCardEdit"
+  "setActiveTab" | "openNotifications" | "openBrandDetail" | "deleteBrand" | "closeBrandDetail" | "goBack" | "setBrandSection" | "startCardEdit"
 >;
 
 export function createPrintyNavigationActions(set: PrintyStoreSet, get: PrintyStoreGet): PrintyNavigationActions {
@@ -14,6 +14,20 @@ export function createPrintyNavigationActions(set: PrintyStoreSet, get: PrintySt
     setActiveTab: (tab) => set({ activeTab: tab, brandView: "list" }),
     openNotifications: () => set({ activeTab: "notifications", brandView: "list" }),
     openBrandDetail: (brandId) => set({ activeTab: "brands", selectedBrandId: brandId, brandView: "detail", activeBrandSection: "style" }),
+    deleteBrand: (brandId) => set((state) => ({
+      brands: state.brands.filter((brand) => brand.id !== brandId),
+      brandAssets: state.brandAssets.filter((asset) => asset.brandId !== brandId),
+      businessCardDrafts: state.businessCardDrafts.filter((draft) => draft.brandId !== brandId),
+      orders: state.orders.filter((order) => order.brandId !== brandId),
+      selectedBrandId: state.selectedBrandId === brandId ? undefined : state.selectedBrandId,
+      activeBusinessCardDraftId: state.businessCardDrafts.some((draft) => draft.id === state.activeBusinessCardDraftId && draft.brandId === brandId) ? undefined : state.activeBusinessCardDraftId,
+      lastOrderId: state.orders.some((order) => order.id === state.lastOrderId && order.brandId === brandId) ? undefined : state.lastOrderId,
+      brandView: state.selectedBrandId === brandId ? "list" : state.brandView,
+      activeBrandMockupJob: state.activeBrandMockupJob?.brandId === brandId ? undefined : state.activeBrandMockupJob,
+      selectedBusinessCardMemberIds: state.selectedBrandId === brandId ? [] : state.selectedBusinessCardMemberIds,
+      brandWorkspaceHasPendingLocalChanges: true,
+      brandWorkspaceOwnerUserId: state.isAuthenticated ? state.brandWorkspaceOwnerUserId : undefined,
+    })),
     closeBrandDetail: () => set({ activeTab: "brands", brandView: "list" }),
     goBack: () => {
       const state = get();
@@ -56,11 +70,21 @@ export function createPrintyNavigationActions(set: PrintyStoreSet, get: PrintySt
         case "logoDirection":
           set({ currentStep: "brandCreation" });
           return;
+        case "logoUpload":
+          if (state.logoGenerationTargetBrandId && state.isAuthenticated) {
+            returnToDashboardHome();
+            return;
+          }
+
+          set({ currentStep: "brandCreation" });
+          return;
         case "generating":
           set({
-            currentStep: state.logoGenerationIntent === "revision" ? "logoRevision" : "logoDirection",
+            currentStep: state.logoGenerationIntent === "revision" ? "logoRevision" : state.logoGenerationIntent === "upload" ? "logoUpload" : "logoDirection",
             logoGenerationStatus: "idle",
             logoGenerationMessage: undefined,
+            activeLogoGenerationJobId: undefined,
+            logoGenerationIntent: state.logoGenerationIntent === "upload" ? "initial" : state.logoGenerationIntent,
           });
           return;
         case "logoSelection":
@@ -88,16 +112,15 @@ export function createPrintyNavigationActions(set: PrintyStoreSet, get: PrintySt
           set({ currentStep: "logoSave" });
           return;
         case "businessCardPreview":
-          set({ currentStep: "memberInput" });
-          return;
-        case "businessCardBatchPreview":
-          set({ currentStep: "businessCardPreview" });
+          if (state.selectedBrandId && state.isAuthenticated) {
+            returnToDashboardHome();
+            return;
+          }
+
+          set({ currentStep: "logoSave" });
           return;
         case "orderOptions":
-          set({ currentStep: "businessCardBatchPreview" });
-          return;
-        case "templateSelection":
-          set({ currentStep: "orderOptions" });
+          set({ currentStep: "businessCardPreview" });
           return;
         case "checkout":
           set({ currentStep: "orderOptions" });

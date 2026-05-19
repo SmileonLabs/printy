@@ -76,7 +76,6 @@ export const seedPrintProducts: PrintProduct[] = [
 ];
 
 export const bottomTabs: Array<{ id: MainTab; label: string }> = [
-  { id: "home", label: "홈" },
   { id: "brands", label: "내 브랜드" },
   { id: "orders", label: "주문내역" },
   { id: "my", label: "마이페이지" },
@@ -84,7 +83,6 @@ export const bottomTabs: Array<{ id: MainTab; label: string }> = [
 
 export const brandDetailSections: Array<{ id: BrandDetailSectionId; label: string; summary: string }> = [
   { id: "style", label: "로고 & 스타일", summary: "대표 로고, 컬러, 인쇄 톤 관리" },
-  { id: "team", label: "팀 / 구성원", summary: "명함에 들어갈 구성원 정보" },
   { id: "cards", label: "명함", summary: "주문 가능한 명함 시안" },
   { id: "promotions", label: "홍보물", summary: "전단지와 쿠폰 추천 템플릿" },
   { id: "banners", label: "배너 / 현수막", summary: "매장 앞 배너 빠른 제작" },

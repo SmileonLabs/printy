@@ -145,12 +145,17 @@ const sideLabels: Record<BusinessCardTemplateSideId, string> = {
 const fieldLabels: Record<BusinessCardTemplateTextFieldId, string> = {
   role: "직함",
   name: "이름",
-  phone: "전화",
+  phone: "휴대전화",
   mainPhone: "대표전화",
-  fax: "FAX",
+  fax: "팩스",
   email: "이메일",
   website: "웹도메인",
   address: "주소",
+  account: "계좌번호",
+  adLine1: "광고 문구 1",
+  adLine2: "광고 문구 2",
+  instagram: "인스타그램",
+  qrCode: "QR 코드",
 };
 
 const fontLabels: Record<BusinessCardTemplateFontFamily, string> = {
@@ -183,12 +188,19 @@ const textAlignLabels: Record<BusinessCardTemplateTextAlign, string> = {
 };
 
 const iconLabels: Record<BusinessCardTemplateIconId, string> = {
-  phone: "전화",
+  name: "이름",
+  role: "직함",
+  mobile: "휴대폰",
+  phone: "휴대전화",
   email: "메일",
   location: "위치",
+  address: "주소",
   fax: "팩스",
   building: "회사",
+  company: "회사",
   web: "웹",
+  account: "계좌번호",
+  instagram: "인스타그램",
 };
 
 const sideIds: BusinessCardTemplateSideId[] = ["front", "back"];
@@ -363,7 +375,7 @@ function iconMarkup(iconId: BusinessCardTemplateIconId, className = "block h-ful
   const icon = businessCardTemplateIconArtwork[iconId];
 
   return (
-    <svg className={className} viewBox={icon.viewBox} aria-hidden="true">
+    <svg className={className} viewBox={icon.viewBox} preserveAspectRatio="xMidYMid meet" aria-hidden="true">
       <path d={icon.path} fill="currentColor" />
     </svg>
   );
@@ -517,7 +529,7 @@ export function BusinessCardLayoutBuilder({ layout, orientation, managedBackgrou
   };
 
   const updateFieldText = (field: BusinessCardTemplateTextElement) => {
-    const nextValue = window.prompt(field.id === "fax" ? "팩스번호를 입력해 주세요. FAX 글자는 자동으로 붙어요." : `${fieldLabels[field.id]} 텍스트를 입력해 주세요.`, editableFieldValue(field));
+    const nextValue = window.prompt(`${fieldLabels[field.id]} 텍스트를 입력해 주세요.`, editableFieldValue(field));
 
     if (nextValue === null) {
       return;
@@ -933,12 +945,7 @@ export function BusinessCardLayoutBuilder({ layout, orientation, managedBackgrou
                 <p className="mt-1 text-xs font-bold text-muted">표시 여부만 선택하고, 세부 값은 편집 화면의 텍스트 설정창에서 조정해요.</p>
             </div>
             <div className="mb-4 flex flex-wrap gap-2">
-              {contactLayout.blocks.map((block) => (
-                <button key={block.id} className={`rounded-md px-3 py-2 text-xs font-black transition ${selectedItem?.type === "info-block" && selectedItem.blockId === block.id ? "bg-primary text-white shadow-soft" : "bg-surface-blue text-primary-strong hover:bg-primary-soft"}`} type="button" onClick={() => setSelectedItem({ type: "info-block", blockId: block.id })}>
-                  {infoBlockLabels[block.id] ?? "정보 영역"}
-                </button>
-              ))}
-              {businessCardTemplateFieldIds.filter((fieldId) => !["phone", "mainPhone", "fax", "email", "website", "address"].includes(fieldId)).map((fieldId) => {
+              {businessCardTemplateFieldIds.map((fieldId) => {
                 const field = getField(layout, activeSide, fieldId);
 
                 return (
@@ -1079,10 +1086,13 @@ function TextFieldPreview({ field, selected, renderPixelScale, trimWidthScale, o
 }
 
 const infoBlockLabels: Record<string, string> = {
-  contact: "연락처 영역",
+  phone: "전화 영역",
+  mainPhone: "대표전화 영역",
+  fax: "FAX 영역",
   email: "이메일 영역",
   website: "도메인 영역",
   address: "주소 영역",
+  account: "계좌번호 영역",
 };
 
 function InfoBlockMovePreview({ block, selected, onPointerDown, onPointerMove, onPointerUp, onPointerCancel }: { block: BusinessCardInfoBlock; selected: boolean; onPointerDown: (event: PointerEvent<HTMLDivElement>) => void; onPointerMove: (event: PointerEvent<HTMLElement>) => void; onPointerUp: (event: PointerEvent<HTMLElement>) => void; onPointerCancel: (event: PointerEvent<HTMLElement>) => void }) {

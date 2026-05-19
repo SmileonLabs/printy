@@ -37,6 +37,11 @@ function fieldValue(fieldId: BusinessCardTemplateTextFieldId, brandName: string,
     email: member.email,
     website: member.website ?? "",
     address: member.address,
+    account: member.account ?? "",
+    adLine1: member.adLine1 ?? "",
+    adLine2: member.adLine2 ?? "",
+    instagram: member.instagram ?? "",
+    qrCode: member.qrCodeImageUrl ?? "",
   };
 
   return values[fieldId];
@@ -93,6 +98,14 @@ function TextElement({ field, brandName, category, member, cssPixelScale, trimWi
     return null;
   }
 
+  if (field.id === "qrCode") {
+    return (
+      <div className="absolute z-[2] overflow-hidden" style={boxStyle(field.box)}>
+        <Image src={value} alt="QR 코드" fill sizes="120px" className="object-contain" draggable={false} unoptimized />
+      </div>
+    );
+  }
+
   return (
     <div
       className="absolute z-[2] flex items-center overflow-hidden"
@@ -131,7 +144,7 @@ function IconElement({ icon, cssPixelScale }: { icon: BusinessCardTemplateIconEl
 
   return (
     <div className="absolute z-[2] overflow-hidden" style={{ ...boxStyle(icon.box), border: `${iconChrome.borderWidthPx}px solid transparent`, color: readSafeColor(icon.color, "#075dcb"), padding: `${iconChrome.paddingPx}px` }}>
-      <svg className="block h-full w-full" viewBox={artwork.viewBox} aria-hidden="true">
+      <svg className="block h-full w-full" viewBox={artwork.viewBox} preserveAspectRatio="xMidYMid meet" aria-hidden="true">
         <path d={artwork.path} fill="currentColor" />
       </svg>
     </div>

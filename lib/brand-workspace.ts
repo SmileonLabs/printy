@@ -1,7 +1,8 @@
 import { isGeneratedLogoOption } from "@/lib/logo/logoValidation";
 import { normalizeMemberContact } from "@/lib/member-contact";
 import { logoOptions } from "@/lib/mock-data";
-import type { Brand, BrandAsset, BusinessCardDraft, GeneratedLogoOption, Member, OrderRecord, PaymentMethod } from "@/lib/types";
+import { isOrderStatus } from "@/lib/order-status";
+import type { Brand, BrandAsset, BusinessCardDraft, GeneratedLogoOption, Member, OrderRecord, PaymentMethod, ShippingInfo } from "@/lib/types";
 
 export type BrandWorkspace = {
   brands: Brand[];
@@ -25,12 +26,20 @@ function isString(value: unknown): value is string {
   return typeof value === "string";
 }
 
+function isShippingInfo(value: unknown): value is ShippingInfo {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return isString(value.recipientName) && isString(value.recipientPhone) && isString(value.address) && isString(value.memo);
+}
+
 export function isMember(value: unknown): value is Member {
   if (!isRecord(value)) {
     return false;
   }
 
-  return isNonEmptyString(value.id) && isString(value.name) && isString(value.role) && isString(value.phone) && (value.mainPhone === undefined || isString(value.mainPhone)) && (value.fax === undefined || isString(value.fax)) && (value.email === undefined || isString(value.email)) && (value.website === undefined || isString(value.website)) && (value.address === undefined || isString(value.address));
+  return isNonEmptyString(value.id) && isString(value.name) && isString(value.role) && isString(value.phone) && (value.mainPhone === undefined || isString(value.mainPhone)) && (value.fax === undefined || isString(value.fax)) && (value.email === undefined || isString(value.email)) && (value.website === undefined || isString(value.website)) && (value.address === undefined || isString(value.address)) && (value.account === undefined || isString(value.account)) && (value.adLine1 === undefined || isString(value.adLine1)) && (value.adLine2 === undefined || isString(value.adLine2)) && (value.instagram === undefined || isString(value.instagram)) && (value.qrCodeImageUrl === undefined || isString(value.qrCodeImageUrl));
 }
 
 function normalizeBrandContacts(brand: Brand): Brand {
@@ -88,7 +97,7 @@ export function isOrderRecord(value: unknown): value is OrderRecord {
     isNonEmptyString(value.id) &&
     isString(value.orderNumber) &&
     isString(value.title) &&
-    (value.status === "paid" || value.status === "preparing") &&
+    isOrderStatus(value.status) &&
     isString(value.statusLabel) &&
     isString(value.price) &&
     isString(value.quantity) &&
@@ -98,7 +107,8 @@ export function isOrderRecord(value: unknown): value is OrderRecord {
     isString(value.createdAt) &&
     isString(value.brandId) &&
     isString(value.cardDraftId) &&
-    (value.templateId === undefined || isString(value.templateId))
+    (value.templateId === undefined || isString(value.templateId)) &&
+    (value.shippingInfo === undefined || isShippingInfo(value.shippingInfo))
   );
 }
 
@@ -189,9 +199,25 @@ function mergeByIdWithServerPriority<T extends { id: string }>(localItems: T[], 
   return Array.from(merged.values());
 }
 
+function mergeBrands(localBrands: Brand[], serverBrands: Brand[]) {
+  const merged = new Map<string, Brand>();
+
+  for (const brand of localBrands) {
+    merged.set(brand.id, brand);
+  }
+
+  for (const serverBrand of serverBrands) {
+    const localBrand = merged.get(serverBrand.id);
+
+    merged.set(serverBrand.id, localBrand ? { ...serverBrand, logoIds: Array.from(new Set([serverBrand.selectedLogoId, ...(Array.isArray(serverBrand.logoIds) ? serverBrand.logoIds : []), ...(Array.isArray(localBrand.logoIds) ? localBrand.logoIds : [])])) } : serverBrand);
+  }
+
+  return Array.from(merged.values());
+}
+
 export function mergeBrandWorkspaces(localWorkspace: BrandWorkspace, serverWorkspace: BrandWorkspace): BrandWorkspace {
   return {
-    brands: mergeByIdWithServerPriority(localWorkspace.brands, serverWorkspace.brands),
+    brands: mergeBrands(localWorkspace.brands, serverWorkspace.brands),
     savedGeneratedLogoOptions: mergeById(localWorkspace.savedGeneratedLogoOptions, serverWorkspace.savedGeneratedLogoOptions),
     businessCardDrafts: mergeById(localWorkspace.businessCardDrafts, serverWorkspace.businessCardDrafts),
     orders: mergeById(localWorkspace.orders, serverWorkspace.orders),

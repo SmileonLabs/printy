@@ -1,6 +1,6 @@
 "use client";
 
-import { BrandCard, DashboardHeader, DashboardSectionHeader, EmptyBrands } from "@/components/printy/dashboard/brands-tab";
+import { BrandCard, DashboardSectionHeader, EmptyBrands } from "@/components/printy/dashboard/brands-tab";
 import { SoftCard } from "@/components/ui";
 import type { OrderRecord } from "@/lib/types";
 import { usePrintyStore } from "@/store/use-printy-store";
@@ -10,7 +10,6 @@ export function HomeTab() {
 
   return (
     <div className="pb-2">
-      <DashboardHeader onStartNewBrand={startNewBrand} />
       <section className="mb-7 animate-float-in">
         <p className="text-3xl font-black leading-tight tracking-[-0.05em] text-ink">안녕하세요! 👋</p>
         <h1 className="mt-1 text-3xl font-black leading-tight tracking-[-0.05em] text-ink">

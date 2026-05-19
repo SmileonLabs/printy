@@ -48,6 +48,24 @@ const aiMockupScenes: AiMockupScene[] = [
     prompt: "Create a photorealistic packaging mockup with a takeaway cup and simple paper bag on a cafe table. Apply the provided logo to the cup and bag as printed ink, preserving the logo as much as possible. Use realistic material texture, soft daylight, and natural shadows. Do not redesign the logo.",
   },
   {
+    id: "t-shirt",
+    title: "티셔츠 목업",
+    description: "티셔츠 전면에 로고를 인쇄한 실사형 목업",
+    prompt: "Create a photorealistic apparel mockup featuring a clean cotton t-shirt on a model-free studio setup or neatly laid flat. Apply the provided logo to the front chest area as high-quality screen printing, preserving the logo shape and colors as much as possible. Use realistic fabric texture, folds, lighting, and shadows. Do not redesign the logo or add unrelated text.",
+  },
+  {
+    id: "mug-cup",
+    title: "머그컵 목업",
+    description: "세라믹 머그컵에 로고를 인쇄한 실사형 목업",
+    prompt: "Create a photorealistic ceramic mug mockup on a simple cafe or studio table. Apply the provided logo to the visible side of the mug as glossy printed ink, preserving the logo shape and colors as much as possible. Use realistic ceramic reflections, curved surface perspective, soft lighting, and natural shadows. Do not redesign the logo or add unrelated text.",
+  },
+  {
+    id: "phone-case",
+    title: "핸드폰 케이스 목업",
+    description: "스마트폰 케이스에 로고를 인쇄한 실사형 목업",
+    prompt: "Create a photorealistic smartphone case mockup on a clean desk or studio surface. Apply the provided logo to the back of the phone case as premium printed artwork, preserving the logo shape and colors as much as possible. Use realistic plastic or silicone material texture, camera cutout details, perspective, and soft shadows. Do not redesign the logo or add unrelated text.",
+  },
+  {
     id: "window-decal",
     title: "유리창 스티커 목업",
     description: "매장 유리창 데칼에 로고를 합성한 실사형 목업",

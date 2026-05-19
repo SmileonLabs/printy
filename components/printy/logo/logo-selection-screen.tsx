@@ -19,7 +19,7 @@ export function LogoSelectionScreen() {
       footer={
         hasGeneratedLogos ? (
           <div className="grid gap-3">
-            <AppButton onClick={() => setStep("logoSave")}>{logoGenerationTargetBrandId ? "로고 하나 더 추가" : "브랜드 생성"}</AppButton>
+            <AppButton onClick={() => setStep("logoSave")}>{logoGenerationTargetBrandId ? "저장하기" : "브랜드 생성"}</AppButton>
             {canReviseSelectedLogo ? (
               <AppButton variant="secondary" onClick={() => startLogoRevision(selectedGeneratedLogo.id)}>
                 이 로고 수정하기

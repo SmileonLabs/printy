@@ -9,6 +9,36 @@ type PrintyStoreSet = Parameters<StateCreator<PrintyState, [], [], PrintyState>>
 type PrintyStoreGet = Parameters<StateCreator<PrintyState, [], [], PrintyState>>[1];
 
 type PrintySessionActions = Pick<PrintyState, "login" | "logout" | "enterDashboard">;
+type ClearedAiBusinessCardState = Pick<
+  PrintyState,
+  | "aiBusinessCardMockups"
+  | "aiBusinessCardMockupStatus"
+  | "aiBusinessCardMockupMessage"
+  | "aiBusinessCardMockupSignature"
+  | "selectedAiBusinessCardMockupUrl"
+  | "aiBusinessCardPdfStatus"
+  | "aiBusinessCardPdfMessage"
+  | "aiBusinessCardPdfUrl"
+  | "aiBusinessCardPdfFileName"
+  | "aiBusinessCardPdfSignature"
+  | "aiBusinessCardPdfRecords"
+>;
+
+function createClearedAiBusinessCardState(): ClearedAiBusinessCardState {
+  return {
+    aiBusinessCardMockups: [],
+    aiBusinessCardMockupStatus: "idle",
+    aiBusinessCardMockupMessage: undefined,
+    aiBusinessCardMockupSignature: undefined,
+    selectedAiBusinessCardMockupUrl: undefined,
+    aiBusinessCardPdfStatus: "idle",
+    aiBusinessCardPdfMessage: undefined,
+    aiBusinessCardPdfUrl: undefined,
+    aiBusinessCardPdfFileName: undefined,
+    aiBusinessCardPdfSignature: undefined,
+    aiBusinessCardPdfRecords: {},
+  };
+}
 
 export function createPrintySessionActions(set: PrintyStoreSet, get: PrintyStoreGet): PrintySessionActions {
   return {
@@ -49,10 +79,13 @@ export function createPrintySessionActions(set: PrintyStoreSet, get: PrintyStore
           },
         };
         const isSwitchingUser = state.authSession?.userId !== undefined && state.authSession.userId !== nextUser.id;
-        const isSavingCurrentGuestWork = state.loginBackStep === "logoSave" || state.loginRedirectTarget === "checkout";
+        const hasCurrentWorkspaceData = state.brands.length > 0 || state.brandAssets.length > 0 || state.savedGeneratedLogoOptions.length > 0 || state.businessCardDrafts.length > 0 || state.orders.length > 0;
+        const canClaimCurrentGuestWorkspace = !state.authSession && hasCurrentWorkspaceData && (!state.brandWorkspaceOwnerUserId || state.brandWorkspaceOwnerUserId === nextUser.id);
+        const isSavingCurrentGuestWork = state.loginBackStep === "logoSave" || state.loginRedirectTarget === "checkout" || canClaimCurrentGuestWorkspace;
         const workspaceState = isSwitchingUser || !isSavingCurrentGuestWork
           ? {
               brands: [],
+              brandAssets: [],
               savedGeneratedLogoOptions: [],
               businessCardDrafts: [],
               orders: [],
@@ -61,6 +94,10 @@ export function createPrintySessionActions(set: PrintyStoreSet, get: PrintyStore
               selectedBrandId: undefined,
               activeBusinessCardDraftId: undefined,
               lastOrderId: undefined,
+              activeBrandMockupJob: undefined,
+              ...createClearedAiBusinessCardState(),
+              activeLogoGenerationJobId: undefined,
+              backgroundLogoGenerationNotice: undefined,
               brandWorkspaceHasPendingLocalChanges: false,
               brandWorkspaceOwnerUserId: nextUser.id,
             }
@@ -102,6 +139,22 @@ export function createPrintySessionActions(set: PrintyStoreSet, get: PrintyStore
         loginBackStep: undefined,
         activeTab: "home",
         brandView: "list",
+        brands: [],
+        brandAssets: [],
+        savedGeneratedLogoOptions: [],
+        generatedLogoOptions: [],
+        businessCardDrafts: [],
+        orders: [],
+        selectedLogoId: logoOptions[0].id,
+        selectedBrandId: undefined,
+        activeBusinessCardDraftId: undefined,
+        lastOrderId: undefined,
+        activeBrandMockupJob: undefined,
+        ...createClearedAiBusinessCardState(),
+        activeLogoGenerationJobId: undefined,
+        backgroundLogoGenerationNotice: undefined,
+        brandWorkspaceHasPendingLocalChanges: false,
+        brandWorkspaceOwnerUserId: undefined,
       }),
     enterDashboard: () => {
       const state = get();

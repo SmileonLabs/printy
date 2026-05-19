@@ -8,7 +8,7 @@ type BrandGenerationDraft = {
 };
 
 export function getBrandGenerationKey(brandDraft: BrandGenerationDraft, generationMode: LogoGenerationMode, generationIntent: LogoGenerationIntent, revisionRequest: string, revisionSourceLogoId?: string, referenceImageId?: string): string {
-  const requestKey = generationIntent === "revision" ? revisionRequest.trim() : generationMode === "manual" ? brandDraft.designRequest.trim() : "";
+  const requestKey = generationIntent === "revision" ? revisionRequest.trim() : generationMode === "manual" || generationMode === "reference" ? brandDraft.designRequest.trim() : "";
   const modeKey = generationIntent === "revision" ? generationIntent : generationMode;
   const sourceKey = generationIntent === "revision" ? revisionSourceLogoId ?? "" : generationMode === "reference" ? referenceImageId ?? "" : "";
 

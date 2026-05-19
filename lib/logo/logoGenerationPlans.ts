@@ -1,6 +1,6 @@
 import type { LogoGenerationInput, LogoGenerationMode, LogoGenerationPlan, LogoPlanSource, LogoRevisionGenerationInput, LogoVariationDraft } from "@/lib/types";
 import { mapIndustryStyle, type IndustryStyleProfile } from "@/lib/logo/industryStyleMapper";
-import { buildLogoPrompt, buildLogoRevisionPrompt, isSymbolOnlyRevisionRequest } from "@/lib/logo/logoPromptBuilder";
+import { buildLogoPrompt, buildLogoRevisionPrompt, buildReferenceLogoPrompt, isSymbolOnlyRevisionRequest } from "@/lib/logo/logoPromptBuilder";
 
 type InterpretationLens = {
   id: string;
@@ -75,8 +75,8 @@ function makeSummary(input: LogoGenerationInput, lens: InterpretationLens, desig
   return `${prefix}: ${input.brandName}의 ${input.industry} 로고를 '${lens.lens}' 렌즈로 해석합니다. 요청 요약: ${designRequest}`;
 }
 
-function toPlan(input: LogoGenerationInput, lens: InterpretationLens, designRequest: string, source: LogoPlanSource, styleProfile: IndustryStyleProfile): LogoGenerationPlan {
-  const requestSummary = designRequest.length > 84 ? `${designRequest.slice(0, 84)}...` : designRequest;
+function toPlan(input: LogoGenerationInput, mode: LogoGenerationMode, lens: InterpretationLens, designRequest: string, source: LogoPlanSource, styleProfile: IndustryStyleProfile): LogoGenerationPlan {
+  const requestSummary = designRequest.length > 84 ? `${designRequest.slice(0, 84)}...` : designRequest || (mode === "reference" ? "레퍼런스 이미지 중심" : "");
   const promptSummary = makeSummary(input, lens, requestSummary, source);
   const variation: LogoVariationDraft = {
     id: lens.id,
@@ -100,17 +100,17 @@ function toPlan(input: LogoGenerationInput, lens: InterpretationLens, designRequ
     designRequest,
     requestSummary,
     promptSummary,
-    prompt: buildLogoPrompt({ ...input, designRequest }, variation, styleProfile),
+    prompt: mode === "reference" ? buildReferenceLogoPrompt({ ...input, designRequest }, variation) : buildLogoPrompt({ ...input, designRequest }, variation, styleProfile),
   };
 }
 
 export function createLogoGenerationPlans(input: LogoGenerationInput, mode: LogoGenerationMode): LogoGenerationPlan[] {
-  const request = mode === "manual" ? compact(input.designRequest) : "";
+  const request = mode === "manual" || mode === "reference" ? compact(input.designRequest) : "";
   const requestForStyle = request || `${input.industry} ${input.brandName}`;
   const styleProfile = mapIndustryStyle(input.industry, requestForStyle);
-  const designRequest = getRequest(input, request, styleProfile);
+  const designRequest = mode === "reference" ? request : getRequest(input, request, styleProfile);
   const source: LogoPlanSource = request.length > 0 ? "user" : "recommended";
-  return [toPlan(input, interpretationLens, designRequest, source, styleProfile)];
+  return [toPlan(input, mode, interpretationLens, designRequest, source, styleProfile)];
 }
 
 export function createLogoRevisionPlans(input: LogoRevisionGenerationInput): LogoGenerationPlan[] {

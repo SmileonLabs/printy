@@ -43,6 +43,7 @@ export function createDefaultPrintShopBusinessCardRenderData(): PrintShopBusines
       email: "",
       website: "",
       address: "",
+      account: "",
     },
   };
 }
@@ -113,17 +114,26 @@ function fieldValue(fieldId: BusinessCardTemplateTextFieldId, renderData: PrintS
     email: renderData.member.email,
     website: renderData.member.website ?? "",
     address: renderData.member.address,
+    account: renderData.member.account ?? "",
+    adLine1: renderData.member.adLine1 ?? "",
+    adLine2: renderData.member.adLine2 ?? "",
+    instagram: renderData.member.instagram ?? "",
+    qrCode: renderData.member.qrCodeImageUrl ?? "",
   };
 
   return values[fieldId];
 }
 
-function renderField(field: BusinessCardTemplateTextElement, cssPixelScale: number, trimWidthScale: number, renderData: PrintShopBusinessCardRenderData | undefined) {
+function renderField(field: BusinessCardTemplateTextElement, cssPixelScale: number, trimWidthScale: number, renderData: PrintShopBusinessCardRenderData | undefined, origin: string | undefined) {
   const rawValue = field.customValue ?? fieldValue(field.id, renderData);
   const value = displayBusinessCardFieldValue(field.id, rawValue);
 
   if (!field.visible || value.length === 0) {
     return "";
+  }
+
+  if (field.id === "qrCode") {
+    return `<div class="qr-code" style="${escapeHtml(boxStyleText(field.box))}"><img src="${escapeHtml(absoluteAssetUrl(value, origin))}" alt="QR code" /></div>`;
   }
 
   const style = `${boxStyleText(field.box)}font-family:${fontFamilies[field.fontFamily]};font-size:${fittedBusinessCardFontSizePx(field, value, cssPixelScale, field.box.width, 16 * cssPixelScale, trimWidthScale)}px;color:${readSafeColor(field.color, "#111827")};font-weight:${field.fontWeight === "bold" ? 900 : 400};font-style:${field.italic || field.fontFamily === "handwriting" ? "italic" : "normal"};text-align:${field.align};--field-padding-x:${formatPercent(8 * cssPixelScale, 4)}px;`;
@@ -235,7 +245,7 @@ function renderSide(layout: BusinessCardTemplateLayout, sideId: BusinessCardTemp
   const cropMarks = includeProductionMarks ? renderCropMarks() : "";
   const contactLayout = resolveBusinessCardContactLayout(side.fields, side.icons, (field) => field.customValue ?? fieldValue(field.id, renderData));
 
-  return `<section class="pdf-page" data-side="${sideId}" aria-label="${sideLabels[sideId]}"><div class="bleed-background" style="${escapeHtml(backgroundStyle)}"></div><article class="trim-area">${renderLogo(side.logo.box, side.logo.visible, origin, renderData?.logo)}${side.lines.map(renderLine).join("")}${contactLayout.blocks.map((block) => renderInfoBlock(block, cssPixelScale, trimWidthScale)).join("")}${contactLayout.fields.map((field) => renderField(field, cssPixelScale, trimWidthScale, renderData)).join("")}${contactLayout.icons.map((icon) => renderIcon(icon, cssPixelScale)).join("")}</article>${cropMarks}</section>`;
+  return `<section class="pdf-page" data-side="${sideId}" aria-label="${sideLabels[sideId]}"><div class="bleed-background" style="${escapeHtml(backgroundStyle)}"></div><article class="trim-area">${renderLogo(side.logo.box, side.logo.visible, origin, renderData?.logo)}${side.lines.map(renderLine).join("")}${contactLayout.blocks.map((block) => renderInfoBlock(block, cssPixelScale, trimWidthScale)).join("")}${contactLayout.fields.map((field) => renderField(field, cssPixelScale, trimWidthScale, renderData, origin)).join("")}${contactLayout.icons.map((icon) => renderIcon(icon, cssPixelScale)).join("")}</article>${cropMarks}</section>`;
 }
 
 export function buildPrintShopBusinessCardHtml({ template, origin, includeProductionMarks = false, renderData }: PrintShopBusinessCardHtmlInput): PrintShopBusinessCardHtmlResult {
@@ -278,6 +288,8 @@ export function buildPrintShopBusinessCardHtml({ template, origin, includeProduc
     .logo-shape-spark::after { content: ""; position: absolute; right: 12%; top: 12%; width: 12%; height: 12%; border-radius: 999mm; background: currentColor; }
     .field { position: absolute; z-index: 2; display: flex; align-items: center; overflow: hidden; line-height: 1.3; padding: 0 var(--field-padding-x); }
     .field span { display: block; width: 100%; overflow: hidden; white-space: nowrap; }
+    .qr-code { position: absolute; z-index: 2; overflow: hidden; }
+    .qr-code img { display: block; width: 100%; height: 100%; object-fit: contain; }
     .info-block { position: absolute; z-index: 2; overflow: visible; line-height: 1.3; }
     .info-block-icon { position: absolute; display: flex; justify-content: flex-end; align-items: center; overflow: visible; border: var(--icon-border-width) solid transparent; padding: var(--icon-padding); }
     .info-block-icon svg { display: block; width: 100%; height: 100%; }

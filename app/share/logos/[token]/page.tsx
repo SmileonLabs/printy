@@ -36,7 +36,7 @@ export default async function ShareLogoPage({ params }: ShareLogoPageProps) {
         <div className="grid gap-4 px-5 py-5">
           <div className="rounded-lg border border-line bg-surface-blue p-4">
             <p className="text-sm font-black text-primary-strong">이 로고를 내 브랜드로 가져오기</p>
-            <p className="mt-2 text-xs font-bold leading-5 text-muted">가입하면 공유 페이지는 잠기고, 로고와 브랜드가 가입한 계정 소유로 이동해요.</p>
+            <p className="mt-2 text-xs font-bold leading-5 text-muted">가입하거나 로그인하면 공유 페이지는 잠기고, 이 브랜드만 해당 계정에 추가돼요.</p>
           </div>
           <Link className="block rounded-md bg-primary px-5 py-4 text-center text-base font-extrabold text-white shadow-soft transition hover:-translate-y-0.5" href={`/?claimLogoShare=${encodeURIComponent(token)}`}>
             브랜드 사용하기

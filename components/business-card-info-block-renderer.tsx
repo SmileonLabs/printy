@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 import { businessCardTemplateIconArtwork } from "@/lib/business-card-templates";
-import { adminCanvasReferenceWidthPx, businessCardContactItemGapPx, businessCardIconChromeStyle, businessCardInfoBlockIconSvgPreserveAspectRatio, businessCardInfoBlockIconTextGapStylePx, estimatedBusinessCardTextWidthEm, fittedBusinessCardFontSizePx, fontFamilies, formatPercent, getBusinessCardInfoBlockRenderMetrics, getBusinessCardInfoBlockRowRenderMetrics, readSafeColor, type BusinessCardContactRow, type BusinessCardInfoBlock } from "@/lib/business-card-rendering";
+import { adminCanvasReferenceWidthPx, businessCardIconChromeStyle, businessCardInfoBlockIconSvgPreserveAspectRatio, businessCardInfoBlockIconTextGapStylePx, estimatedBusinessCardTextWidthEm, fittedBusinessCardFontSizePx, fontFamilies, formatPercent, getBusinessCardInfoBlockRenderMetrics, getBusinessCardInfoBlockRowRenderMetrics, readSafeColor, type BusinessCardContactRow, type BusinessCardInfoBlock } from "@/lib/business-card-rendering";
 import type { BusinessCardTemplateTextAlign, BusinessCardTemplateTextElement } from "@/lib/types";
 
 function justifyContentForTextAlign(align: BusinessCardTemplateTextAlign): CSSProperties["justifyContent"] {
@@ -28,7 +28,7 @@ function textStyle(field: BusinessCardTemplateTextElement, cssPixelScale: number
 }
 
 function contactRowFontScale(row: BusinessCardContactRow, cssPixelScale: number, availableWidthPercent: number, gapPx: number, trimWidthScale: number, paddingPx: number) {
-  if (row.id !== "contact" || row.items.length <= 1) {
+  if (row.items.length <= 1) {
     return 1;
   }
 
@@ -72,17 +72,17 @@ export function BusinessCardInfoBlockRenderer({ block, cssPixelScale, gapScale =
         const rowMetrics = getBusinessCardInfoBlockRowRenderMetrics(block, row);
         const iconTextGapPx = block.icon ? businessCardInfoBlockIconTextGapStylePx(block, gapScale) : 0;
         const rowLeft = block.icon ? `calc(${formatPercent(metrics.iconTextPaddingPercent, 0)}% + ${iconTextGapPx}px)` : `${formatPercent(metrics.paddingLeftPercent, 0)}%`;
-        const itemGapPx = row.id === "contact" ? businessCardContactItemGapPx * gapScale : 0.35;
+        const itemGapPx = 0.35;
         const rowAvailableWidthPercent = Math.max(1, 100 - (block.icon ? metrics.iconTextPaddingPercent : metrics.paddingLeftPercent));
         const rowAvailableCanvasWidthPercent = block.box.width * (rowAvailableWidthPercent / 100);
-        const contactFontScale = contactRowFontScale(row, cssPixelScale, rowAvailableCanvasWidthPercent, row.id === "contact" ? itemGapPx : 0, trimWidthScale, iconTextGapPx);
-        const contactGapReservePercent = row.id === "contact" ? Math.min(rowAvailableWidthPercent - 1, row.items.length * 3) : 0;
+        const contactFontScale = contactRowFontScale(row, cssPixelScale, rowAvailableCanvasWidthPercent, 0, trimWidthScale, iconTextGapPx);
+        const contactGapReservePercent = 0;
         const itemAvailableWidthPercent = Math.max(1, block.box.width * ((rowAvailableWidthPercent - contactGapReservePercent) / 100) / row.items.length);
 
         return (
-          <span key={row.id} className="absolute flex min-w-0 items-center overflow-hidden whitespace-nowrap" style={{ left: rowLeft, right: 0, top: `${formatPercent(rowMetrics.topPercent, 0)}%`, height: `${formatPercent(rowMetrics.heightPercent, 100)}%`, gap: row.id === "contact" ? `${formatPercent(itemGapPx, businessCardContactItemGapPx)}px` : `${itemGapPx}em`, justifyContent: justifyContentForTextAlign(firstField.align) }}>
+          <span key={row.id} className="absolute flex min-w-0 items-center overflow-hidden whitespace-nowrap" style={{ left: rowLeft, right: 0, top: `${formatPercent(rowMetrics.topPercent, 0)}%`, height: `${formatPercent(rowMetrics.heightPercent, 100)}%`, gap: `${itemGapPx}em`, justifyContent: justifyContentForTextAlign(firstField.align) }}>
             {row.items.map((item) => (
-              <span key={item.field.id} className="flex-none overflow-visible" style={{ ...textStyle(item.field, cssPixelScale, item.value, itemAvailableWidthPercent, trimWidthScale, row.id === "contact" ? 0 : iconTextGapPx), ...(row.id === "contact" ? { fontSize: `${formatPercent(item.field.fontSize * cssPixelScale * contactFontScale, item.field.fontSize * cssPixelScale)}px` } : undefined) }}>{item.value}</span>
+              <span key={item.field.id} className="flex-none overflow-visible" style={{ ...textStyle(item.field, cssPixelScale, item.value, itemAvailableWidthPercent, trimWidthScale, iconTextGapPx), fontSize: `${formatPercent(item.field.fontSize * cssPixelScale * contactFontScale, item.field.fontSize * cssPixelScale)}px` }}>{item.value}</span>
             ))}
           </span>
         );

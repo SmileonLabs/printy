@@ -2,9 +2,13 @@ import type {
   Brand,
   BrandAsset,
   ActiveBrandMockupJob,
+  AiBusinessCardMockup,
+  AiBusinessCardMockupStatus,
   BrandDetailSectionId,
+  BrandLogoSetupMode,
   BrandView,
   BusinessCardDraft,
+  BusinessCardProductionOptions,
   GeneratedLogoOption,
   LocalAuthInput,
   LocalAuthSession,
@@ -18,6 +22,7 @@ import type {
   OnboardingStep,
   OrderOptions,
   OrderRecord,
+  ShippingInfo,
   PaymentMethod,
   PrintProduct,
   PrintTemplate,
@@ -35,6 +40,7 @@ export type PrintyState = {
     category: string;
     designRequest: string;
   };
+  brandLogoSetupMode: BrandLogoSetupMode;
   memberDraft: Member;
   selectedLogoId: string;
   generatedLogoOptions: GeneratedLogoOption[];
@@ -55,6 +61,7 @@ export type PrintyState = {
   logoRevisionSourceLogoId?: string;
   orderOptions: OrderOptions;
   selectedPaymentMethod: PaymentMethod;
+  shippingInfo: ShippingInfo;
   isAuthenticated: boolean;
   users: LocalUser[];
   authSession?: LocalAuthSession;
@@ -63,6 +70,17 @@ export type PrintyState = {
   lastOrderId?: string;
   brands: Brand[];
   businessCardDrafts: BusinessCardDraft[];
+  aiBusinessCardMockups: AiBusinessCardMockup[];
+  aiBusinessCardMockupStatus: AiBusinessCardMockupStatus;
+  aiBusinessCardMockupMessage?: string;
+  aiBusinessCardMockupSignature?: string;
+  selectedAiBusinessCardMockupUrl?: string;
+  aiBusinessCardPdfStatus: "idle" | "generating" | "ready" | "failed";
+  aiBusinessCardPdfMessage?: string;
+  aiBusinessCardPdfUrl?: string;
+  aiBusinessCardPdfFileName?: string;
+  aiBusinessCardPdfSignature?: string;
+  aiBusinessCardPdfRecords: Record<string, { status: "generating" | "ready" | "failed"; url?: string; fileName?: string; message?: string }>;
   orders: OrderRecord[];
   printProducts: PrintProduct[];
   templates: PrintTemplate[];
@@ -71,6 +89,7 @@ export type PrintyState = {
   selectedProductId?: string;
   selectedTemplateId?: string;
   selectedBusinessCardMemberIds: string[];
+  businessCardProductionOptions: BusinessCardProductionOptions;
   loginRedirectTarget?: LoginRedirectTarget;
   loginBackStep?: OnboardingStep;
   brandWorkspaceHasPendingLocalChanges: boolean;
@@ -82,7 +101,8 @@ export type PrintyState = {
   deleteBrandLogo: (brandId: string, logoId: string) => void;
   startLogoGeneration: () => void;
   setActiveLogoGenerationJob: (jobId?: string) => void;
-  beginBackgroundLogoGeneration: (brandId: string) => void;
+  beginBackgroundLogoGeneration: (brandId: string, message?: string) => void;
+  dismissBackgroundLogoGenerationNotice: () => void;
   openBackgroundGeneratedLogos: () => void;
   finishLogoGeneration: (status: Extract<LogoGenerationStatus, "success">, logos: GeneratedLogoOption[], message?: string) => void;
   failLogoGeneration: (message: string) => void;
@@ -93,20 +113,40 @@ export type PrintyState = {
   cancelLogoRevision: () => void;
   submitLogoRevision: () => void;
   startAdditionalLogoForBrand: (brandId: string) => void;
+  startUploadedLogoForNewBrand: () => void;
+  startUploadedLogoForBrand: (brandId: string) => void;
+  startUploadedLogoRegistration: () => void;
+  registerUploadedLogo: (logo: GeneratedLogoOption) => void;
   updateMemberDraft: (field: keyof Member, value: string) => void;
   updateOrderOption: <K extends keyof OrderOptions>(field: K, value: OrderOptions[K]) => void;
   selectPaymentMethod: (method: PaymentMethod) => void;
+  updateShippingInfo: <K extends keyof ShippingInfo>(field: K, value: ShippingInfo[K]) => void;
   addBrandMember: (brandId: string, member: Member) => void;
+  updateBrandMember: (brandId: string, memberId: string, member: Member) => void;
+  deleteBrandMember: (brandId: string, memberId: string) => void;
+  cancelOrder: (orderId: string) => void;
   login: (input: LocalAuthInput, redirectTarget?: LoginRedirectTarget) => void;
   logout: () => void;
   saveBrandShell: () => void;
   ensureBusinessCardDraft: () => BusinessCardDraft;
+  beginAiBusinessCardMockupGeneration: (signature: string, message?: string) => void;
+  syncAiBusinessCardMockups: (signature: string, mockups: AiBusinessCardMockup[]) => void;
+  finishAiBusinessCardMockupGeneration: (signature: string, mockups: AiBusinessCardMockup[]) => void;
+  failAiBusinessCardMockupGeneration: (signature: string, message: string) => void;
+  dismissAiBusinessCardMockupNotice: () => void;
+  selectAiBusinessCardMockup: (imageUrl?: string) => void;
+  deleteAiBusinessCardMockup: (mockupId: string) => void;
+  beginAiBusinessCardPdfGeneration: (signature: string) => void;
+  finishAiBusinessCardPdfGeneration: (signature: string, url: string, fileName: string) => void;
+  failAiBusinessCardPdfGeneration: (message: string) => void;
+  dismissAiBusinessCardPdfNotice: () => void;
   completeCheckout: () => void;
   enterDashboard: () => void;
   startNewBrand: () => void;
   setActiveTab: (tab: MainTab) => void;
   openNotifications: () => void;
   openBrandDetail: (brandId: string) => void;
+  deleteBrand: (brandId: string) => void;
   closeBrandDetail: () => void;
   goBack: () => void;
   setBrandSection: (sectionId: BrandDetailSectionId) => void;
@@ -119,5 +159,6 @@ export type PrintyState = {
   syncBrandWorkspace: (workspace: BrandWorkspace, ownerUserId?: string) => void;
   acknowledgeBrandWorkspaceSave: (savedSignature: string, ownerUserId: string) => void;
   startCardEdit: () => void;
-  startBrandSectionProduction: (brandId: string, sectionId: BrandDetailSectionId, memberIds?: string[]) => void;
+  startBrandSectionProduction: (brandId: string, sectionId: BrandDetailSectionId, memberIds?: string[], templateId?: string) => void;
+  updateBusinessCardProductionOptions: (options: BusinessCardProductionOptions) => void;
 };

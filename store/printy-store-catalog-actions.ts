@@ -8,7 +8,7 @@ import type { PrintyState } from "@/store/printy-store-types";
 type PrintyStoreSet = Parameters<StateCreator<PrintyState, [], [], PrintyState>>[0];
 type PrintyStoreGet = Parameters<StateCreator<PrintyState, [], [], PrintyState>>[1];
 
-type PrintyCatalogActions = Pick<PrintyState, "startProduct" | "selectTemplate" | "addBrandAssets" | "setActiveBrandMockupJob" | "startBrandSectionProduction">;
+type PrintyCatalogActions = Pick<PrintyState, "startProduct" | "selectTemplate" | "addBrandAssets" | "setActiveBrandMockupJob" | "startBrandSectionProduction" | "updateBusinessCardProductionOptions">;
 
 function mergeBrandAssets(currentAssets: BrandAsset[], nextAssets: BrandAsset[]) {
   const merged = new Map<string, BrandAsset>();
@@ -47,18 +47,16 @@ export function createPrintyCatalogActions(set: PrintyStoreSet, get: PrintyStore
 
       const draft = state.businessCardDrafts.find((item) => item.brandId === brand.id);
 
-      const selectedLogoId = draft?.selectedLogoId ?? brand.selectedLogoId;
-
       set({
         onboardingComplete: false,
         currentStep: draft ? "orderOptions" : "memberInput",
         brandDraft: { name: brand.name, category: brand.category, designRequest: brand.designRequest },
         memberDraft: brand.members[0] ?? defaultMember,
-        selectedLogoId,
+        selectedLogoId: brand.selectedLogoId,
         selectedBrandId: brand.id,
         activeBusinessCardDraftId: draft?.id,
         selectedProductId: product.id,
-        selectedTemplateId: draft?.templateId,
+        selectedTemplateId: undefined,
         selectedBusinessCardMemberIds: brand.members[0]?.id ? [brand.members[0].id] : [],
       });
     },
@@ -71,7 +69,7 @@ export function createPrintyCatalogActions(set: PrintyStoreSet, get: PrintyStore
         selectedTemplateId: templateId,
         selectedProductId: template?.productId ?? state.selectedProductId,
         businessCardDrafts: shouldUpdateBusinessCardDraft
-          ? state.businessCardDrafts.map((draft) => (draft.id === activeBusinessCardDraftId ? { ...draft, templateId } : draft))
+          ? state.businessCardDrafts.map((draft) => (draft.id === activeBusinessCardDraftId ? { ...draft, templateId, selectedLogoId: state.selectedLogoId } : draft))
           : state.businessCardDrafts,
         brandWorkspaceHasPendingLocalChanges: shouldUpdateBusinessCardDraft ? true : state.brandWorkspaceHasPendingLocalChanges,
         brandWorkspaceOwnerUserId: shouldUpdateBusinessCardDraft && !state.isAuthenticated ? undefined : state.brandWorkspaceOwnerUserId,
@@ -85,7 +83,8 @@ export function createPrintyCatalogActions(set: PrintyStoreSet, get: PrintyStore
         brandWorkspaceOwnerUserId: assets.length > 0 && !state.isAuthenticated ? undefined : state.brandWorkspaceOwnerUserId,
       })),
     setActiveBrandMockupJob: (job) => set({ activeBrandMockupJob: job }),
-    startBrandSectionProduction: (brandId, sectionId, memberIds) => {
+    updateBusinessCardProductionOptions: (options) => set({ businessCardProductionOptions: options }),
+    startBrandSectionProduction: (brandId, sectionId, memberIds, templateId) => {
       const state = get();
       const brand = state.brands.find((item) => item.id === brandId);
       const productId = getProductForSection(sectionId);
@@ -99,18 +98,16 @@ export function createPrintyCatalogActions(set: PrintyStoreSet, get: PrintyStore
       const selectedMember = brand.members.find((member) => member.id === selectedMemberIds[0]);
       const draft = state.businessCardDrafts.find((item) => item.brandId === brand.id && (!selectedMember || item.member.id === selectedMember.id)) ?? state.businessCardDrafts.find((item) => item.brandId === brand.id);
 
-      const selectedLogoId = draft?.selectedLogoId ?? brand.selectedLogoId;
-
       set({
         onboardingComplete: false,
         currentStep: selectedMemberIds.length > 0 ? "businessCardPreview" : draft ? "orderOptions" : "memberInput",
         brandDraft: { name: brand.name, category: brand.category, designRequest: brand.designRequest },
         memberDraft: selectedMember ?? brand.members[0] ?? defaultMember,
-        selectedLogoId,
+        selectedLogoId: brand.selectedLogoId,
         selectedBrandId: brand.id,
         activeBusinessCardDraftId: draft?.id,
         selectedProductId: product.id,
-        selectedTemplateId: draft?.templateId,
+        selectedTemplateId: templateId,
         selectedBusinessCardMemberIds: selectedMemberIds,
       });
     },

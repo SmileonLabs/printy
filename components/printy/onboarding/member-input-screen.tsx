@@ -12,18 +12,22 @@ export function MemberInputScreen() {
     { label: "이름", field: "name", placeholder: "김하린" },
     { label: "휴대폰", field: "phone", placeholder: "010-0000-0000" },
   ];
-  const optionalFields: Array<{ label: string; field: keyof Pick<Member, "role" | "mainPhone" | "fax" | "email" | "address" | "website">; placeholder: string }> = [
+  const optionalFields: Array<{ label: string; field: keyof Pick<Member, "role" | "mainPhone" | "fax" | "email" | "address" | "website" | "account">; placeholder: string }> = [
     { label: "직함", field: "role", placeholder: "대표" },
     { label: "대표전화", field: "mainPhone", placeholder: "02-0000-0000" },
     { label: "팩스", field: "fax", placeholder: "02-0000-0001" },
     { label: "이메일", field: "email", placeholder: "hello@brand.kr" },
     { label: "주소", field: "address", placeholder: "서울시 성동구 프린티로 12, 3층" },
     { label: "웹도메인", field: "website", placeholder: "www.brand.kr" },
+    { label: "계좌번호", field: "account", placeholder: "국민 123456-04-123456" },
   ];
   const canContinue = memberDraft.name.trim().length > 0 && memberDraft.phone.trim().length > 0;
+  const handleContinue = () => {
+    setStep("businessCardPreview");
+  };
 
   return (
-    <Screen footer={<AppButton onClick={() => setStep("businessCardPreview")} disabled={!canContinue} className="disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0">명함 만들기</AppButton>}>
+    <Screen footer={<AppButton onClick={handleContinue} disabled={!canContinue} className="disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0">명함 만들기</AppButton>}>
       <ProgressHeader eyebrow="구성원 입력" title="명함에 들어갈 정보를 확인해요" description="먼저 대표 구성원 1명의 정보를 넣어주세요. 나중에 팀 / 구성원 메뉴에서 더 추가할 수 있어요." step={stepNumbers.memberInput} total={onboardingTotalSteps} action={<HomeExitAction />} />
       <div className="grid gap-4">
         <section className="grid gap-3 rounded-lg border border-line bg-surface p-4 shadow-card">

@@ -302,6 +302,26 @@ function isRevisionSourceLogoUrl(value: string) {
   return isDataPngUrl(value) || isGeneratedLogoPublicUrl(value);
 }
 
+function normalizeRevisionSourceLogoUrl(value: string) {
+  if (isDataPngUrl(value)) {
+    return value;
+  }
+
+  const pathOnlyValue = value.split(/[?#]/, 1)[0] ?? value;
+
+  if (isGeneratedLogoPublicUrl(pathOnlyValue)) {
+    return pathOnlyValue;
+  }
+
+  try {
+    const url = new URL(value);
+
+    return isGeneratedLogoPublicUrl(url.pathname) ? url.pathname : value;
+  } catch {
+    return value;
+  }
+}
+
 function readBase64PngData(imageUrl: string) {
   return imageUrl.slice("data:image/png;base64,".length);
 }
@@ -318,7 +338,7 @@ function parseSourceLogo(value: unknown): LogoRevisionSourceLogo | undefined {
   }
 
   const id = readString(value, "id");
-  const imageUrl = readString(value, "imageUrl");
+  const imageUrl = normalizeRevisionSourceLogoUrl(readString(value, "imageUrl"));
 
   if (!isWithinLength(id, 1, 200) || !isRevisionSourceLogoUrl(imageUrl)) {
     return undefined;
@@ -342,8 +362,9 @@ export function parseLogoGenerationRequest(value: unknown): BrandLogoRequest {
   }
 
   const brandName = readString(value, "brandName");
-  const industry = readString(value, "industry") || readString(value, "category");
   const mode = value.mode === "revision" ? "revision" : "initial";
+  const rawIndustry = readString(value, "industry") || readString(value, "category");
+  const industry = mode === "revision" && rawIndustry.length === 0 ? "브랜드" : rawIndustry;
 
   if (!isWithinLength(brandName, 1, 100) || !isWithinLength(industry, 1, 100)) {
     throw new LogoGenerationRequestValidationError();
@@ -443,14 +464,25 @@ async function generateOpenAIReferenceLogo(client: OpenAI, plan: LogoGenerationP
     throw new LogoGenerationInvalidRequestError("Logo reference image is missing or unreadable.");
   }
 
-  const forcedInstructions = referenceImage.analysis?.forcedInstructions?.trim();
+  const analysis = referenceImage.analysis;
+  const forcedInstructions = analysis?.forcedInstructions?.trim();
+  const oneTimeUserRequirements = plan.source === "user" ? plan.designRequest.trim() : "";
+  const referenceAnalysisPrompt = analysis
+    ? [
+        `Reference analysis summary: ${analysis.summary}`,
+        analysis.styleTags.length > 0 ? `Reference style tags: ${analysis.styleTags.join(", ")}` : "",
+        `Reference color direction: ${analysis.colorNotes}`,
+        `Reference composition direction: ${analysis.compositionNotes}`,
+        `Reference caution: ${analysis.cautionNotes}`,
+      ].filter(Boolean).join("\n")
+    : "Reference analysis was unavailable. Inspect the provided image directly and use its visual structure, mood, color, and composition as the main style direction.";
   let imageData: string | undefined;
 
   try {
     const response = await client.images.edit({
       model: readOpenAIImageModel(),
       image: await toFile(referenceImage.bytes, referenceImage.contentType === "image/png" ? "reference.png" : "reference.jpg", { type: referenceImage.contentType }),
-      prompt: `${plan.prompt}\n\nUse the provided reference image only for visual direction such as mood, color, composition, and style. Do not copy protected logos, marks, characters, text, or distinctive artwork from the reference. Create a new original logo for this brand.${forcedInstructions ? `\n\nMandatory style requirements from admin: ${forcedInstructions}` : ""}`,
+      prompt: `${plan.prompt}\n\nReference-image mode: the attached reference image is the primary visual direction for this generation. Actively inspect it and adapt its overall silhouette logic, visual rhythm, composition balance, color mood, line weight, texture impression, visual density, ornament level, and typography mood into a new original logo. Do not fall back to a generic logo template when the reference image gives a clear direction.\n${referenceAnalysisPrompt}${oneTimeUserRequirements ? `\n\nOne-time user requirements to apply now: ${oneTimeUserRequirements}` : ""}\n\nCreate a new original logo for this brand. Do not copy protected logos, marks, characters, exact text, or distinctive artwork from the reference image. Preserve only broad style, form language, color mood, and composition principles.${forcedInstructions ? `\n\nMandatory style requirements from admin: ${forcedInstructions}` : ""}`,
       n: 1,
       size: "1024x1024",
       output_format: "png",
@@ -499,10 +531,17 @@ async function generateOpenAIRevisionLogo(client: OpenAI, plan: LogoGenerationPl
   let imageData: string | undefined;
 
   try {
+    const revisionPrompt = [
+      "You are editing the attached source logo image. Treat the image as the exact original to preserve, not as inspiration for a new logo.",
+      "Keep the same brand identity, layout, proportions, symbol-wordmark relationship, lettering continuity, color mood, and overall silhouette unless the user explicitly requested that specific part to change.",
+      "Return a revised version of the same logo. Do not regenerate a different logo concept.",
+      plan.prompt,
+    ].join("\n\n");
+
     const response = await client.images.edit({
       model: readOpenAIImageModel(),
       image,
-      prompt: plan.prompt,
+      prompt: revisionPrompt,
       n: 1,
       size: "1024x1024",
       output_format: "png",

@@ -9,7 +9,6 @@ export async function GET(request: Request) {
     clientId: process.env.KAKAO_CLIENT_ID,
     redirectUri: process.env.KAKAO_REDIRECT_URI,
     authorizeUrl: "https://kauth.kakao.com/oauth/authorize",
-    scope: "profile_nickname account_email",
     redirectTarget: "dashboard",
   });
 }

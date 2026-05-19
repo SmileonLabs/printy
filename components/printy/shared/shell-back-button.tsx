@@ -13,8 +13,9 @@ export function ShellBackButton() {
 
   const isDashboardRoot = onboardingComplete && isAuthenticated && activeTab === "home" && brandView === "list";
   const isHomeRoot = !onboardingComplete && currentStep === "home";
+  const usesInlineCancelAction = currentStep === "generating" || currentStep === "logoRevision";
 
-  if (isDashboardRoot || isHomeRoot) {
+  if (isDashboardRoot || isHomeRoot || usesInlineCancelAction) {
     return null;
   }
 

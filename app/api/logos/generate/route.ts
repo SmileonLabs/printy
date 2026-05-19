@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createLogoGenerationJob, getLogoGenerationClientKey, wakeLogoGenerationProcessor } from "@/lib/server/logo-generation-jobs";
 import { invalidLogoGenerationRequestReason, LogoGenerationExecutionError, LogoGenerationRequestValidationError } from "@/lib/server/logo-generation-executor";
+import { getCurrentDbSession } from "@/lib/server/auth/session";
 import type { LogoGenerationJobCreateResponse } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -9,7 +10,8 @@ export async function POST(request: Request) {
   const body = await request.json().catch((error: unknown) => ({ parseError: error instanceof Error ? error.name : "UnknownParseError" }));
 
   try {
-    const response: LogoGenerationJobCreateResponse = await createLogoGenerationJob(body, getLogoGenerationClientKey(request));
+    const session = await getCurrentDbSession();
+    const response: LogoGenerationJobCreateResponse = await createLogoGenerationJob(body, { clientKey: getLogoGenerationClientKey(request), userId: session?.user.id });
     wakeLogoGenerationProcessor();
 
     return NextResponse.json(response, { status: 202 });
