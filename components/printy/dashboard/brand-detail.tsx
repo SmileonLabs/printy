@@ -76,7 +76,6 @@ const businessCardUserElements: Array<{ id: BusinessCardUserElementId; label: st
   { id: "adLine1", label: "광고 문구 1" },
   { id: "adLine2", label: "광고 문구 2" },
   { id: "instagram", label: "인스타그램" },
-  { id: "instagramIcon", label: "인스타그램 아이콘" },
   { id: "qrCode", label: "QR 코드" },
 ];
 
@@ -938,12 +937,13 @@ function businessCardTemplateSideHasElement(template: PrintTemplate, sideId: "fr
 }
 
 function findMatchingBusinessCardTemplate(templates: PrintTemplate[], frontElements: BusinessCardUserElementId[], backElements: BusinessCardUserElementId[]) {
+  const selectedElements = [...new Set([...frontElements, ...backElements])];
   const candidates = templates.filter((template) => {
     if (template.productId !== "business-card" || template.status !== "published" || !template.layout) {
       return false;
     }
 
-    return frontElements.every((elementId) => businessCardTemplateSideHasElement(template, "front", elementId)) && backElements.every((elementId) => businessCardTemplateSideHasElement(template, "back", elementId));
+    return selectedElements.every((elementId) => businessCardTemplateSideHasElement(template, "front", elementId) || businessCardTemplateSideHasElement(template, "back", elementId));
   });
 
   return candidates.length > 0 ? candidates[Math.floor(Math.random() * candidates.length)] : undefined;
