@@ -6,7 +6,7 @@ import type { PrintyState } from "@/store/printy-store-types";
 export const PRINTY_STORE_STORAGE_KEY = "printy-store";
 
 const defaultBusinessCardProductionOptions: BusinessCardProductionOptions = { frontElements: [], backElements: [], color: "black" };
-const businessCardUserElementIds: readonly BusinessCardUserElementId[] = ["brandName", "category", "name", "role", "phone", "mainPhone", "fax", "email", "website", "address", "account", "adLine1", "adLine2", "instagram", "instagramIcon", "qrCode"];
+const businessCardUserElementIds: readonly BusinessCardUserElementId[] = ["brandName", "category", "name", "role", "phone", "mainPhone", "fax", "email", "website", "address", "account", "titleLine1", "titleLine2", "adLine1", "adLine2", "instagram", "instagramIcon", "qrCode"];
 const businessCardColorPaletteIds: readonly BusinessCardColorPaletteId[] = ["black", "white", "green", "yellow", "blue", "red"];
 
 export function isPersistedPrintyState(value: unknown): value is Partial<PrintyState> {

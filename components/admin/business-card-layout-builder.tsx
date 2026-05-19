@@ -152,6 +152,8 @@ const fieldLabels: Record<BusinessCardTemplateTextFieldId, string> = {
   website: "웹도메인",
   address: "주소",
   account: "계좌번호",
+  titleLine1: "한줄 제목 1",
+  titleLine2: "한줄 제목 2",
   adLine1: "광고 문구 1",
   adLine2: "광고 문구 2",
   instagram: "인스타그램",

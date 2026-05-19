@@ -23,7 +23,7 @@ type UserArchiveFile = {
   size: number;
   createdAt: string;
 };
-type MemberFormValues = Pick<Member, "name" | "role" | "phone" | "mainPhone" | "fax" | "email" | "website" | "address" | "account" | "adLine1" | "adLine2" | "instagram" | "qrCodeImageUrl">;
+type MemberFormValues = Pick<Member, "name" | "role" | "phone" | "mainPhone" | "fax" | "email" | "website" | "address" | "account" | "titleLine1" | "titleLine2" | "adLine1" | "adLine2" | "instagram" | "qrCodeImageUrl">;
 const emptyMemberFormValues: MemberFormValues = {
   name: "",
   role: "",
@@ -34,6 +34,8 @@ const emptyMemberFormValues: MemberFormValues = {
   website: "",
   address: "",
   account: "",
+  titleLine1: "",
+  titleLine2: "",
   adLine1: "",
   adLine2: "",
   instagram: "",
@@ -50,6 +52,8 @@ const memberFormFields: Array<{ label: string; field: keyof MemberFormValues; pl
   { label: "웹도메인", field: "website", placeholder: "www.brand.kr" },
   { label: "주소", field: "address", placeholder: "서울시 성동구 프린티로 12" },
   { label: "계좌번호", field: "account", placeholder: "국민 123456-04-123456" },
+  { label: "한줄 제목 1", field: "titleLine1", placeholder: "믿고 맡기는 프린팅" },
+  { label: "한줄 제목 2", field: "titleLine2", placeholder: "브랜드를 더 선명하게" },
   { label: "광고 문구 1", field: "adLine1", placeholder: "프리미엄 맞춤 제작" },
   { label: "광고 문구 2", field: "adLine2", placeholder: "빠르고 정확한 상담" },
   { label: "인스타그램", field: "instagram", placeholder: "@brand.official" },
@@ -65,6 +69,8 @@ const businessCardUserElements: Array<{ id: BusinessCardUserElementId; label: st
   { id: "website", label: "웹도메인" },
   { id: "address", label: "주소" },
   { id: "account", label: "계좌번호" },
+  { id: "titleLine1", label: "한줄 제목 1" },
+  { id: "titleLine2", label: "한줄 제목 2" },
   { id: "adLine1", label: "광고 문구 1" },
   { id: "adLine2", label: "광고 문구 2" },
   { id: "instagram", label: "인스타그램" },
@@ -734,6 +740,8 @@ function createMemberFromForm(values: MemberFormValues): Member {
     website: values.website?.trim() ?? "",
     address: values.address.trim(),
     account: values.account?.trim() ?? "",
+    titleLine1: values.titleLine1?.trim() ?? "",
+    titleLine2: values.titleLine2?.trim() ?? "",
     adLine1: values.adLine1?.trim() ?? "",
     adLine2: values.adLine2?.trim() ?? "",
     instagram: values.instagram?.trim() ?? "",
@@ -752,6 +760,8 @@ function memberFormValuesFromMember(member: Member): MemberFormValues {
     website: member.website ?? "",
     address: member.address,
     account: member.account ?? "",
+    titleLine1: member.titleLine1 ?? "",
+    titleLine2: member.titleLine2 ?? "",
     adLine1: member.adLine1 ?? "",
     adLine2: member.adLine2 ?? "",
     instagram: member.instagram ?? "",
@@ -940,6 +950,8 @@ function createBusinessCardPreviewMember(brand: Brand): Member {
     email: "hello@printy.kr",
     address: "서울시 성동구 프린티로 12",
     account: "국민 123456-04-123456",
+    titleLine1: "믿고 맡기는 프린팅",
+    titleLine2: "브랜드를 더 선명하게",
     adLine1: "프리미엄 맞춤 제작",
     adLine2: "빠르고 정확한 상담",
     instagram: "@printy.official",
@@ -1002,7 +1014,7 @@ function businessCardElementHasInputValue(elementId: BusinessCardUserElementId, 
     return members.some((member) => (member.qrCodeImageUrl ?? "").trim().length > 0);
   }
 
-  const memberField = elementId as keyof Pick<Member, "name" | "role" | "phone" | "mainPhone" | "fax" | "email" | "website" | "address" | "account" | "adLine1" | "adLine2" | "instagram">;
+  const memberField = elementId as keyof Pick<Member, "name" | "role" | "phone" | "mainPhone" | "fax" | "email" | "website" | "address" | "account" | "titleLine1" | "titleLine2" | "adLine1" | "adLine2" | "instagram">;
 
   return members.some((member) => typeof member[memberField] === "string" && member[memberField].trim().length > 0);
 }

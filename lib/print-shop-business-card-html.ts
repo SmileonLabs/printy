@@ -115,6 +115,8 @@ function fieldValue(fieldId: BusinessCardTemplateTextFieldId, renderData: PrintS
     website: renderData.member.website ?? "",
     address: renderData.member.address,
     account: renderData.member.account ?? "",
+    titleLine1: renderData.member.titleLine1 ?? "",
+    titleLine2: renderData.member.titleLine2 ?? "",
     adLine1: renderData.member.adLine1 ?? "",
     adLine2: renderData.member.adLine2 ?? "",
     instagram: renderData.member.instagram ?? "",

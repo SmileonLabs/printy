@@ -2,7 +2,7 @@ import type { AiBusinessCardInput } from "@/lib/ai-business-card/schema";
 import type { BusinessCardColorPaletteId, BusinessCardProductionOptions, BusinessCardUserElementId, LogoShape, Member, ResolvedLogoOption } from "@/lib/types";
 
 const logoShapes = new Set<LogoShape>(["circle", "square", "pill", "diamond", "arch", "spark"]);
-const businessCardElementIds = new Set<BusinessCardUserElementId>(["logo", "brandName", "category", "name", "role", "phone", "mainPhone", "fax", "email", "website", "address", "account", "adLine1", "adLine2", "instagram", "instagramIcon", "qrCode"]);
+const businessCardElementIds = new Set<BusinessCardUserElementId>(["logo", "brandName", "category", "name", "role", "phone", "mainPhone", "fax", "email", "website", "address", "account", "titleLine1", "titleLine2", "adLine1", "adLine2", "instagram", "instagramIcon", "qrCode"]);
 const businessCardColorIds = new Set<BusinessCardColorPaletteId>(["black", "white", "green", "yellow", "blue", "red"]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -31,6 +31,8 @@ function readMember(value: unknown): Member | undefined {
     website: readString(value, "website"),
     address: readString(value, "address"),
     account: readString(value, "account"),
+    titleLine1: readString(value, "titleLine1"),
+    titleLine2: readString(value, "titleLine2"),
     adLine1: readString(value, "adLine1"),
     adLine2: readString(value, "adLine2"),
     instagram: readString(value, "instagram"),

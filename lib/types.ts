@@ -186,6 +186,8 @@ export type Member = {
   website?: string;
   address: string;
   account?: string;
+  titleLine1?: string;
+  titleLine2?: string;
   adLine1?: string;
   adLine2?: string;
   instagram?: string;
@@ -216,7 +218,7 @@ export type BusinessCardDraft = {
   createdAt: string;
 };
 
-export type BusinessCardUserElementId = "logo" | "brandName" | "category" | "name" | "role" | "phone" | "mainPhone" | "fax" | "email" | "website" | "address" | "account" | "adLine1" | "adLine2" | "instagram" | "instagramIcon" | "qrCode";
+export type BusinessCardUserElementId = "logo" | "brandName" | "category" | "name" | "role" | "phone" | "mainPhone" | "fax" | "email" | "website" | "address" | "account" | "titleLine1" | "titleLine2" | "adLine1" | "adLine2" | "instagram" | "instagramIcon" | "qrCode";
 export type BusinessCardColorPaletteId = "black" | "white" | "green" | "yellow" | "blue" | "red";
 export type BusinessCardProductionOptions = {
   frontElements: BusinessCardUserElementId[];
@@ -310,7 +312,7 @@ export type PrintProduct = QuickProductionItem & {
 
 export type BusinessCardTemplateSideId = "front" | "back";
 
-export type BusinessCardTemplateTextFieldId = "role" | "name" | "phone" | "email" | "website" | "address" | "mainPhone" | "fax" | "account" | "adLine1" | "adLine2" | "instagram" | "qrCode";
+export type BusinessCardTemplateTextFieldId = "role" | "name" | "phone" | "email" | "website" | "address" | "mainPhone" | "fax" | "account" | "titleLine1" | "titleLine2" | "adLine1" | "adLine2" | "instagram" | "qrCode";
 
 export type BusinessCardTemplateFontFamily = "sans" | "serif" | "rounded" | "mono" | "display" | "handwriting";
 

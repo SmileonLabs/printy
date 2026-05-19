@@ -60,6 +60,8 @@ function readFieldValue(field: AiBusinessCardTextField, input: AiBusinessCardInp
     website: input.member.website ?? "",
     address: input.member.address,
     account: input.member.account ?? "",
+    titleLine1: input.member.titleLine1 ?? "",
+    titleLine2: input.member.titleLine2 ?? "",
     adLine1: input.member.adLine1 ?? "",
     adLine2: input.member.adLine2 ?? "",
     instagram: input.member.instagram ?? "",

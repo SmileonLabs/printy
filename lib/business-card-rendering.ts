@@ -20,6 +20,8 @@ export const sampleBusinessCardFieldValues: Record<BusinessCardTemplateTextField
   website: "www.prity.com",
   address: "서울특별시 강남구 서초동 12-3 456동",
   account: "국민 123456-04-123456",
+  titleLine1: "한줄 제목 1",
+  titleLine2: "한줄 제목 2",
   adLine1: "프리미엄 맞춤 제작",
   adLine2: "빠르고 정확한 상담",
   instagram: "@printy.official",

@@ -17,6 +17,8 @@ export const defaultMember: Member = {
   website: "",
   address: "",
   account: "",
+  titleLine1: "",
+  titleLine2: "",
   adLine1: "",
   adLine2: "",
   instagram: "",

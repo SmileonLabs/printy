@@ -3,7 +3,7 @@ import type { BusinessCardTemplateBackground, BusinessCardTemplateBox, BusinessC
 export const businessCardProductId = "business-card";
 export const businessCardTemplateStatuses = ["draft", "published"] as const;
 export const businessCardTemplatePreviewVariants = ["clean", "band", "editorial", "frame", "signal"] as const;
-export const businessCardTemplateFieldIds = ["role", "name", "phone", "email", "website", "address", "mainPhone", "fax", "account", "adLine1", "adLine2", "instagram", "qrCode"] as const;
+export const businessCardTemplateFieldIds = ["role", "name", "phone", "email", "website", "address", "mainPhone", "fax", "account", "titleLine1", "titleLine2", "adLine1", "adLine2", "instagram", "qrCode"] as const;
 export const businessCardTemplateFontFamilies = ["sans", "serif", "rounded", "mono", "display", "handwriting"] as const;
 export const businessCardTemplateTextWeights = ["regular", "bold"] as const;
 export const businessCardTemplateIconIds = ["name", "role", "mobile", "phone", "email", "location", "address", "fax", "building", "company", "web", "account", "instagram"] as const;
@@ -73,8 +73,10 @@ const defaultBusinessCardTextElements: BusinessCardTemplateTextElement[] = busin
     { x: 58, y: 44, width: 32, height: 8 },
     { x: 58, y: 88, width: 32, height: 8 },
     { x: 58, y: 88, width: 32, height: 8 },
-    { x: 12, y: 12, width: 76, height: 8 },
-    { x: 12, y: 22, width: 76, height: 8 },
+    { x: 12, y: 8, width: 76, height: 8 },
+    { x: 12, y: 18, width: 76, height: 8 },
+    { x: 12, y: 28, width: 76, height: 8 },
+    { x: 12, y: 38, width: 76, height: 8 },
     { x: 58, y: 88, width: 32, height: 8 },
     { x: 78, y: 68, width: 14, height: 24 },
   ][index],

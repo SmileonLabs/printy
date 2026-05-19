@@ -96,6 +96,8 @@ export function normalizeMember(member: Partial<Member> | Record<string, unknown
     website: normalizeOptionalString(record.website, fallback.website ?? ""),
     address: normalizeOptionalString(record.address, fallback.address),
     account: normalizeOptionalString(record.account, fallback.account ?? ""),
+    titleLine1: normalizeOptionalString(record.titleLine1, fallback.titleLine1 ?? ""),
+    titleLine2: normalizeOptionalString(record.titleLine2, fallback.titleLine2 ?? ""),
     adLine1: normalizeOptionalString(record.adLine1, fallback.adLine1 ?? ""),
     adLine2: normalizeOptionalString(record.adLine2, fallback.adLine2 ?? ""),
     instagram: normalizeOptionalString(record.instagram, fallback.instagram ?? ""),

@@ -39,7 +39,7 @@ export function isMember(value: unknown): value is Member {
     return false;
   }
 
-  return isNonEmptyString(value.id) && isString(value.name) && isString(value.role) && isString(value.phone) && (value.mainPhone === undefined || isString(value.mainPhone)) && (value.fax === undefined || isString(value.fax)) && (value.email === undefined || isString(value.email)) && (value.website === undefined || isString(value.website)) && (value.address === undefined || isString(value.address)) && (value.account === undefined || isString(value.account)) && (value.adLine1 === undefined || isString(value.adLine1)) && (value.adLine2 === undefined || isString(value.adLine2)) && (value.instagram === undefined || isString(value.instagram)) && (value.qrCodeImageUrl === undefined || isString(value.qrCodeImageUrl));
+  return isNonEmptyString(value.id) && isString(value.name) && isString(value.role) && isString(value.phone) && (value.mainPhone === undefined || isString(value.mainPhone)) && (value.fax === undefined || isString(value.fax)) && (value.email === undefined || isString(value.email)) && (value.website === undefined || isString(value.website)) && (value.address === undefined || isString(value.address)) && (value.account === undefined || isString(value.account)) && (value.titleLine1 === undefined || isString(value.titleLine1)) && (value.titleLine2 === undefined || isString(value.titleLine2)) && (value.adLine1 === undefined || isString(value.adLine1)) && (value.adLine2 === undefined || isString(value.adLine2)) && (value.instagram === undefined || isString(value.instagram)) && (value.qrCodeImageUrl === undefined || isString(value.qrCodeImageUrl));
 }
 
 function normalizeBrandContacts(brand: Brand): Brand {

@@ -39,6 +39,8 @@ export function createAiBusinessCardMockupSignature(input: AiBusinessCardClientI
       website: input.member.website?.trim() ?? "",
       address: input.member.address.trim(),
       account: input.member.account?.trim() ?? "",
+      titleLine1: input.member.titleLine1?.trim() ?? "",
+      titleLine2: input.member.titleLine2?.trim() ?? "",
       adLine1: input.member.adLine1?.trim() ?? "",
       adLine2: input.member.adLine2?.trim() ?? "",
       instagram: input.member.instagram?.trim() ?? "",

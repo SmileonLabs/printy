@@ -1,7 +1,7 @@
 import type { BusinessCardProductionOptions, Member, ResolvedLogoOption } from "@/lib/types";
 
 export type AiBusinessCardSideId = "front" | "back";
-export type AiBusinessCardTextField = "brandName" | "category" | "name" | "role" | "phone" | "mainPhone" | "fax" | "email" | "website" | "address" | "account" | "adLine1" | "adLine2" | "instagram" | "qrCode";
+export type AiBusinessCardTextField = "brandName" | "category" | "name" | "role" | "phone" | "mainPhone" | "fax" | "email" | "website" | "address" | "account" | "titleLine1" | "titleLine2" | "adLine1" | "adLine2" | "instagram" | "qrCode";
 export type AiBusinessCardFontFamily = "Pretendard" | "Noto Sans KR" | "Noto Serif KR" | "Gowun Dodum";
 export type AiBusinessCardFontWeight = "regular" | "medium" | "bold";
 export type AiBusinessCardTextAlign = "left" | "center" | "right";
@@ -136,7 +136,7 @@ export type AiBusinessCardInput = {
   productionOptions?: BusinessCardProductionOptions;
 };
 
-const textFields = new Set<AiBusinessCardTextField>(["brandName", "category", "name", "role", "phone", "mainPhone", "fax", "email", "website", "address", "account", "adLine1", "adLine2", "instagram", "qrCode"]);
+const textFields = new Set<AiBusinessCardTextField>(["brandName", "category", "name", "role", "phone", "mainPhone", "fax", "email", "website", "address", "account", "titleLine1", "titleLine2", "adLine1", "adLine2", "instagram", "qrCode"]);
 const fontFamilies = new Set<AiBusinessCardFontFamily>(["Pretendard", "Noto Sans KR", "Noto Serif KR", "Gowun Dodum"]);
 const fontWeights = new Set<AiBusinessCardFontWeight>(["regular", "medium", "bold"]);
 const textAligns = new Set<AiBusinessCardTextAlign>(["left", "center", "right"]);
