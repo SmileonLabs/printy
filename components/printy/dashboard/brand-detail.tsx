@@ -936,17 +936,50 @@ function businessCardTemplateSideHasElement(template: PrintTemplate, sideId: "fr
   return side.fields.some((field) => field.id === elementId && field.visible);
 }
 
+function businessCardTemplateHasElement(template: PrintTemplate, elementId: BusinessCardUserElementId) {
+  return businessCardTemplateSideHasElement(template, "front", elementId) || businessCardTemplateSideHasElement(template, "back", elementId);
+}
+
+function businessCardTemplateElementsForSide(template: PrintTemplate, sideId: "front" | "back") {
+  const side = template.layout?.sides[sideId];
+
+  if (!side) {
+    return [];
+  }
+
+  return side.fields.filter((field) => field.visible).map((field) => field.id);
+}
+
+function businessCardTemplateElements(template: PrintTemplate) {
+  return [...new Set([...businessCardTemplateElementsForSide(template, "front"), ...businessCardTemplateElementsForSide(template, "back")])];
+}
+
+function mergeBusinessCardElements(frontElements: BusinessCardUserElementId[], backElements: BusinessCardUserElementId[]) {
+  return [...new Set([...frontElements, ...backElements])];
+}
+
 function findMatchingBusinessCardTemplate(templates: PrintTemplate[], frontElements: BusinessCardUserElementId[], backElements: BusinessCardUserElementId[]) {
-  const selectedElements = [...new Set([...frontElements, ...backElements])];
-  const candidates = templates.filter((template) => {
-    if (template.productId !== "business-card" || template.status !== "published" || !template.layout) {
-      return false;
-    }
+  const selectedElements = mergeBusinessCardElements(frontElements, backElements);
+  const publishedTemplates = templates.filter((template) => template.productId === "business-card" && template.status === "published" && template.layout);
+  const candidates = publishedTemplates.filter((template) => selectedElements.every((elementId) => businessCardTemplateHasElement(template, elementId)));
 
-    return selectedElements.every((elementId) => businessCardTemplateSideHasElement(template, "front", elementId) || businessCardTemplateSideHasElement(template, "back", elementId));
-  });
+  if (candidates.length > 0) {
+    return candidates[Math.floor(Math.random() * candidates.length)];
+  }
 
-  return candidates.length > 0 ? candidates[Math.floor(Math.random() * candidates.length)] : undefined;
+  const rankedTemplates = publishedTemplates
+    .map((template) => ({ template, score: selectedElements.filter((elementId) => businessCardTemplateHasElement(template, elementId)).length }))
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  if (rankedTemplates.length === 0) {
+    return publishedTemplates[Math.floor(Math.random() * publishedTemplates.length)];
+  }
+
+  const bestScore = rankedTemplates[0]?.score ?? 0;
+  const bestTemplates = rankedTemplates.filter((item) => item.score === bestScore);
+
+  return bestTemplates[Math.floor(Math.random() * bestTemplates.length)]?.template;
 }
 
 function businessCardElementHasInputValue(elementId: BusinessCardUserElementId, brand: Brand, members: Member[]) {
@@ -1143,7 +1176,11 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
     }
 
     setProductionNotice("");
-    updateBusinessCardProductionOptions({ frontElements, backElements, color: selectedColor });
+    const selectedElements = mergeBusinessCardElements(frontElements, backElements);
+    const matchedElements = selectedElements.filter((elementId) => businessCardTemplateHasElement(matchedTemplate, elementId));
+    const productionElements = matchedElements.length > 0 ? matchedElements : businessCardTemplateElements(matchedTemplate);
+
+    updateBusinessCardProductionOptions({ frontElements: productionElements, backElements: productionElements, color: selectedColor });
     onStartProduction(selectedMemberIds.length > 0 ? selectedMemberIds : brand.members.map((member) => member.id), matchedTemplate.id);
   };
   const handleDownloadMockupPdf = async (mockup: { id: string; imageUrl: string; cleanImageUrl?: string }) => {
