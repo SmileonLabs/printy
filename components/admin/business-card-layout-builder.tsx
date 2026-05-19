@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent, useEffect, useRef, useState } from "react";
 import { BusinessCardInfoBlockRenderer } from "@/components/business-card-info-block-renderer";
-import { businessCardTemplateFieldIds, businessCardTemplateFontFamilies, businessCardTemplateIconArtwork, businessCardTemplateIconIds, businessCardTemplateTextWeights } from "@/lib/business-card-templates";
+import { businessCardTemplateFieldIds, businessCardTemplateFontFamilies, businessCardTemplateIconArtwork, businessCardTemplateIconIds, businessCardTemplateTextWeights, defaultBusinessCardTemplateLayout } from "@/lib/business-card-templates";
 import { businessCardIconChromeStyle, businessCardInfoBlockIconTextGapPx, businessCardTrimWidthScale, displayBusinessCardFieldValue, editableBusinessCardFieldValue, fittedBusinessCardFontSizePx, fontFamilies, formatPercent, getBusinessCardTrimMetrics, resolveBusinessCardContactLayout, sampleBusinessCardFieldValues, type BusinessCardInfoBlock } from "@/lib/business-card-rendering";
 import type { BusinessCardTemplateBox, BusinessCardTemplateFontFamily, BusinessCardTemplateIconElement, BusinessCardTemplateIconId, BusinessCardTemplateLayout, BusinessCardTemplateLineElement, BusinessCardTemplateSideId, BusinessCardTemplateTextAlign, BusinessCardTemplateTextElement, BusinessCardTemplateTextFieldId, BusinessCardTemplateTextWeight } from "@/lib/types";
 
@@ -361,14 +361,16 @@ function normalizeHexColorInput(value: string) {
   return /^#[0-9a-fA-F]{6}$/.test(hex) ? hex.toLowerCase() : undefined;
 }
 
-function getField(layout: BusinessCardTemplateLayout, sideId: BusinessCardTemplateSideId, fieldId: BusinessCardTemplateTextFieldId) {
+function getField(layout: BusinessCardTemplateLayout, sideId: BusinessCardTemplateSideId, fieldId: BusinessCardTemplateTextFieldId): BusinessCardTemplateTextElement {
   const matchingField = layout.sides[sideId].fields.find((field) => field.id === fieldId);
 
   if (matchingField) {
     return matchingField;
   }
 
-  return { id: fieldId, visible: false, box: { x: 0, y: 0, width: 1, height: 1 }, fontFamily: "sans", fontSize: 18, color: "#111827", fontWeight: "bold", italic: false, align: "left" } satisfies BusinessCardTemplateTextElement;
+  const defaultField = defaultBusinessCardTemplateLayout.sides[sideId].fields.find((field) => field.id === fieldId);
+
+  return defaultField ? { ...defaultField, visible: false, box: { ...defaultField.box } } : { id: fieldId, visible: false, box: { x: 0, y: 0, width: 1, height: 1 }, fontFamily: "sans", fontSize: 18, color: "#111827", fontWeight: "bold", italic: false, align: "left" };
 }
 
 function iconMarkup(iconId: BusinessCardTemplateIconId, className = "block h-full w-full") {
@@ -469,7 +471,10 @@ export function BusinessCardLayoutBuilder({ layout, orientation, managedBackgrou
   };
 
   const updateField = (fieldId: BusinessCardTemplateTextFieldId, updater: (field: BusinessCardTemplateTextElement) => BusinessCardTemplateTextElement) => {
-    updateActiveSide({ ...side, fields: side.fields.map((field) => (field.id === fieldId ? updater(field) : field)) });
+    const hasField = side.fields.some((field) => field.id === fieldId);
+    const nextFields = hasField ? side.fields.map((field) => (field.id === fieldId ? updater(field) : field)) : [...side.fields, updater(getField(layout, activeSide, fieldId))];
+
+    updateActiveSide({ ...side, fields: nextFields });
   };
 
   const updateIcon = (iconId: string, updater: (icon: BusinessCardTemplateIconElement) => BusinessCardTemplateIconElement) => {
