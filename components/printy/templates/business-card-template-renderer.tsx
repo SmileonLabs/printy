@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { BusinessCardInfoBlockRenderer } from "@/components/business-card-info-block-renderer";
 import { businessCardTemplateIconArtwork } from "@/lib/business-card-templates";
-import { backgroundColor, boxStyle, businessCardIconChromeStyle, businessCardLogoShapeBorderColor, businessCardTrimWidthScale, cssPxPerMm, displayBusinessCardFieldValue, fittedBusinessCardFontSizePx, fontFamilies, formatPercent, getBusinessCardTrimMetrics, readSafeColor, resolveBusinessCardContactLayout } from "@/lib/business-card-rendering";
+import { backgroundColor, boxStyle, businessCardIconChromeStyle, businessCardLogoShapeBorderColor, businessCardTrimWidthScale, cssPxPerMm, displayBusinessCardFieldValue, fittedBusinessCardFontSizePx, fontFamilies, formatPercent, getBusinessCardTrimMetrics, isMultilineBusinessCardTextFieldId, readSafeColor, resolveBusinessCardContactLayout } from "@/lib/business-card-rendering";
 import type { BusinessCardTemplateBackground, BusinessCardTemplateBox, BusinessCardTemplateIconElement, BusinessCardTemplateLayout, BusinessCardTemplateLineElement, BusinessCardTemplateSideId, BusinessCardTemplateTextElement, BusinessCardTemplateTextFieldId, Member, ResolvedLogoOption } from "@/lib/types";
 
 type BusinessCardTemplateRendererProps = {
@@ -123,7 +123,7 @@ function TextElement({ field, brandName, category, member, cssPixelScale, trimWi
         textAlign: field.align,
       }}
     >
-      <span className="block w-full overflow-hidden whitespace-nowrap">{value}</span>
+      <span className={`block w-full overflow-hidden ${isMultilineBusinessCardTextFieldId(field.id) ? "whitespace-pre-line" : "whitespace-nowrap"}`}>{value}</span>
     </div>
   );
 }

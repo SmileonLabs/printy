@@ -29,6 +29,7 @@ export const sampleBusinessCardFieldValues: Record<BusinessCardTemplateTextField
 };
 
 const contactFieldIds = new Set<BusinessCardTemplateTextFieldId>(["phone", "mainPhone", "fax", "email", "website", "address", "account"]);
+const multilineTextFieldIds = new Set<BusinessCardTemplateTextFieldId>(["adLine1", "adLine2"]);
 
 export type BusinessCardInfoBlockId = "phone" | "mainPhone" | "fax" | "email" | "website" | "address" | "account";
 
@@ -72,6 +73,10 @@ export type BusinessCardInfoBlockRowRenderMetrics = {
 
 export function isBusinessCardContactFieldId(fieldId: BusinessCardTemplateTextFieldId) {
   return contactFieldIds.has(fieldId);
+}
+
+export function isMultilineBusinessCardTextFieldId(fieldId: BusinessCardTemplateTextFieldId) {
+  return multilineTextFieldIds.has(fieldId);
 }
 
 function unionBoxes(boxes: BusinessCardTemplateBox[]) {
@@ -167,11 +172,23 @@ export function normalizeBusinessCardText(value: string) {
   return value.replace(/\s+/g, " ").trim();
 }
 
+export function normalizeMultilineBusinessCardText(value: string) {
+  return value
+    .split(/\r?\n/)
+    .map((line) => normalizeBusinessCardText(line))
+    .filter((line) => line.length > 0)
+    .join("\n");
+}
+
 export function businessCardFaxText(value: string) {
   return value.trim().replace(/^fax\s*[:：-]?\s*/i, "");
 }
 
 export function displayBusinessCardFieldValue(fieldId: BusinessCardTemplateTextFieldId, value: string) {
+  if (isMultilineBusinessCardTextFieldId(fieldId)) {
+    return normalizeMultilineBusinessCardText(value);
+  }
+
   return normalizeBusinessCardText(fieldId === "fax" ? businessCardFaxText(value) : value);
 }
 
@@ -224,7 +241,7 @@ export function businessCardInfoBlockIconTextGapStylePx(block: BusinessCardInfoB
   return formatPercent((gapPx ?? businessCardInfoBlockIconTextGapPx) * scale, businessCardInfoBlockIconTextGapPx);
 }
 
-export function estimatedBusinessCardTextWidthEm(value: string) {
+function estimatedBusinessCardTextLineWidthEm(value: string) {
   return Array.from(value).reduce((total, char) => {
     if (/\s/.test(char)) {
       return total + 0.3;
@@ -232,6 +249,10 @@ export function estimatedBusinessCardTextWidthEm(value: string) {
 
     return /[\u1100-\u11ff\u3130-\u318f\uac00-\ud7af]/.test(char) ? total + 1 : total + 0.56;
   }, 0);
+}
+
+export function estimatedBusinessCardTextWidthEm(value: string) {
+  return Math.max(...value.split("\n").map(estimatedBusinessCardTextLineWidthEm));
 }
 
 export function businessCardTrimWidthScale(trim: { widthMm: number; heightMm: number }) {

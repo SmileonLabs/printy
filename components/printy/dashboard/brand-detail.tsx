@@ -4,12 +4,14 @@ import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { EmptyBrands } from "@/components/printy/dashboard/brands-tab";
 import { resolveLogoFromState } from "@/components/printy/logo/logo-state";
+import { QrCodeImageField } from "@/components/printy/member-qr-code-image-field";
 import { BusinessCardPreview } from "@/components/printy/templates/business-card-preview";
-import { AppButton, SoftCard, TextField } from "@/components/ui";
+import { AppButton, SoftCard, TextAreaField, TextField } from "@/components/ui";
 import { getLogo, LogoMark } from "@/components/ui/logo";
 import { createAiBusinessCardMockupSignature, createAiBusinessCardRequestBody } from "@/lib/ai-business-card/client";
 import type { AiBusinessCardDesign } from "@/lib/ai-business-card/schema";
 import { brandDetailSections } from "@/lib/mock-data";
+import { readQrImageFile } from "@/lib/member-qr-image";
 import type { ActiveBrandMockupJob, Brand, BrandAsset, BrandDetailSectionId, BusinessCardColorPaletteId, BusinessCardDraft, BusinessCardUserElementId, Member, OrderRecord, PrintTemplate, ResolvedLogoOption } from "@/lib/types";
 import { usePrintyStore } from "@/store/use-printy-store";
 
@@ -42,7 +44,7 @@ const emptyMemberFormValues: MemberFormValues = {
   qrCodeImageUrl: "",
 };
 
-const memberFormFields: Array<{ label: string; field: keyof MemberFormValues; placeholder: string }> = [
+const memberFormFields: Array<{ label: string; field: keyof MemberFormValues; placeholder: string; multiline?: boolean }> = [
   { label: "이름", field: "name", placeholder: "김하린" },
   { label: "직함", field: "role", placeholder: "대표" },
   { label: "휴대폰", field: "phone", placeholder: "010-0000-0000" },
@@ -54,8 +56,8 @@ const memberFormFields: Array<{ label: string; field: keyof MemberFormValues; pl
   { label: "계좌번호", field: "account", placeholder: "국민 123456-04-123456" },
   { label: "한줄 제목 1", field: "titleLine1", placeholder: "믿고 맡기는 프린팅" },
   { label: "한줄 제목 2", field: "titleLine2", placeholder: "브랜드를 더 선명하게" },
-  { label: "광고 문구 1", field: "adLine1", placeholder: "프리미엄 맞춤 제작" },
-  { label: "광고 문구 2", field: "adLine2", placeholder: "빠르고 정확한 상담" },
+  { label: "광고 내용 1", field: "adLine1", placeholder: "프리미엄 맞춤 제작\n빠르고 정확한 상담", multiline: true },
+  { label: "광고 내용 2", field: "adLine2", placeholder: "브랜드를 더 선명하게\n문의는 언제든 환영해요", multiline: true },
   { label: "인스타그램", field: "instagram", placeholder: "@brand.official" },
 ];
 
@@ -769,50 +771,6 @@ function memberFormValuesFromMember(member: Member): MemberFormValues {
   };
 }
 
-function readQrImageFile(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    if (!file.type.startsWith("image/")) {
-      reject(new Error("이미지 파일만 업로드할 수 있어요."));
-      return;
-    }
-
-    if (file.size > 1024 * 1024) {
-      reject(new Error("QR 이미지는 1MB 이하로 업로드해 주세요."));
-      return;
-    }
-
-    const reader = new FileReader();
-
-    reader.onload = () => {
-      resolve(typeof reader.result === "string" ? reader.result : "");
-    };
-    reader.onerror = () => reject(new Error("QR 이미지를 읽지 못했어요."));
-    reader.readAsDataURL(file);
-  });
-}
-
-function QrCodeImageField({ value, onChange, onClear }: { value: string; onChange: (file: File | undefined) => void; onClear: () => void }) {
-  return (
-    <div className="rounded-md border border-line bg-surface-blue p-3">
-      <label className="block text-xs font-extrabold text-primary-strong">
-        QR 코드 이미지
-        <input className="mt-2 block w-full rounded-md border border-line bg-white px-3 py-2 text-xs font-bold text-ink file:mr-3 file:rounded-sm file:border-0 file:bg-primary file:px-3 file:py-2 file:text-xs file:font-black file:text-white" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,image/*" onChange={(event) => onChange(event.currentTarget.files?.[0])} />
-      </label>
-      <p className="mt-2 text-xs font-bold leading-5 text-muted">관리자 템플릿에서 QR 코드 요소를 켠 위치에 이 이미지가 들어가요.</p>
-      {value ? (
-        <div className="mt-3 flex items-center gap-3">
-          <div className="relative h-16 w-16 overflow-hidden rounded-sm border border-line bg-white">
-            <Image src={value} alt="업로드한 QR 코드" fill sizes="64px" className="object-contain" unoptimized />
-          </div>
-          <button className="rounded-sm bg-white px-3 py-2 text-xs font-black text-danger shadow-soft" type="button" onClick={onClear}>
-            QR 삭제
-          </button>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
 function TeamSection({ members, notice, onAddMember, onUpdateMember, onDeleteMember }: { members: Member[]; notice: string; onAddMember: (member: Member) => void; onUpdateMember: (memberId: string, member: Member) => void; onDeleteMember: (memberId: string) => void }) {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [memberForm, setMemberForm] = useState<MemberFormValues>(emptyMemberFormValues);
@@ -918,9 +876,7 @@ function TeamSection({ members, notice, onAddMember, onUpdateMember, onDeleteMem
             <p className="text-sm font-black text-ink">{editingMemberId ? "명함 정보 수정" : "명함 정보 추가"}</p>
             <p className="mt-1 text-xs font-bold leading-5 text-muted">브랜드 로고가 적용될 명함 구성원 정보를 입력해 주세요.</p>
           </div>
-          {memberFormFields.map((field) => (
-                    <TextField key={field.field} label={field.label} placeholder={field.placeholder} value={memberForm[field.field] ?? ""} onChange={(value) => updateMemberForm(field.field, value)} />
-          ))}
+          {memberFormFields.map((field) => (field.multiline ? <TextAreaField key={field.field} label={field.label} placeholder={field.placeholder} value={memberForm[field.field] ?? ""} onChange={(value) => updateMemberForm(field.field, value)} /> : <TextField key={field.field} label={field.label} placeholder={field.placeholder} value={memberForm[field.field] ?? ""} onChange={(value) => updateMemberForm(field.field, value)} />))}
           <QrCodeImageField value={memberForm.qrCodeImageUrl ?? ""} onChange={updateQrCodeImage} onClear={() => updateMemberForm("qrCodeImageUrl", "")} />
           {formError ? <p className="rounded-md bg-danger/10 px-4 py-3 text-xs font-bold leading-5 text-danger">{formError}</p> : null}
           <div className="grid grid-cols-2 gap-3">
@@ -1299,7 +1255,7 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
       {isMemberFormOpen ? (
         <div className="grid gap-3 rounded-md border border-line bg-white p-3 shadow-soft">
           <p className="text-xs font-black text-ink">{editingMemberId ? "구성원 수정" : "구성원 추가"}</p>
-          {memberFormFields.map((field) => <TextField key={field.field} label={field.label} placeholder={field.placeholder} value={memberForm[field.field] ?? ""} onChange={(value) => updateMemberForm(field.field, value)} />)}
+          {memberFormFields.map((field) => (field.multiline ? <TextAreaField key={field.field} label={field.label} placeholder={field.placeholder} value={memberForm[field.field] ?? ""} onChange={(value) => updateMemberForm(field.field, value)} /> : <TextField key={field.field} label={field.label} placeholder={field.placeholder} value={memberForm[field.field] ?? ""} onChange={(value) => updateMemberForm(field.field, value)} />))}
           <QrCodeImageField value={memberForm.qrCodeImageUrl ?? ""} onChange={updateQrCodeImage} onClear={() => updateMemberForm("qrCodeImageUrl", "")} />
           {memberFormError ? <p className="rounded-md bg-danger/10 px-3 py-2 text-xs font-bold text-danger">{memberFormError}</p> : null}
           <div className="grid grid-cols-2 gap-2">

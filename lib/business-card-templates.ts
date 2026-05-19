@@ -43,10 +43,13 @@ export type BusinessCardTemplateInput = {
 
 export type BusinessCardTemplatePatch = Partial<BusinessCardTemplateInput>;
 
-const maxTitleLength = 80;
-const maxSummaryLength = 240;
-const maxTagLength = 30;
-const maxTags = 12;
+export const businessCardTemplateLimits = {
+  maxTitleLength: 80,
+  maxSummaryLength: 240,
+  maxTagLength: 30,
+  maxTags: 12,
+} as const;
+const { maxTitleLength, maxSummaryLength, maxTagLength, maxTags } = businessCardTemplateLimits;
 const minFontSize = 6;
 const maxFontSize = 36;
 const maxImageUrlLength = 2048;

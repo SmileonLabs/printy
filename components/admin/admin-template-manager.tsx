@@ -5,7 +5,7 @@ import Image from "next/image";
 import { BusinessCardLayoutBuilder, type BusinessCardLayoutManagedBackground } from "@/components/admin/business-card-layout-builder";
 import { BusinessCardTemplateRenderer } from "@/components/printy/templates/business-card-template-renderer";
 import { AppButton, SoftCard } from "@/components/ui";
-import { businessCardTemplateStatuses, defaultBusinessCardTemplateLayout, getBusinessCardTemplateOrientation, type BusinessCardTemplateStatus } from "@/lib/business-card-templates";
+import { businessCardTemplateLimits, businessCardTemplateStatuses, defaultBusinessCardTemplateLayout, getBusinessCardTemplateOrientation, type BusinessCardTemplateStatus } from "@/lib/business-card-templates";
 import type { BankAccountSettings, BusinessCardTemplateBackground, BusinessCardTemplateLayout, LogoReferenceImage, Member, OrderRecord, PrintTemplate, ResolvedLogoOption } from "@/lib/types";
 
 type AdminTemplatesResponse = {
@@ -591,14 +591,41 @@ function buildTemplatePayload(form: AdminFormState) {
   return {
     title: form.title.trim(),
     summary: form.summary.trim(),
-    tags: form.tagsText
-      .split(",")
-      .map((tag) => tag.trim())
-      .filter((tag, index, tags) => tag.length > 0 && tags.indexOf(tag) === index),
+    tags: normalizeTemplateTags(form.tagsText),
     orientation: form.orientation,
     status: form.status,
     layout: form.layout,
   };
+}
+
+function normalizeTemplateTags(tagsText: string) {
+  const tags: string[] = [];
+
+  for (const rawTag of tagsText.split(",")) {
+    const tag = rawTag.trim().slice(0, businessCardTemplateLimits.maxTagLength);
+
+    if (tag.length === 0 || tags.includes(tag)) {
+      continue;
+    }
+
+    tags.push(tag);
+
+    if (tags.length >= businessCardTemplateLimits.maxTags) {
+      break;
+    }
+  }
+
+  return tags.length > 0 ? tags : ["명함"];
+}
+
+async function readTemplateSaveError(response: Response) {
+  const data = await response.json().catch(() => undefined);
+
+  if (isRecord(data) && typeof data.reason === "string" && data.reason.trim().length > 0) {
+    return data.reason.startsWith("Invalid business-card template") ? "저장할 수 없어요. 제목, 요약, 태그 또는 레이아웃 배치값을 확인해 주세요." : data.reason;
+  }
+
+  return "저장할 수 없어요. 제목, 요약, 태그 또는 레이아웃 배치값을 확인해 주세요.";
 }
 
 function buildDraftPdfPayload(form: AdminFormState) {
@@ -965,7 +992,7 @@ export function AdminTemplateManager() {
       });
 
       if (!response.ok) {
-        throw new Error("저장할 수 없어요. 제목, 요약, 태그 길이를 확인해 주세요.");
+        throw new Error(await readTemplateSaveError(response));
       }
 
       const data = readAdminTemplateResponse(await response.json());

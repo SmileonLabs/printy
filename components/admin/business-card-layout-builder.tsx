@@ -4,7 +4,7 @@ import Image from "next/image";
 import { type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent, useEffect, useRef, useState } from "react";
 import { BusinessCardInfoBlockRenderer } from "@/components/business-card-info-block-renderer";
 import { businessCardTemplateFieldIds, businessCardTemplateFontFamilies, businessCardTemplateIconArtwork, businessCardTemplateIconIds, businessCardTemplateTextWeights, defaultBusinessCardTemplateLayout } from "@/lib/business-card-templates";
-import { businessCardIconChromeStyle, businessCardInfoBlockIconTextGapPx, businessCardTrimWidthScale, displayBusinessCardFieldValue, editableBusinessCardFieldValue, fittedBusinessCardFontSizePx, fontFamilies, formatPercent, getBusinessCardTrimMetrics, resolveBusinessCardContactLayout, sampleBusinessCardFieldValues, type BusinessCardInfoBlock } from "@/lib/business-card-rendering";
+import { businessCardIconChromeStyle, businessCardInfoBlockIconTextGapPx, businessCardTrimWidthScale, displayBusinessCardFieldValue, editableBusinessCardFieldValue, fittedBusinessCardFontSizePx, fontFamilies, formatPercent, getBusinessCardTrimMetrics, isMultilineBusinessCardTextFieldId, resolveBusinessCardContactLayout, sampleBusinessCardFieldValues, type BusinessCardInfoBlock } from "@/lib/business-card-rendering";
 import type { BusinessCardTemplateBox, BusinessCardTemplateFontFamily, BusinessCardTemplateIconElement, BusinessCardTemplateIconId, BusinessCardTemplateLayout, BusinessCardTemplateLineElement, BusinessCardTemplateSideId, BusinessCardTemplateTextAlign, BusinessCardTemplateTextElement, BusinessCardTemplateTextFieldId, BusinessCardTemplateTextWeight } from "@/lib/types";
 
 type BusinessCardLayoutBuilderProps = {
@@ -1086,7 +1086,7 @@ function TextFieldPreview({ field, selected, renderPixelScale, trimWidthScale, o
 
   return (
     <div className={`absolute touch-none cursor-grab overflow-hidden rounded-sm border transition active:cursor-grabbing ${fontPreviewClasses[field.fontFamily]} ${selected ? "border-primary bg-surface/20 shadow-soft ring-2 ring-primary-soft" : "border-transparent bg-transparent hover:border-primary-soft/50"}`} style={{ ...boxStyle(field.box), ...textPreviewStyle(field, renderPixelScale, value, trimWidthScale), padding: `0 ${formatPercent(8 * renderPixelScale, 4)}px` }} onDoubleClick={onDoubleClick} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel}>
-      <span className="block overflow-hidden whitespace-nowrap">{value}</span>
+      <span className={`block overflow-hidden ${isMultilineBusinessCardTextFieldId(field.id) ? "whitespace-pre-line" : "whitespace-nowrap"}`}>{value}</span>
       {selected ? <ResizeHandles onResizePointerDown={onResizePointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel} /> : null}
     </div>
   );

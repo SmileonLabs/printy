@@ -1,7 +1,7 @@
 import "server-only";
 
 import { businessCardTemplateIconArtwork, defaultBusinessCardTemplateLayout } from "@/lib/business-card-templates";
-import { adminCanvasReferenceWidthPx, backgroundColor, boxStyleText, businessCardContactItemGapPx, businessCardIconChromeStyle, businessCardInfoBlockIconSvgPreserveAspectRatio, businessCardInfoBlockIconTextGapStylePx, businessCardTrimWidthScale, displayBusinessCardFieldValue, estimatedBusinessCardTextWidthEm, fittedBusinessCardFontSizePx, fontFamilies, formatPercent, getBusinessCardInfoBlockRenderMetrics, getBusinessCardInfoBlockRowRenderMetrics, getBusinessCardTrimMetrics, readSafeColor, resolveBusinessCardContactLayout, sampleBusinessCardFieldValues, type BusinessCardContactRow, type BusinessCardInfoBlock } from "@/lib/business-card-rendering";
+import { adminCanvasReferenceWidthPx, backgroundColor, boxStyleText, businessCardContactItemGapPx, businessCardIconChromeStyle, businessCardInfoBlockIconSvgPreserveAspectRatio, businessCardInfoBlockIconTextGapStylePx, businessCardTrimWidthScale, displayBusinessCardFieldValue, estimatedBusinessCardTextWidthEm, fittedBusinessCardFontSizePx, fontFamilies, formatPercent, getBusinessCardInfoBlockRenderMetrics, getBusinessCardInfoBlockRowRenderMetrics, getBusinessCardTrimMetrics, isMultilineBusinessCardTextFieldId, readSafeColor, resolveBusinessCardContactLayout, sampleBusinessCardFieldValues, type BusinessCardContactRow, type BusinessCardInfoBlock } from "@/lib/business-card-rendering";
 import type { BusinessCardTemplateBackground, BusinessCardTemplateBox, BusinessCardTemplateIconElement, BusinessCardTemplateLayout, BusinessCardTemplateLineElement, BusinessCardTemplateSideId, BusinessCardTemplateTextElement, BusinessCardTemplateTextFieldId, Member, PrintTemplate, ResolvedLogoOption } from "@/lib/types";
 
 export type PrintShopBusinessCardRenderData = {
@@ -138,7 +138,8 @@ function renderField(field: BusinessCardTemplateTextElement, cssPixelScale: numb
     return `<div class="qr-code" style="${escapeHtml(boxStyleText(field.box))}"><img src="${escapeHtml(absoluteAssetUrl(value, origin))}" alt="QR code" /></div>`;
   }
 
-  const style = `${boxStyleText(field.box)}font-family:${fontFamilies[field.fontFamily]};font-size:${fittedBusinessCardFontSizePx(field, value, cssPixelScale, field.box.width, 16 * cssPixelScale, trimWidthScale)}px;color:${readSafeColor(field.color, "#111827")};font-weight:${field.fontWeight === "bold" ? 900 : 400};font-style:${field.italic || field.fontFamily === "handwriting" ? "italic" : "normal"};text-align:${field.align};--field-padding-x:${formatPercent(8 * cssPixelScale, 4)}px;`;
+  const whiteSpace = isMultilineBusinessCardTextFieldId(field.id) ? "pre-line" : "nowrap";
+  const style = `${boxStyleText(field.box)}font-family:${fontFamilies[field.fontFamily]};font-size:${fittedBusinessCardFontSizePx(field, value, cssPixelScale, field.box.width, 16 * cssPixelScale, trimWidthScale)}px;color:${readSafeColor(field.color, "#111827")};font-weight:${field.fontWeight === "bold" ? 900 : 400};font-style:${field.italic || field.fontFamily === "handwriting" ? "italic" : "normal"};text-align:${field.align};white-space:${whiteSpace};--field-padding-x:${formatPercent(8 * cssPixelScale, 4)}px;`;
 
   return `<div class="field" style="${escapeHtml(style)}"><span>${escapeHtml(value)}</span></div>`;
 }
@@ -289,7 +290,7 @@ export function buildPrintShopBusinessCardHtml({ template, origin, includeProduc
     .logo-shape-arch { border-radius: 999mm 999mm 2mm 2mm; }
     .logo-shape-spark::after { content: ""; position: absolute; right: 12%; top: 12%; width: 12%; height: 12%; border-radius: 999mm; background: currentColor; }
     .field { position: absolute; z-index: 2; display: flex; align-items: center; overflow: hidden; line-height: 1.3; padding: 0 var(--field-padding-x); }
-    .field span { display: block; width: 100%; overflow: hidden; white-space: nowrap; }
+    .field span { display: block; width: 100%; overflow: hidden; white-space: inherit; }
     .qr-code { position: absolute; z-index: 2; overflow: hidden; }
     .qr-code img { display: block; width: 100%; height: 100%; object-fit: contain; }
     .info-block { position: absolute; z-index: 2; overflow: visible; line-height: 1.3; }

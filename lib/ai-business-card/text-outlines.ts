@@ -3,6 +3,7 @@ import "server-only";
 import { readFile } from "node:fs/promises";
 import fontkit from "@pdf-lib/fontkit";
 import type { AiBusinessCardInput, AiBusinessCardTextElement, AiBusinessCardTextField } from "@/lib/ai-business-card/schema";
+import { normalizeBusinessCardText, normalizeMultilineBusinessCardText } from "@/lib/business-card-rendering";
 
 type Glyph = {
   path: { toSVG: () => string };
@@ -68,7 +69,7 @@ function readFieldValue(field: AiBusinessCardTextField, input: AiBusinessCardInp
     qrCode: "",
   };
 
-  return values[field].trim();
+  return field === "adLine1" || field === "adLine2" ? normalizeMultilineBusinessCardText(values[field]) : normalizeBusinessCardText(values[field]);
 }
 
 async function loadFirstAvailableFont(paths: string[]) {
@@ -113,23 +114,30 @@ export async function renderTextElementAsOutline(element: AiBusinessCardTextElem
   }
 
   const font = await loadOutlineFont(element);
-  const run = font.layout(value);
+  const lines = value.split("\n");
   const fontSizeMm = element.fontSizePt * 25.4 / 72;
   const baseScaleMm = fontSizeMm / font.unitsPerEm;
   const scaleMm = baseScaleMm;
-  const textWidthMm = run.positions.reduce((total, position) => total + position.xAdvance * scaleMm, 0);
   const textHeightMm = (font.ascent - font.descent) * scaleMm;
-  const xMm = element.align === "center" ? element.xMm + (element.widthMm - textWidthMm) / 2 : element.align === "right" ? element.xMm + element.widthMm - textWidthMm : element.xMm;
-  const baselineMm = element.yMm + Math.max(0, (element.heightMm - textHeightMm) / 2) + font.ascent * scaleMm;
-  let cursor = 0;
-  const paths = run.glyphs.map((glyph, index) => {
-    const position = run.positions[index] ?? { xAdvance: 0, xOffset: 0, yOffset: 0 };
-    const d = glyph.path.toSVG();
-    const transform = `translate(${fixed(xMm + (cursor + position.xOffset) * scaleMm)} ${fixed(baselineMm - position.yOffset * scaleMm)}) scale(${fixed(scaleMm)} ${fixed(-scaleMm)})`;
+  const lineHeightMm = textHeightMm * 1.25;
+  const totalTextHeightMm = textHeightMm + lineHeightMm * (lines.length - 1);
+  const firstBaselineMm = element.yMm + Math.max(0, (element.heightMm - totalTextHeightMm) / 2) + font.ascent * scaleMm;
+  const paths = lines.map((line, lineIndex) => {
+    const run = font.layout(line);
+    const textWidthMm = run.positions.reduce((total, position) => total + position.xAdvance * scaleMm, 0);
+    const xMm = element.align === "center" ? element.xMm + (element.widthMm - textWidthMm) / 2 : element.align === "right" ? element.xMm + element.widthMm - textWidthMm : element.xMm;
+    const baselineMm = firstBaselineMm + lineHeightMm * lineIndex;
+    let cursor = 0;
 
-    cursor += position.xAdvance;
+    return run.glyphs.map((glyph, index) => {
+      const position = run.positions[index] ?? { xAdvance: 0, xOffset: 0, yOffset: 0 };
+      const d = glyph.path.toSVG();
+      const transform = `translate(${fixed(xMm + (cursor + position.xOffset) * scaleMm)} ${fixed(baselineMm - position.yOffset * scaleMm)}) scale(${fixed(scaleMm)} ${fixed(-scaleMm)})`;
 
-    return d ? `<path d="${escapeHtml(d)}" transform="${transform}" />` : "";
+      cursor += position.xAdvance;
+
+      return d ? `<path d="${escapeHtml(d)}" transform="${transform}" />` : "";
+    }).join("");
   }).join("");
 
   return `<svg class="text-outline" xmlns="http://www.w3.org/2000/svg" width="92mm" height="52mm" viewBox="0 0 92 52" preserveAspectRatio="none" style="z-index:${element.layer};"><g fill="${escapeHtml(element.color)}">${paths}</g></svg>`;

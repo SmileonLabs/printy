@@ -130,6 +130,21 @@ export function TextField({ label, value, placeholder, type = "text", onChange }
   );
 }
 
+export function TextAreaField({ label, value, placeholder, onChange }: { label: string; value: string; placeholder: string; onChange: (value: string) => void }) {
+  return (
+    <label className="block">
+      <span className="mb-2 block text-xs font-extrabold text-soft">{label}</span>
+      <textarea
+        className="min-h-28 w-full resize-y rounded-md border border-line bg-surface px-4 py-4 text-base font-bold leading-7 text-ink outline-none transition focus:border-primary focus:shadow-soft"
+        autoComplete="off"
+        placeholder={placeholder}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </label>
+  );
+}
+
 export function BottomTabs({ activeTab, onChange }: { activeTab: MainTab; onChange: (tab: MainTab) => void }) {
   return (
     <nav className="safe-bottom z-30 grid shrink-0 border-t border-line bg-white/95 px-3 pt-2 backdrop-blur-xl" style={{ gridTemplateColumns: `repeat(${bottomTabs.length}, minmax(0, 1fr))` }}>
