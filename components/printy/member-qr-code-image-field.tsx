@@ -9,7 +9,7 @@ export function QrCodeImageField({ value, onChange, onClear }: { value: string; 
         QR 코드 이미지
         <input className="mt-2 block w-full rounded-md border border-line bg-white px-3 py-2 text-xs font-bold text-ink file:mr-3 file:rounded-sm file:border-0 file:bg-primary file:px-3 file:py-2 file:text-xs file:font-black file:text-white" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,image/*" onChange={(event) => onChange(event.currentTarget.files?.[0])} />
       </label>
-      <p className="mt-2 text-xs font-bold leading-5 text-muted">관리자 템플릿에서 QR 코드 요소를 켠 위치에 이 이미지가 들어가요.</p>
+      <p className="mt-2 text-xs font-bold leading-5 text-muted">레이아웃에서 QR 코드 요소를 켠 위치에 이 이미지가 들어가요.</p>
       {value ? (
         <div className="mt-3 flex items-center gap-3">
           <div className="relative h-16 w-16 overflow-hidden rounded-sm border border-line bg-white">

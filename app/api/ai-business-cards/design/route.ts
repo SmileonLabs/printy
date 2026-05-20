@@ -3,6 +3,7 @@ import { AiBusinessCardDesignError, createAiBusinessCardDesignFromTemplate } fro
 import { readAiBusinessCardInput } from "@/lib/ai-business-card/request";
 import { isPublishedBusinessCardTemplate } from "@/lib/business-card-templates";
 import { getAdminBusinessCardTemplate } from "@/lib/server/business-card-template-store";
+import type { PrintTemplate } from "@/lib/types";
 
 export const runtime = "nodejs";
 
@@ -28,11 +29,12 @@ export async function POST(request: Request) {
   try {
     const template = templateId ? await getAdminBusinessCardTemplate(templateId) : undefined;
 
-    if (!template || !isPublishedBusinessCardTemplate(template)) {
+    if (template && !isPublishedBusinessCardTemplate(template)) {
       return NextResponse.json({ reason: "선택한 관리자 명함 템플릿을 찾지 못했어요. 명함 탭에서 다시 제작해 주세요." }, { status: 422, headers: { "Cache-Control": "no-store" } });
     }
 
-    const design = createAiBusinessCardDesignFromTemplate(input, template);
+    const layoutTemplate: PrintTemplate = template ?? { id: "system-business-card-layout", productId: "business-card", title: "시스템 생성 명함 레이아웃", summary: "사용자 선택 요소로 만든 레이아웃", tags: ["명함"], orientation: "horizontal", status: "published", source: "admin", layout: input.productionOptions?.layout, createdAt: new Date().toISOString() };
+    const design = createAiBusinessCardDesignFromTemplate(input, layoutTemplate);
 
     return NextResponse.json({ design }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {

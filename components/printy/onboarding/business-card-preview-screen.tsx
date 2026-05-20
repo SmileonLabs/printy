@@ -7,9 +7,10 @@ import { HomeExitAction } from "@/components/printy/onboarding/home-exit-action"
 import { onboardingTotalSteps, stepNumbers } from "@/components/printy/shared/onboarding-progress";
 import { AppButton, ProgressHeader, Screen, SoftCard, TextAreaField } from "@/components/ui";
 import { createAiBusinessCardMockupSignature, createAiBusinessCardRequestBody } from "@/lib/ai-business-card/client";
-import { getBusinessCardTemplateOrientation } from "@/lib/business-card-templates";
+import { createBusinessCardLayoutFromSelection, getBusinessCardLayoutOrientation, layoutForBusinessCardOrientation } from "@/lib/business-card-layout-generator";
+import { readQrImageFile } from "@/lib/member-qr-image";
 import type { AiBusinessCardDesign } from "@/lib/ai-business-card/schema";
-import type { AiBusinessCardMockup, BusinessCardTemplateLayout } from "@/lib/types";
+import type { AiBusinessCardMockup, BusinessCardTemplateLayout, BusinessCardTemplateTextFieldId, BusinessCardUserElementId } from "@/lib/types";
 import { usePrintyStore } from "@/store/use-printy-store";
 
 type DownloadState = {
@@ -113,6 +114,10 @@ function hasCompleteAiBusinessCardMockup(mockup: AiBusinessCardMockup) {
   return Boolean(mockup.imageUrl && mockup.cleanImageUrl);
 }
 
+function visibleBusinessCardElements(layout: BusinessCardTemplateLayout, sideId: "front" | "back"): BusinessCardUserElementId[] {
+  return layout.sides[sideId].fields.filter((field) => field.visible).map((field) => field.id);
+}
+
 async function saveAiBusinessCardMockupsToServer(signature: string, mockups: AiBusinessCardMockup[]) {
   await fetch("/api/ai-business-cards/mockups/saved", {
     method: "PUT",
@@ -177,7 +182,7 @@ async function pollAiBusinessCardJob(jobId: string) {
 }
 
 export function BusinessCardPreviewScreen() {
-  const { brandDraft, memberDraft, selectedLogoId, aiBusinessCardMockups, aiBusinessCardMockupStatus, aiBusinessCardMockupMessage, aiBusinessCardMockupSignature, activeAiBusinessCardMockupJobId, selectedAiBusinessCardMockupUrl, beginAiBusinessCardMockupGeneration, setActiveAiBusinessCardMockupJob, syncAiBusinessCardMockups, finishAiBusinessCardMockupGeneration, failAiBusinessCardMockupGeneration, selectAiBusinessCardMockup, deleteAiBusinessCardMockup, beginAiBusinessCardPdfGeneration, finishAiBusinessCardPdfGeneration, failAiBusinessCardPdfGeneration, dismissAiBusinessCardPdfNotice } = usePrintyStore();
+  const { brandDraft, memberDraft, selectedLogoId, aiBusinessCardMockups, aiBusinessCardMockupStatus, aiBusinessCardMockupMessage, aiBusinessCardMockupSignature, activeAiBusinessCardMockupJobId, selectedAiBusinessCardMockupUrl, beginAiBusinessCardMockupGeneration, setActiveAiBusinessCardMockupJob, syncAiBusinessCardMockups, finishAiBusinessCardMockupGeneration, failAiBusinessCardMockupGeneration, selectAiBusinessCardMockup, deleteAiBusinessCardMockup, beginAiBusinessCardPdfGeneration, finishAiBusinessCardPdfGeneration, failAiBusinessCardPdfGeneration, dismissAiBusinessCardPdfNotice, updateMemberDraft, updateBusinessCardProductionOptions } = usePrintyStore();
   const isAuthenticated = usePrintyStore((state) => state.isAuthenticated);
   const authUserId = usePrintyStore((state) => state.authSession?.userId);
   const effectiveLogoId = usePrintyStore((state) => state.brands.find((brand) => brand.id === state.selectedBrandId)?.selectedLogoId ?? selectedLogoId);
@@ -205,10 +210,49 @@ export function BusinessCardPreviewScreen() {
   const aiBusinessCardPdfRecords = usePrintyStore((state) => state.aiBusinessCardPdfRecords);
 
   useEffect(() => {
-    setEditableLayout(selectedTemplate?.layout ? cloneBusinessCardTemplateLayout(selectedTemplate.layout) : undefined);
-  }, [selectedTemplate?.id, selectedTemplate?.layout]);
+    setEditableLayout(productionOptions.layout ? cloneBusinessCardTemplateLayout(productionOptions.layout) : selectedTemplate?.layout ? cloneBusinessCardTemplateLayout(selectedTemplate.layout) : createBusinessCardLayoutFromSelection(productionOptions));
+  }, [selectedTemplate?.id, selectedTemplate?.layout, productionOptions]);
 
   const requestBody = () => createAiBusinessCardRequestBody(input);
+  const updateEditableLayout = (layout: BusinessCardTemplateLayout) => {
+    setEditableLayout(layout);
+  };
+  const syncProductionOptionsLayout = (layout: BusinessCardTemplateLayout) => {
+    updateBusinessCardProductionOptions({ ...productionOptions, frontElements: visibleBusinessCardElements(layout, "front"), backElements: visibleBusinessCardElements(layout, "back"), layout });
+  };
+  const updateLayoutOrientation = (orientation: "horizontal" | "vertical") => {
+    setEditableLayout((current) => {
+      if (!current) {
+        return current;
+      }
+
+      const nextLayout = layoutForBusinessCardOrientation(current, orientation);
+      syncProductionOptionsLayout(nextLayout);
+      return nextLayout;
+    });
+  };
+  const updateLayoutAndProductionOptions = (layout: BusinessCardTemplateLayout) => {
+    updateEditableLayout(layout);
+    syncProductionOptionsLayout(layout);
+  };
+  const updateUserFieldValue = (fieldId: BusinessCardTemplateTextFieldId, value: string) => {
+    if (fieldId !== "titleLine1" && fieldId !== "titleLine2" && fieldId !== "adLine1" && fieldId !== "adLine2") {
+      return;
+    }
+
+    updateMemberDraft(fieldId, value);
+  };
+  const updateUserQrCodeImage = async (file: File | undefined) => {
+    if (!file) {
+      return;
+    }
+
+    try {
+      updateMemberDraft("qrCodeImageUrl", await readQrImageFile(file));
+    } catch (error) {
+      setDownloadState({ error: error instanceof Error ? error.message : "QR 이미지를 읽지 못했어요." });
+    }
+  };
 
   const saveServerMockups = (mockups: AiBusinessCardMockup[]) => {
     if (!isAuthenticated) {
@@ -325,6 +369,10 @@ export function BusinessCardPreviewScreen() {
     }
 
     const signature = currentSignature;
+
+    if (editableLayout) {
+      syncProductionOptionsLayout(editableLayout);
+    }
 
     beginAiBusinessCardMockupGeneration(signature);
     setActiveAiBusinessCardMockupJob(undefined);
@@ -508,18 +556,14 @@ export function BusinessCardPreviewScreen() {
   return (
     <Screen>
       <ProgressHeader eyebrow="AI 명함 생성" title="앞면과 뒷면을 AI로 구성해요" description="먼저 대표 로고와 입력 정보를 기준으로 정면 양면 목업을 만들어요." step={stepNumbers.businessCardPreview} total={onboardingTotalSteps} action={<HomeExitAction />} />
-      {selectedTemplate?.layout && editableLayout ? (
-        <SoftCard>
-          <div className="mb-4">
-            <p className="text-sm font-black text-ink">앞면/뒷면 레이아웃 직접 조정</p>
-            <p className="mt-2 text-xs font-bold leading-5 text-muted">관리자 템플릿을 기준으로 위치를 조정하세요. 여기에서 저장한 좌표가 AI 목업 프롬프트와 최종 PDF 렌더링에 함께 사용돼요.</p>
-          </div>
-          <BusinessCardLayoutBuilder layout={editableLayout} orientation={getBusinessCardTemplateOrientation(selectedTemplate)} managedBackgrounds={[]} onChange={setEditableLayout} />
-        </SoftCard>
+      {editableLayout ? (
+        <div className="-mx-3 sm:mx-0">
+          <BusinessCardLayoutBuilder layout={editableLayout} orientation={getBusinessCardLayoutOrientation(editableLayout)} managedBackgrounds={[]} mode="user" userFieldValues={{ titleLine1: memberDraft.titleLine1 ?? "", titleLine2: memberDraft.titleLine2 ?? "", adLine1: memberDraft.adLine1 ?? "", adLine2: memberDraft.adLine2 ?? "" }} userQrCodeImageUrl={memberDraft.qrCodeImageUrl ?? ""} onOrientationChange={updateLayoutOrientation} onUserFieldValueChange={updateUserFieldValue} onUserQrCodeImageChange={updateUserQrCodeImage} onUserQrCodeImageClear={() => updateMemberDraft("qrCodeImageUrl", "")} onChange={updateLayoutAndProductionOptions} />
+        </div>
       ) : null}
       <SoftCard>
         <p className="text-sm font-black text-ink">인쇄용 양면 PDF 생성 방식</p>
-        <p className="mt-2 text-xs font-bold leading-5 text-muted">gpt-image-2가 92x52mm 비율의 앞면 1장, 뒷면 1장을 정면 목업으로 만들어요. 실행 후에는 다른 페이지로 이동해도 되고, 완료되면 상단 알림에 표시돼요.</p>
+        <p className="mt-2 text-xs font-bold leading-5 text-muted">AI가 92x52mm 비율의 앞면 1장, 뒷면 1장을 정면 목업으로 만들어요. 실행 후에는 다른 페이지로 이동해도 되고, 완료되면 상단 알림에 표시돼요.</p>
         <div className="mt-4 grid gap-2">
           <TextAreaField label="목업 디자인 요청" placeholder="예: 검정 배경에 금색 포인트, 여백 넓게, 고급스러운 분위기. 입력한 명함 문구 외 문장은 추가하지 않기." value={mockupRequest} onChange={setMockupRequest} />
           <AppButton onClick={handleGenerateMockups} disabled={!canGenerateMockups || downloadState.status === "mockups" || isGeneratingCurrentMockups} className="disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0">

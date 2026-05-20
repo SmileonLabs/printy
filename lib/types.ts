@@ -214,6 +214,7 @@ export type BusinessCardDraft = {
   designRequest: string;
   selectedLogoId: string;
   templateId?: string;
+  layout?: BusinessCardTemplateLayout;
   member: Member;
   createdAt: string;
 };

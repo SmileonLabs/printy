@@ -10,9 +10,10 @@ import { AppButton, SoftCard, TextAreaField, TextField } from "@/components/ui";
 import { getLogo, LogoMark } from "@/components/ui/logo";
 import { createAiBusinessCardMockupSignature, createAiBusinessCardRequestBody } from "@/lib/ai-business-card/client";
 import type { AiBusinessCardDesign } from "@/lib/ai-business-card/schema";
+import { createBusinessCardLayoutFromSelection } from "@/lib/business-card-layout-generator";
 import { brandDetailSections } from "@/lib/mock-data";
 import { readQrImageFile } from "@/lib/member-qr-image";
-import type { ActiveBrandMockupJob, Brand, BrandAsset, BrandDetailSectionId, BusinessCardColorPaletteId, BusinessCardDraft, BusinessCardUserElementId, Member, OrderRecord, PrintTemplate, ResolvedLogoOption } from "@/lib/types";
+import type { ActiveBrandMockupJob, Brand, BrandAsset, BrandDetailSectionId, BusinessCardDraft, BusinessCardUserElementId, Member, OrderRecord, PrintTemplate, ResolvedLogoOption } from "@/lib/types";
 import { usePrintyStore } from "@/store/use-printy-store";
 
 type LogoWithImage = Extract<ResolvedLogoOption, { imageUrl: string }>;
@@ -81,14 +82,6 @@ const businessCardUserElements: Array<{ id: BusinessCardUserElementId; label: st
 
 const defaultFrontBusinessCardElements: BusinessCardUserElementId[] = [];
 const defaultBackBusinessCardElements: BusinessCardUserElementId[] = [];
-const businessCardColorOptions: Array<{ id: BusinessCardColorPaletteId; label: string; color: string }> = [
-  { id: "black", label: "블랙", color: "#111111" },
-  { id: "white", label: "화이트", color: "#ffffff" },
-  { id: "green", label: "그린", color: "#19a974" },
-  { id: "yellow", label: "옐로우", color: "#f6c945" },
-  { id: "blue", label: "블루", color: "#2f66ff" },
-  { id: "red", label: "레드", color: "#ef4444" },
-];
 const clientRequestTimeoutMs = 540_000;
 const aiBusinessCardPdfRendererVersion = "pdf-template-bg-v20-fast-mockup";
 type AiBusinessCardJobResponse =
@@ -684,7 +677,7 @@ function MockupTemplateList({ logo, activeMockupJob, generatingMockupSceneId, on
     <SoftCard>
       <div className="mb-4">
         <p className="text-sm font-black text-ink">선택 로고 목업</p>
-        <p className="mt-1 text-xs font-bold leading-5 text-muted">선택한 로고를 GPT 이미지 모델에 보내 실사형 목업을 생성해요.</p>
+        <p className="mt-1 text-xs font-bold leading-5 text-muted">선택한 로고를 AI 이미지 모델에 보내 실사형 목업을 생성해요.</p>
         {activeMockupJob ? <p className="mt-2 rounded-md bg-surface-blue px-3 py-2 text-xs font-black leading-5 text-primary-strong">{isAnotherLogoGenerating ? "다른 로고의" : activeTemplate ? `${activeTemplate.title}` : "선택한"} 목업을 만들고 있어요. 완료 후 새 목업을 만들 수 있어요.</p> : null}
       </div>
       <div className="grid gap-2">
@@ -918,69 +911,6 @@ function isSelectableBusinessCardElementId(elementId: string): elementId is Busi
   return businessCardUserElements.some((item) => item.id === elementId);
 }
 
-function businessCardTemplateSelectableElementsForSide(template: PrintTemplate, sideId: "front" | "back"): BusinessCardUserElementId[] {
-  const side = template.layout?.sides[sideId];
-
-  if (!side) {
-    return [];
-  }
-
-  return side.fields.filter((field) => field.visible && isSelectableBusinessCardElementId(field.id)).map((field) => field.id as BusinessCardUserElementId);
-}
-
-function businessCardTemplateSelectableElements(template: PrintTemplate): BusinessCardUserElementId[] {
-  return [...new Set([...businessCardTemplateSelectableElementsForSide(template, "front"), ...businessCardTemplateSelectableElementsForSide(template, "back")])];
-}
-
-function mergeBusinessCardElements(frontElements: BusinessCardUserElementId[], backElements: BusinessCardUserElementId[]) {
-  return [...new Set([...frontElements, ...backElements])];
-}
-
-function hasSameBusinessCardElements(templateElements: BusinessCardUserElementId[], selectedElements: BusinessCardUserElementId[]) {
-  return templateElements.length === selectedElements.length && selectedElements.every((elementId) => templateElements.includes(elementId));
-}
-
-function findMatchingBusinessCardTemplate(templates: PrintTemplate[], frontElements: BusinessCardUserElementId[], backElements: BusinessCardUserElementId[]) {
-  const selectedElements = mergeBusinessCardElements(frontElements, backElements);
-  const publishedTemplates = templates.filter((template) => template.productId === "business-card" && template.status === "published" && template.layout);
-  const candidates = publishedTemplates.filter((template) => hasSameBusinessCardElements(businessCardTemplateSelectableElements(template), selectedElements));
-
-  return candidates.length > 0 ? candidates[Math.floor(Math.random() * candidates.length)] : undefined;
-}
-
-function findClosestBusinessCardTemplateMismatch(templates: PrintTemplate[], frontElements: BusinessCardUserElementId[], backElements: BusinessCardUserElementId[]) {
-  const selectedElements = mergeBusinessCardElements(frontElements, backElements);
-  const rankedTemplates = templates
-    .filter((template) => template.productId === "business-card" && template.status === "published" && template.layout)
-    .map((template) => {
-      const templateElements = businessCardTemplateSelectableElements(template);
-      const selectedOnlyElements = selectedElements.filter((elementId) => !templateElements.includes(elementId));
-      const templateOnlyElements = templateElements.filter((elementId) => !selectedElements.includes(elementId));
-
-      return {
-        template,
-        selectedOnlyElements,
-        templateOnlyElements,
-        overlap: selectedElements.filter((elementId) => templateElements.includes(elementId)).length,
-        differenceCount: selectedOnlyElements.length + templateOnlyElements.length,
-      };
-    })
-    .sort((a, b) => a.differenceCount - b.differenceCount || b.overlap - a.overlap);
-  const bestTemplate = rankedTemplates[0]?.template;
-
-  if (!bestTemplate) {
-    return undefined;
-  }
-
-  const bestMismatch = rankedTemplates[0];
-
-  return {
-    template: bestTemplate,
-    selectedOnlyElements: bestMismatch.selectedOnlyElements,
-    templateOnlyElements: bestMismatch.templateOnlyElements,
-  };
-}
-
 function businessCardElementHasInputValue(elementId: BusinessCardUserElementId, brand: Brand, members: Member[]) {
   if (elementId === "logo") {
     return false;
@@ -1015,10 +945,6 @@ function selectableBusinessCardElements(elements: BusinessCardUserElementId[]) {
   return elements.filter(isSelectableBusinessCardElementId);
 }
 
-function businessCardElementLabel(elementId: BusinessCardUserElementId) {
-  return businessCardUserElements.find((item) => item.id === elementId)?.label ?? elementId;
-}
-
 type OrderedBusinessCard = {
   order: OrderRecord;
   draft: BusinessCardDraft;
@@ -1037,13 +963,12 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>(brand.members.map((member) => member.id));
   const [frontElements, setFrontElements] = useState<BusinessCardUserElementId[]>(productionOptions.frontElements.length > 0 ? selectableBusinessCardElements(productionOptions.frontElements) : defaultFrontBusinessCardElements);
   const [backElements, setBackElements] = useState<BusinessCardUserElementId[]>(productionOptions.backElements.length > 0 ? selectableBusinessCardElements(productionOptions.backElements) : defaultBackBusinessCardElements);
-  const [selectedColor, setSelectedColor] = useState<BusinessCardColorPaletteId>(productionOptions.color);
+  const selectedColor = productionOptions.color;
   const [isMemberFormOpen, setIsMemberFormOpen] = useState(false);
   const [memberForm, setMemberForm] = useState<MemberFormValues>(emptyMemberFormValues);
   const [editingMemberId, setEditingMemberId] = useState<string>();
   const [memberFormError, setMemberFormError] = useState("");
   const [productionNotice, setProductionNotice] = useState("");
-  const [isElementSelectorOpen, setIsElementSelectorOpen] = useState(false);
   const [hasAppliedSuggestedElements, setHasAppliedSuggestedElements] = useState(false);
   const [runningMockupPdfId, setRunningMockupPdfId] = useState<string>();
   const [mockupPdfErrors, setMockupPdfErrors] = useState<Record<string, string>>({});
@@ -1087,30 +1012,6 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
 
   const toggleMember = (memberId: string) => {
     setSelectedMemberIds((current) => (current.includes(memberId) ? current.filter((id) => id !== memberId) : [...current, memberId]));
-  };
-  const toggleElement = (side: "front" | "back", elementId: BusinessCardUserElementId) => {
-    const update = (current: BusinessCardUserElementId[]) => (current.includes(elementId) ? current.filter((id) => id !== elementId) : [...current, elementId]);
-
-    if (side === "front") {
-      setFrontElements((current) => {
-        const nextFrontElements = update(current);
-
-        updateBusinessCardProductionOptions({ frontElements: nextFrontElements, backElements, color: selectedColor });
-        return nextFrontElements;
-      });
-      return;
-    }
-
-    setBackElements((current) => {
-      const nextBackElements = update(current);
-
-      updateBusinessCardProductionOptions({ frontElements, backElements: nextBackElements, color: selectedColor });
-      return nextBackElements;
-    });
-  };
-  const selectBusinessCardColor = (color: BusinessCardColorPaletteId) => {
-    setSelectedColor(color);
-    updateBusinessCardProductionOptions({ frontElements, backElements, color });
   };
   const updateMemberForm = (field: keyof MemberFormValues, value: string) => {
     setMemberForm((current) => ({ ...current, [field]: value }));
@@ -1169,25 +1070,19 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
     onDeleteMember(memberId);
   };
   const handleStartProduction = () => {
-    const matchedTemplate = findMatchingBusinessCardTemplate(templates, frontElements, backElements);
-
-    if (!matchedTemplate) {
-      const mismatch = findClosestBusinessCardTemplateMismatch(templates, frontElements, backElements);
-      const selectedOnlyElements = mismatch?.selectedOnlyElements.map(businessCardElementLabel).join(", ") || "없음";
-      const templateOnlyElements = mismatch?.templateOnlyElements.map(businessCardElementLabel).join(", ") || "없음";
-      const message = mismatch
-        ? `선택한 명함 요소와 100% 일치하는 공개 템플릿이 없어요. 가장 가까운 템플릿 '${mismatch.template.title}' 기준, 사용자가 선택했지만 관리자 템플릿에 없는 요소: ${selectedOnlyElements}. 관리자 템플릿에는 있지만 사용자가 선택하지 않은 요소: ${templateOnlyElements}.`
-        : "선택한 명함 요소와 100% 일치하는 공개 템플릿이 없어요. 관리자에서 같은 요소가 보이는 템플릿을 먼저 공개해 주세요.";
-
-      setProductionNotice(message);
-      return;
-    }
-
     setProductionNotice("");
-    const selectedElements = mergeBusinessCardElements(frontElements, backElements);
+    const nextFrontElements = frontElements.length > 0 ? frontElements : suggestedBusinessCardElements;
+    const nextBackElements = backElements.length > 0 ? backElements : suggestedBusinessCardElements;
+    const nextLayout = createBusinessCardLayoutFromSelection({ frontElements: nextFrontElements, backElements: nextBackElements });
 
-    updateBusinessCardProductionOptions({ frontElements: selectedElements, backElements: selectedElements, color: selectedColor });
-    onStartProduction(selectedMemberIds.length > 0 ? selectedMemberIds : brand.members.map((member) => member.id), matchedTemplate.id);
+    updateBusinessCardProductionOptions({ frontElements: nextFrontElements, backElements: nextBackElements, color: selectedColor, layout: nextLayout });
+    onStartProduction(selectedMemberIds.length > 0 ? selectedMemberIds : brand.members.map((member) => member.id));
+  };
+  const handleEditOrderedCardLayout = (draft: BusinessCardDraft, template: PrintTemplate) => {
+    const nextLayout = draft.layout ?? template.layout ?? createBusinessCardLayoutFromSelection({ frontElements, backElements });
+
+    updateBusinessCardProductionOptions({ frontElements, backElements, color: selectedColor, layout: nextLayout });
+    onStartProduction([draft.member.id], template.id);
   };
   const handleDownloadMockupPdf = async (mockup: { id: string; imageUrl: string; cleanImageUrl?: string }) => {
     const pdfRecordKey = `${mockup.id}:${aiBusinessCardPdfRendererVersion}`;
@@ -1309,37 +1204,6 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
       ) : null}
     </div>
   );
-  const elementSelector = (
-    <div className="grid gap-3 rounded-lg bg-surface-blue p-4 shadow-soft">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-sm font-black text-ink">명함 요소 선택</p>
-          <p className="mt-1 text-xs font-bold leading-5 text-muted">앞면 {frontElements.length}개 · 뒷면 {backElements.length}개 선택됨</p>
-        </div>
-        <button className="shrink-0 rounded-md bg-white px-3 py-2 text-xs font-black text-primary-strong shadow-soft" type="button" onClick={() => setIsElementSelectorOpen((current) => !current)}>
-          {isElementSelectorOpen ? "접기" : "펼치기"}
-        </button>
-      </div>
-      {isElementSelectorOpen ? (
-        <div className="grid gap-3">
-          <p className="text-xs font-bold leading-5 text-muted">팀/구성원 입력값이 있는 항목은 처음에 선택된 상태로 보여줘요. 필요 없는 정보는 체크를 해제할 수 있어요.</p>
-          <BusinessCardElementCheckboxGroup title="앞면에 들어갈 요소" selected={frontElements} suggested={suggestedBusinessCardElements} onToggle={(elementId) => toggleElement("front", elementId)} />
-          <BusinessCardElementCheckboxGroup title="뒷면에 들어갈 요소" selected={backElements} suggested={suggestedBusinessCardElements} onToggle={(elementId) => toggleElement("back", elementId)} />
-          <div>
-            <p className="mb-2 text-xs font-black text-primary-strong">명함컬러 선택</p>
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
-              {businessCardColorOptions.map((option) => (
-                <button key={option.id} className={`rounded-md border p-2 text-xs font-black transition ${selectedColor === option.id ? "border-primary bg-white shadow-soft ring-2 ring-primary-soft" : "border-line bg-surface"}`} type="button" onClick={() => selectBusinessCardColor(option.id)}>
-                  <span className="mx-auto mb-1 block h-7 w-7 rounded-full border border-line" style={{ backgroundColor: option.color }} />
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      ) : null}
-    </div>
-  );
   const orderedBusinessCards = orders
     .filter((order) => order.status === "paid" || order.status === "preparing")
     .map((order) => {
@@ -1373,7 +1237,6 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
   return (
     <div className="grid gap-5">
       {memberSelector}
-      {elementSelector}
       {productionNotice ? <p className="rounded-md bg-danger/10 px-4 py-3 text-xs font-bold leading-5 text-danger">{productionNotice}</p> : null}
       <AppButton variant="primary" onClick={handleStartProduction} disabled={brand.members.length > 0 && selectedMemberIds.length === 0} className="py-4 text-base font-black shadow-floating disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0">
         명함 제작하기
@@ -1384,6 +1247,9 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
             <div>
               <p className="text-base font-black text-ink">완성된 명함 목업</p>
               <p className="mt-1 text-xs font-bold leading-5 text-muted">최근 생성한 AI 명함 목업이에요. 인쇄용 PDF는 아래 버튼으로 만들 수 있어요.</p>
+              <AppButton className="mt-3 py-2 text-xs" variant="ghost" onClick={handleStartProduction} disabled={brand.members.length > 0 && selectedMemberIds.length === 0}>
+                레이아웃 수정하기
+              </AppButton>
             </div>
             <div className="grid gap-3">
               {visibleAiBusinessCardMockups.map((mockup) => (
@@ -1414,6 +1280,9 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
               <BusinessCardPreview brandName={brand.name} category={brand.category} member={member} logo={cardLogo} template={template} side="front" />
               {template.layout ? <BusinessCardPreview brandName={brand.name} category={brand.category} member={member} logo={cardLogo} template={template} side="back" /> : null}
             </div>
+            <AppButton className="py-3 text-sm" variant="secondary" onClick={() => handleEditOrderedCardLayout(draft, template)}>
+              레이아웃 수정하기
+            </AppButton>
           </div>
         )) : visibleAiBusinessCardMockups.length === 0 ? (
           <div className="rounded-lg bg-surface-blue p-5 text-center shadow-soft">
@@ -1421,22 +1290,6 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
             <p className="mt-2 text-xs font-bold leading-5 text-muted">입금 확인된 명함이 생기면 이곳에서 다시 확인할 수 있어요.</p>
           </div>
         ) : null}
-      </div>
-    </div>
-  );
-}
-
-function BusinessCardElementCheckboxGroup({ title, selected, suggested, onToggle }: { title: string; selected: BusinessCardUserElementId[]; suggested: BusinessCardUserElementId[]; onToggle: (elementId: BusinessCardUserElementId) => void }) {
-  return (
-    <div>
-      <p className="mb-2 text-xs font-black text-primary-strong">{title}</p>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        {businessCardUserElements.map((item) => (
-          <label key={item.id} className={`flex cursor-pointer items-center gap-2 rounded-md border p-2 text-xs font-black transition ${selected.includes(item.id) ? "border-primary bg-white text-ink shadow-soft" : "border-line bg-surface text-muted"}`}>
-            <input className="h-4 w-4 accent-[var(--color-primary)]" type="checkbox" checked={selected.includes(item.id)} onChange={() => onToggle(item.id)} />
-            <span>{item.label}{suggested.includes(item.id) ? <span className="ml-1 text-[10px] text-primary-strong">입력됨</span> : null}</span>
-          </label>
-        ))}
       </div>
     </div>
   );

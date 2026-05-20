@@ -1,4 +1,5 @@
 import { isGeneratedLogoOption } from "@/lib/logo/logoValidation";
+import { normalizeBusinessCardTemplateLayout } from "@/lib/business-card-templates";
 import { normalizeMemberContact } from "@/lib/member-contact";
 import { logoOptions } from "@/lib/mock-data";
 import type { Brand, BrandAsset, BusinessCardDraft, GeneratedLogoOption, Member } from "@/lib/types";
@@ -139,6 +140,7 @@ export function normalizeBusinessCardDraftWithSelectableLogos(draft: BusinessCar
     designRequest: normalizeDesignRequest(record, defaultBrandDraft.designRequest),
     selectedLogoId: normalizeSelectableLogoId(record.selectedLogoId, savedGeneratedLogoOptions),
     templateId: typeof record.templateId === "string" ? record.templateId : undefined,
+    layout: normalizeBusinessCardTemplateLayout(record.layout),
     member: normalizeMember(typeof record.member === "object" && record.member !== null ? (record.member as Record<string, unknown>) : undefined),
     createdAt: normalizeOptionalString(record.createdAt, getCreatedDate()),
   };

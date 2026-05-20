@@ -57,6 +57,7 @@ export function createPrintyCatalogActions(set: PrintyStoreSet, get: PrintyStore
         activeBusinessCardDraftId: draft?.id,
         selectedProductId: product.id,
         selectedTemplateId: undefined,
+        businessCardProductionOptions: draft?.layout ? { ...state.businessCardProductionOptions, layout: draft.layout } : state.businessCardProductionOptions,
         selectedBusinessCardMemberIds: brand.members[0]?.id ? [brand.members[0].id] : [],
       });
     },
@@ -108,6 +109,7 @@ export function createPrintyCatalogActions(set: PrintyStoreSet, get: PrintyStore
         activeBusinessCardDraftId: draft?.id,
         selectedProductId: product.id,
         selectedTemplateId: templateId,
+        businessCardProductionOptions: draft?.layout ? { ...state.businessCardProductionOptions, layout: draft.layout } : state.businessCardProductionOptions,
         selectedBusinessCardMemberIds: selectedMemberIds,
       });
     },

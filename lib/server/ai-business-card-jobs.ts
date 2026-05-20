@@ -9,6 +9,7 @@ import { validateAiBusinessCardDesign } from "@/lib/ai-business-card/schema";
 import { isPublishedBusinessCardTemplate } from "@/lib/business-card-templates";
 import { queryDb, withDbClient } from "@/lib/server/db";
 import { getAdminBusinessCardTemplate } from "@/lib/server/business-card-template-store";
+import type { PrintTemplate } from "@/lib/types";
 
 type AiBusinessCardJobKind = "mockups" | "pdf";
 type AiBusinessCardJobStatus = "queued" | "running" | "succeeded" | "failed" | "cancelled";
@@ -297,11 +298,12 @@ async function processClaimedAiBusinessCardJob(job: ClaimedAiBusinessCardJob) {
     if (job.kind === "mockups") {
       const template = input.templateId ? await getAdminBusinessCardTemplate(input.templateId) : undefined;
 
-      if (!template || !isPublishedBusinessCardTemplate(template)) {
+      if (template && !isPublishedBusinessCardTemplate(template)) {
         throw new Error("선택한 관리자 명함 템플릿을 찾지 못했어요. 명함 탭에서 다시 제작해 주세요.");
       }
 
-      const mockups = await generateAiBusinessCardMockups(input, readCount(job.requestPayload.count), template);
+      const layoutTemplate: PrintTemplate | undefined = template ?? (input.productionOptions?.layout ? { id: "system-business-card-layout", productId: "business-card", title: "시스템 생성 명함 레이아웃", summary: "사용자 선택 요소로 만든 레이아웃", tags: ["명함"], orientation: "horizontal", status: "published", source: "admin", layout: input.productionOptions.layout, createdAt: new Date().toISOString() } : undefined);
+      const mockups = await generateAiBusinessCardMockups(input, readCount(job.requestPayload.count), layoutTemplate);
       await markAiBusinessCardJobSucceeded(job.id, { mockups });
       return;
     }

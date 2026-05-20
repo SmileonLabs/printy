@@ -285,7 +285,7 @@ export function LogoUploadScreen() {
 
   return (
     <Screen footer={<AppButton onClick={handleUpload} disabled={!file || isUploading} className="disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0">{isUploading ? "정리 중..." : "가지고 있는 로고 등록"}</AppButton>}>
-      <ProgressHeader eyebrow={logoGenerationTargetBrandId ? "로고 등록" : "내 로고"} title="가지고 있는 로고를 등록해요" description="이미지를 올리면 Printy가 GPT 이미지 모델로 형태를 최대한 보존해 인쇄와 목업에 쓰기 좋은 PNG 로고로 정리해요." step={stepNumbers.logoUpload} total={onboardingTotalSteps} action={<HomeExitAction />} />
+      <ProgressHeader eyebrow={logoGenerationTargetBrandId ? "로고 등록" : "내 로고"} title="가지고 있는 로고를 등록해요" description="이미지를 올리면 Printy가 AI 이미지 모델로 형태를 최대한 보존해 인쇄와 목업에 쓰기 좋은 PNG 로고로 정리해요." step={stepNumbers.logoUpload} total={onboardingTotalSteps} action={<HomeExitAction />} />
       <div className="grid gap-5">
         <SoftCard className="bg-[linear-gradient(180deg,var(--color-surface)_0%,var(--color-surface-blue)_100%)]">
           <label className="grid cursor-pointer place-items-center gap-3 rounded-lg border-2 border-dashed border-primary-soft bg-white/70 px-4 py-8 text-center transition hover:bg-white">
@@ -328,7 +328,7 @@ export function LogoUploadScreen() {
               </div>
             </div>
             <div className="mt-4 grid gap-3">
-              <p className="text-xs font-bold leading-5 text-muted">사각형 안을 드래그하면 위치가 이동하고, 파란 점을 잡아 크기를 자유롭게 조정할 수 있어요. 선택 영역만 GPT가 Printy 로고 저장 형식에 맞게 다시 정리해요.</p>
+              <p className="text-xs font-bold leading-5 text-muted">사각형 안을 드래그하면 위치가 이동하고, 파란 점을 잡아 크기를 자유롭게 조정할 수 있어요. 선택 영역만 AI가 Printy 로고 저장 형식에 맞게 다시 정리해요.</p>
             </div>
           </SoftCard>
         ) : null}

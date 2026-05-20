@@ -76,6 +76,7 @@ export function createPrintyOnboardingActions(set: PrintyStoreSet, get: PrintySt
         designRequest: state.brandDraft.designRequest.trim(),
         selectedLogoId: state.selectedLogoId,
         templateId: state.selectedTemplateId,
+        layout: state.businessCardProductionOptions.layout,
         member: { ...state.memberDraft },
         createdAt: existingDraft?.createdAt ?? getCreatedDate(),
       };

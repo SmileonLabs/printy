@@ -3,6 +3,7 @@ import { normalizeMemberContact } from "@/lib/member-contact";
 import { logoOptions } from "@/lib/mock-data";
 import { isOrderStatus } from "@/lib/order-status";
 import type { Brand, BrandAsset, BusinessCardDraft, GeneratedLogoOption, Member, OrderRecord, PaymentMethod, ShippingInfo } from "@/lib/types";
+import { normalizeBusinessCardTemplateLayout } from "@/lib/business-card-templates";
 
 export type BrandWorkspace = {
   brands: Brand[];
@@ -83,6 +84,7 @@ export function isBusinessCardDraft(value: unknown): value is BusinessCardDraft 
     isString(value.designRequest) &&
     isString(value.selectedLogoId) &&
     (value.templateId === undefined || isString(value.templateId)) &&
+    (value.layout === undefined || Boolean(normalizeBusinessCardTemplateLayout(value.layout))) &&
     isMember(value.member) &&
     isString(value.createdAt)
   );
