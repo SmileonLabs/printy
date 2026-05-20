@@ -131,6 +131,6 @@ export function createPrintyNavigationActions(set: PrintyStoreSet, get: PrintySt
       }
     },
     setBrandSection: (sectionId) => set({ activeBrandSection: sectionId }),
-    startCardEdit: () => set({ onboardingComplete: false, currentStep: "memberInput" }),
+    startCardEdit: () => set({ onboardingComplete: false, currentStep: "businessCardPreview" }),
   };
 }

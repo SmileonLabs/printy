@@ -4,6 +4,7 @@ export type AiBusinessCardClientInput = {
   brandName: string;
   category: string;
   mood?: string;
+  mockupRequest?: string;
   member: Member;
   logo?: ResolvedLogoOption;
   templateId?: string;
@@ -17,9 +18,21 @@ export function createAiBusinessCardRequestBody(input: AiBusinessCardClientInput
     member: input.member,
     logo: input.logo,
     mood: input.mood,
+    mockupRequest: input.mockupRequest,
     templateId: input.templateId,
     productionOptions: input.productionOptions,
   };
+}
+
+function createShortStringFingerprint(value: string) {
+  let hash = 2166136261;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return `${value.length}:${(hash >>> 0).toString(36)}`;
 }
 
 export function createAiBusinessCardMockupSignature(input: AiBusinessCardClientInput) {
@@ -27,6 +40,7 @@ export function createAiBusinessCardMockupSignature(input: AiBusinessCardClientI
     brandName: input.brandName.trim(),
     category: input.category.trim(),
     mood: input.mood?.trim() ?? "",
+    mockupRequest: input.mockupRequest?.trim() ?? "",
     logoId: input.logo?.id ?? "",
     templateId: input.templateId ?? "",
     member: {
@@ -44,8 +58,9 @@ export function createAiBusinessCardMockupSignature(input: AiBusinessCardClientI
       adLine1: input.member.adLine1?.trim() ?? "",
       adLine2: input.member.adLine2?.trim() ?? "",
       instagram: input.member.instagram?.trim() ?? "",
-      qrCodeImageUrl: input.member.qrCodeImageUrl?.trim() ?? "",
+      qrCodeImageFingerprint: createShortStringFingerprint(input.member.qrCodeImageUrl?.trim() ?? ""),
     },
     productionOptions: input.productionOptions,
+    layout: input.productionOptions?.layout,
   });
 }

@@ -15,6 +15,7 @@ type ClearedAiBusinessCardState = Pick<
   | "aiBusinessCardMockupStatus"
   | "aiBusinessCardMockupMessage"
   | "aiBusinessCardMockupSignature"
+  | "activeAiBusinessCardMockupJobId"
   | "selectedAiBusinessCardMockupUrl"
   | "aiBusinessCardPdfStatus"
   | "aiBusinessCardPdfMessage"
@@ -30,6 +31,7 @@ function createClearedAiBusinessCardState(): ClearedAiBusinessCardState {
     aiBusinessCardMockupStatus: "idle",
     aiBusinessCardMockupMessage: undefined,
     aiBusinessCardMockupSignature: undefined,
+    activeAiBusinessCardMockupJobId: undefined,
     selectedAiBusinessCardMockupUrl: undefined,
     aiBusinessCardPdfStatus: "idle",
     aiBusinessCardPdfMessage: undefined,

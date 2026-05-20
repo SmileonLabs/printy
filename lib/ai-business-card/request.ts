@@ -1,4 +1,5 @@
 import type { AiBusinessCardInput } from "@/lib/ai-business-card/schema";
+import { normalizeBusinessCardTemplateLayout } from "@/lib/business-card-templates";
 import type { BusinessCardColorPaletteId, BusinessCardProductionOptions, BusinessCardUserElementId, LogoShape, Member, ResolvedLogoOption } from "@/lib/types";
 
 const logoShapes = new Set<LogoShape>(["circle", "square", "pill", "diamond", "arch", "spark"]);
@@ -88,6 +89,7 @@ function readProductionOptions(value: unknown): BusinessCardProductionOptions | 
     frontElements,
     backElements,
     color: businessCardColorIds.has(color) ? color : "black",
+    layout: normalizeBusinessCardTemplateLayout(value.layout),
   };
 }
 
@@ -104,7 +106,7 @@ export function readAiBusinessCardInput(value: unknown): AiBusinessCardInput | u
     return undefined;
   }
 
-  return { brandName, category, member, mood: readString(value, "mood"), colors: readString(value, "colors"), referenceStyle: readString(value, "referenceStyle"), frontNote: readString(value, "frontNote"), backNote: readString(value, "backNote"), logo: readLogo(value.logo), templateId: readString(value, "templateId") || undefined, productionOptions: readProductionOptions(value.productionOptions) };
+  return { brandName, category, member, mood: readString(value, "mood"), colors: readString(value, "colors"), referenceStyle: readString(value, "referenceStyle"), frontNote: readString(value, "frontNote"), backNote: readString(value, "backNote"), mockupRequest: readString(value, "mockupRequest"), logo: readLogo(value.logo), templateId: readString(value, "templateId") || undefined, productionOptions: readProductionOptions(value.productionOptions) };
 }
 
 export function contentDispositionFileName(fileName: string) {

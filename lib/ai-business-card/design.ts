@@ -40,7 +40,7 @@ function fieldTextValue(input: AiBusinessCardInput, field: AiBusinessCardTextFie
 function shouldUseInstagramIcon(input: AiBusinessCardInput, sideId: BusinessCardTemplateSideId) {
   const selectedElements = selectedElementsForSide(input, sideId);
 
-  return !selectedElements || selectedElements.includes("instagramIcon");
+  return !selectedElements || selectedElements.includes("instagram") || selectedElements.includes("instagramIcon");
 }
 
 function templateBoxToMm(box: BusinessCardTemplateBox) {
@@ -144,7 +144,9 @@ export class AiBusinessCardDesignError extends Error {
 }
 
 export function createAiBusinessCardDesignFromTemplate(input: AiBusinessCardInput, template: PrintTemplate): AiBusinessCardDesign {
-  if (!template.layout) {
+  const layout = input.productionOptions?.layout ?? template.layout;
+
+  if (!layout) {
     throw new AiBusinessCardDesignError("관리자 명함 템플릿에 레이아웃 정보가 없어요.");
   }
 
@@ -155,7 +157,7 @@ export function createAiBusinessCardDesignFromTemplate(input: AiBusinessCardInpu
   let layer = 20;
 
   for (const sideId of sideIds) {
-    const side = template.layout.sides[sideId];
+    const side = layout.sides[sideId];
 
     for (const icon of side.icons) {
       const element = iconElementFromTemplateIcon(input, sideId, icon, layer);

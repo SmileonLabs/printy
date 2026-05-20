@@ -11,7 +11,7 @@ import type { PrintyState } from "@/store/printy-store-types";
 type PrintyStoreSet = Parameters<StateCreator<PrintyState, [], [], PrintyState>>[0];
 type PrintyStoreGet = Parameters<StateCreator<PrintyState, [], [], PrintyState>>[1];
 
-type PrintyOnboardingActions = Pick<PrintyState, "setStep" | "saveBrandShell" | "ensureBusinessCardDraft" | "beginAiBusinessCardMockupGeneration" | "syncAiBusinessCardMockups" | "finishAiBusinessCardMockupGeneration" | "failAiBusinessCardMockupGeneration" | "dismissAiBusinessCardMockupNotice" | "selectAiBusinessCardMockup" | "deleteAiBusinessCardMockup" | "beginAiBusinessCardPdfGeneration" | "finishAiBusinessCardPdfGeneration" | "failAiBusinessCardPdfGeneration" | "dismissAiBusinessCardPdfNotice" | "completeCheckout" | "startNewBrand">;
+type PrintyOnboardingActions = Pick<PrintyState, "setStep" | "saveBrandShell" | "ensureBusinessCardDraft" | "beginAiBusinessCardMockupGeneration" | "setActiveAiBusinessCardMockupJob" | "syncAiBusinessCardMockups" | "finishAiBusinessCardMockupGeneration" | "failAiBusinessCardMockupGeneration" | "dismissAiBusinessCardMockupNotice" | "selectAiBusinessCardMockup" | "deleteAiBusinessCardMockup" | "beginAiBusinessCardPdfGeneration" | "finishAiBusinessCardPdfGeneration" | "failAiBusinessCardPdfGeneration" | "dismissAiBusinessCardPdfNotice" | "completeCheckout" | "startNewBrand">;
 
 export function createPrintyOnboardingActions(set: PrintyStoreSet, get: PrintyStoreGet): PrintyOnboardingActions {
   return {
@@ -97,12 +97,9 @@ export function createPrintyOnboardingActions(set: PrintyStoreSet, get: PrintySt
         aiBusinessCardMockups: state.aiBusinessCardMockupSignature === signature ? state.aiBusinessCardMockups : [],
         selectedAiBusinessCardMockupUrl: state.aiBusinessCardMockupSignature === signature ? state.selectedAiBusinessCardMockupUrl : undefined,
       })),
+    setActiveAiBusinessCardMockupJob: (jobId) => set({ activeAiBusinessCardMockupJobId: jobId }),
     syncAiBusinessCardMockups: (signature, mockups) =>
       set((state) => {
-        if (state.aiBusinessCardMockupSignature === signature && state.aiBusinessCardMockupStatus === "generating") {
-          return {};
-        }
-
         if (mockups.length === 0) {
           return state.aiBusinessCardMockupSignature === signature ? {} : { aiBusinessCardMockupSignature: signature };
         }
@@ -110,10 +107,6 @@ export function createPrintyOnboardingActions(set: PrintyStoreSet, get: PrintySt
         const nextMockups = state.aiBusinessCardMockupSignature === signature ? [...state.aiBusinessCardMockups] : [];
 
         for (const mockup of mockups) {
-          if (!mockup.cleanImageUrl) {
-            continue;
-          }
-
           if (!nextMockups.some((item) => item.imageUrl === mockup.imageUrl)) {
             nextMockups.push(mockup);
           }
@@ -123,6 +116,7 @@ export function createPrintyOnboardingActions(set: PrintyStoreSet, get: PrintySt
           aiBusinessCardMockupStatus: "ready",
           aiBusinessCardMockupMessage: state.aiBusinessCardMockupSignature === signature ? state.aiBusinessCardMockupMessage : undefined,
           aiBusinessCardMockupSignature: signature,
+          activeAiBusinessCardMockupJobId: undefined,
           aiBusinessCardMockups: nextMockups,
           selectedAiBusinessCardMockupUrl: state.selectedAiBusinessCardMockupUrl ?? nextMockups[0]?.imageUrl,
         };
@@ -136,10 +130,6 @@ export function createPrintyOnboardingActions(set: PrintyStoreSet, get: PrintySt
         const nextMockups = [...state.aiBusinessCardMockups];
 
         for (const mockup of mockups) {
-          if (!mockup.cleanImageUrl) {
-            continue;
-          }
-
           if (!nextMockups.some((item) => item.imageUrl === mockup.imageUrl)) {
             nextMockups.push(mockup);
           }
@@ -149,6 +139,7 @@ export function createPrintyOnboardingActions(set: PrintyStoreSet, get: PrintySt
           aiBusinessCardMockupStatus: "ready",
           aiBusinessCardMockupMessage: mockups.length > 0 ? "명함 목업 디자인이 준비됐어요." : "생성된 명함 목업 디자인이 없어요.",
           aiBusinessCardMockups: nextMockups,
+          activeAiBusinessCardMockupJobId: undefined,
           selectedAiBusinessCardMockupUrl: mockups[0]?.imageUrl ?? state.selectedAiBusinessCardMockupUrl,
         };
       }),
@@ -161,6 +152,7 @@ export function createPrintyOnboardingActions(set: PrintyStoreSet, get: PrintySt
         return {
           aiBusinessCardMockupStatus: "failed",
           aiBusinessCardMockupMessage: message,
+          activeAiBusinessCardMockupJobId: undefined,
         };
       }),
     dismissAiBusinessCardMockupNotice: () => set({ aiBusinessCardMockupStatus: "idle", aiBusinessCardMockupMessage: undefined }),
@@ -180,6 +172,7 @@ export function createPrintyOnboardingActions(set: PrintyStoreSet, get: PrintySt
         selectedAiBusinessCardMockupUrl: state.selectedAiBusinessCardMockupUrl === mockup.imageUrl ? nextMockups[0]?.imageUrl : state.selectedAiBusinessCardMockupUrl,
         aiBusinessCardMockupStatus: nextMockups.length > 0 ? state.aiBusinessCardMockupStatus : "idle",
         aiBusinessCardMockupMessage: nextMockups.length > 0 ? state.aiBusinessCardMockupMessage : undefined,
+        activeAiBusinessCardMockupJobId: nextMockups.length > 0 ? state.activeAiBusinessCardMockupJobId : undefined,
         aiBusinessCardPdfRecords: nextRecords,
         aiBusinessCardPdfStatus: state.aiBusinessCardPdfSignature?.includes(`mockup:${mockup.imageUrl}`) ? "idle" : state.aiBusinessCardPdfStatus,
         aiBusinessCardPdfMessage: state.aiBusinessCardPdfSignature?.includes(`mockup:${mockup.imageUrl}`) ? undefined : state.aiBusinessCardPdfMessage,
@@ -325,6 +318,7 @@ export function createPrintyOnboardingActions(set: PrintyStoreSet, get: PrintySt
         aiBusinessCardMockupStatus: "idle",
         aiBusinessCardMockupMessage: undefined,
         aiBusinessCardMockupSignature: undefined,
+        activeAiBusinessCardMockupJobId: undefined,
         selectedAiBusinessCardMockupUrl: undefined,
         aiBusinessCardPdfStatus: "idle",
         aiBusinessCardPdfMessage: undefined,

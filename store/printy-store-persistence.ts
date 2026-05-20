@@ -1,4 +1,5 @@
 import { createJSONStorage, type PersistOptions } from "zustand/middleware";
+import { normalizeBusinessCardTemplateLayout } from "@/lib/business-card-templates";
 import { isSelectableLogoId, normalizeBrandAsset, normalizeBrandWithSelectableLogos, normalizeBusinessCardDraftWithSelectableLogos, normalizeGeneratedLogos, normalizeSelectableLogoId } from "@/store/printy-store-normalizers";
 import type { BusinessCardColorPaletteId, BusinessCardProductionOptions, BusinessCardUserElementId, MainTab } from "@/lib/types";
 import type { PrintyState } from "@/store/printy-store-types";
@@ -51,7 +52,7 @@ function normalizeBusinessCardProductionOptions(value: unknown, fallback: Busine
     return fallback;
   }
 
-  const record = value as { frontElements?: unknown; backElements?: unknown; color?: unknown };
+  const record = value as { frontElements?: unknown; backElements?: unknown; color?: unknown; layout?: unknown };
   const frontElements = Array.isArray(record.frontElements) ? record.frontElements.filter(isBusinessCardUserElementId) : fallback.frontElements;
   const backElements = Array.isArray(record.backElements) ? record.backElements.filter(isBusinessCardUserElementId) : fallback.backElements;
 
@@ -59,6 +60,7 @@ function normalizeBusinessCardProductionOptions(value: unknown, fallback: Busine
     frontElements,
     backElements,
     color: isBusinessCardColorPaletteId(record.color) ? record.color : fallback.color,
+    layout: normalizeBusinessCardTemplateLayout(record.layout),
   } satisfies BusinessCardProductionOptions;
 }
 
@@ -205,6 +207,7 @@ export const printyStorePersistOptions = {
       aiBusinessCardMockupStatus: state.aiBusinessCardMockupStatus,
       aiBusinessCardMockupMessage: state.aiBusinessCardMockupMessage,
       aiBusinessCardMockupSignature: state.aiBusinessCardMockupSignature,
+      activeAiBusinessCardMockupJobId: state.activeAiBusinessCardMockupJobId,
       selectedAiBusinessCardMockupUrl: state.selectedAiBusinessCardMockupUrl,
       brandDraft: shouldPersistBrandDraftForStep(state.currentStep) || state.activeLogoGenerationJobId ? state.brandDraft : undefined,
       memberDraft: shouldPersistMemberDraftForStep(state.currentStep) ? state.memberDraft : undefined,
@@ -326,6 +329,7 @@ export const printyStorePersistOptions = {
       aiBusinessCardMockupStatus,
       aiBusinessCardMockupMessage,
       aiBusinessCardMockupSignature: shouldRestoreAiBusinessCardMockups && typeof persistedState.aiBusinessCardMockupSignature === "string" ? persistedState.aiBusinessCardMockupSignature : currentState.aiBusinessCardMockupSignature,
+      activeAiBusinessCardMockupJobId: shouldRestoreAiBusinessCardMockups && typeof persistedState.activeAiBusinessCardMockupJobId === "string" ? persistedState.activeAiBusinessCardMockupJobId : currentState.activeAiBusinessCardMockupJobId,
       selectedAiBusinessCardMockupUrl: shouldRestoreAiBusinessCardMockups && typeof persistedState.selectedAiBusinessCardMockupUrl === "string" ? persistedState.selectedAiBusinessCardMockupUrl : currentState.selectedAiBusinessCardMockupUrl,
       businessCardDrafts,
       orders: shouldRestoreWorkspaceArrays ? persistedState.orders ?? currentState.orders : currentState.orders,

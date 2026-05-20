@@ -26,7 +26,7 @@ export function MemberInputScreen() {
   const [qrCodeError, setQrCodeError] = useState("");
   const requiredFields: Array<{ label: string; field: keyof Pick<Member, "name" | "phone">; placeholder: string }> = [
     { label: "이름", field: "name", placeholder: "김하린" },
-    { label: "휴대폰", field: "phone", placeholder: "010-0000-0000" },
+    { label: "전화번호", field: "phone", placeholder: "010-0000-0000" },
   ];
   const optionalFields: MemberOptionalTextField[] = [
     { label: "직함", field: "role", placeholder: "대표" },
@@ -68,7 +68,7 @@ export function MemberInputScreen() {
         <section className="grid gap-3 rounded-lg border border-line bg-surface p-4 shadow-card">
           <div>
             <p className="text-sm font-black text-ink">필수항목</p>
-            <p className="mt-1 text-xs font-bold text-muted">이름과 휴대폰은 명함 제작에 꼭 필요해요.</p>
+            <p className="mt-1 text-xs font-bold text-muted">이름과 전화번호는 명함 제작에 꼭 필요해요.</p>
           </div>
           {requiredFields.map((field) => (
             <TextField key={field.field} label={field.label} placeholder={field.placeholder} value={memberDraft[field.field]} onChange={(value) => updateMemberDraft(field.field, value)} />

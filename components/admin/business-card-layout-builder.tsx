@@ -145,7 +145,7 @@ const sideLabels: Record<BusinessCardTemplateSideId, string> = {
 const fieldLabels: Record<BusinessCardTemplateTextFieldId, string> = {
   role: "직함",
   name: "이름",
-  phone: "휴대전화",
+  phone: "전화번호",
   mainPhone: "대표전화",
   fax: "팩스",
   email: "이메일",
@@ -192,8 +192,8 @@ const textAlignLabels: Record<BusinessCardTemplateTextAlign, string> = {
 const iconLabels: Record<BusinessCardTemplateIconId, string> = {
   name: "이름",
   role: "직함",
-  mobile: "휴대폰",
-  phone: "휴대전화",
+  mobile: "전화번호",
+  phone: "대표전화",
   email: "메일",
   location: "위치",
   address: "주소",

@@ -12,13 +12,19 @@ const elementLabels: Record<string, string> = {
   category: "category as artwork only",
   name: "name",
   role: "role",
-  phone: "mobile phone",
+  phone: "phone number",
   mainPhone: "main phone",
   fax: "fax",
   email: "email",
   website: "website",
   address: "address",
   account: "account number",
+  titleLine1: "title line 1",
+  titleLine2: "title line 2",
+  adLine1: "advertising line 1",
+  adLine2: "advertising line 2",
+  instagram: "instagram",
+  qrCode: "QR code",
 };
 
 const toneLabels: Record<string, string> = {
@@ -91,6 +97,12 @@ function selectedContentText(input: AiBusinessCardInput) {
     selectedFields.has("website") ? contentLine("Website", input.member.website) : undefined,
     selectedFields.has("address") ? contentLine("Address", input.member.address) : undefined,
     selectedFields.has("account") ? contentLine("Account", input.member.account) : undefined,
+    selectedFields.has("titleLine1") ? contentLine("Title line 1", input.member.titleLine1) : undefined,
+    selectedFields.has("titleLine2") ? contentLine("Title line 2", input.member.titleLine2) : undefined,
+    selectedFields.has("adLine1") ? contentLine("Advertising line 1", input.member.adLine1) : undefined,
+    selectedFields.has("adLine2") ? contentLine("Advertising line 2", input.member.adLine2) : undefined,
+    selectedFields.has("instagram") ? contentLine("Instagram", input.member.instagram) : undefined,
+    selectedFields.has("qrCode") ? contentLine("QR code image placeholder", input.member.qrCodeImageUrl ? "provided by user" : undefined) : undefined,
   ].filter((line): line is string => Boolean(line));
 
   return lines.length > 0 ? lines.join("\n") : "- No editable customer text fields selected. Only place the representative logo/artwork and background design.";
@@ -104,15 +116,41 @@ function templateGuideText(input: AiBusinessCardInput, template: PrintTemplate |
   return `${template.title}\n- ${templateSideGuide(input, template, "front")}\n- ${templateSideGuide(input, template, "back")}`;
 }
 
-export function buildAiBusinessCardMockupPrompt(input: AiBusinessCardInput, conceptNumber: number, template?: PrintTemplate) {
-  return `Create one premium two-sided Korean business card design concept for Printy.
+export type AiBusinessCardPromptOverrides = {
+  mockupInstructions?: string;
+  cleanInstructions?: string;
+};
+
+function adminInstructionsText(value: string | undefined) {
+  const instructions = compact(value);
+
+  return instructions === "none" ? "- None." : `- ${instructions}`;
+}
+
+export function buildAiBusinessCardMockupPrompt(input: AiBusinessCardInput, conceptNumber: number, template?: PrintTemplate, overrides: AiBusinessCardPromptOverrides = {}) {
+  return `Create one premium Korean business card sheet for Printy: a vertical 92mm x 104mm image that is made by stacking two complete horizontal 92mm x 52mm business cards.
+
+USER DESIGN REQUEST - HIGHEST PRIORITY STYLE DIRECTION:
+- ${compact(input.mockupRequest)}
+- Follow this request unless it conflicts with logo preservation, exact user text rules, or the 92:52 card ratio.
+
+ADMIN PROMPT INSTRUCTIONS:
+${adminInstructionsText(overrides.mockupInstructions)}
+- Follow these admin instructions unless they conflict with the strict image, logo, text accuracy, or layout rules below.
 
 STRICT IMAGE RULES:
 - This is only a visual design reference, not the final print file.
-- Exact horizontal business card artwork size: 92mm x 52mm for each side. This 92mm x 52mm size already includes the cutting margin; do not add extra bleed.
-- Use the provided transparent guide image only as the required sheet aspect ratio. The whole design sheet represents 92mm x 104mm.
-- Split the sheet horizontally into exactly two equal 92mm x 52mm panels: top half is the front, bottom half is the back.
+- The output image must be one portrait/vertical composite sheet with overall physical size 92mm wide x 104mm tall.
+- The 92mm x 104mm sheet is not a single tall business card. It is only a preview container that holds two separate complete business cards stacked vertically.
+- Treat the top half as one full, independent horizontal 92mm x 52mm business card front.
+- Treat the bottom half as one full, independent horizontal 92mm x 52mm business card back.
+- The front card and the back card are two complete cards with full 92mm x 52mm layouts. Do not design one tall card and cut it in half.
+- The provided guide image is the required 92:104 vertical canvas. Replace the two blank halves with finished artwork; do not collapse the result into a single 92mm x 52mm card.
+- The top 92mm x 52mm card must fill the full top half. The bottom 92mm x 52mm card must fill the full bottom half.
+- Each side's exact horizontal business card artwork size is 92mm x 52mm. This 92mm x 52mm size already includes the cutting margin; do not add extra bleed.
+- Each card must be a wide horizontal landscape card. Never create tall/narrow card artwork inside either half.
 - Both panels must fill the full sheet width and exactly half of the sheet height. Do not add margins, extra canvas, padding, gutters, or whitespace around either panel.
+- The final image must show both stacked halves at once: top front and bottom back. Never output only the front side, only the back side, or one enlarged single card.
 - The visible rectangle ratio for each side must be exactly 92:52. Do not use square cards, A-series paper, posters, or perspective mockups.
 - The front and back panels must have the same visible width and the same visible height. The back side must never be shorter, thinner, cropped, or a different ratio.
 - Do not draw crop lines, guide outlines, borders, registration marks, separator rules, or any external frame around the two panels.
@@ -127,9 +165,9 @@ STRICT IMAGE RULES:
 - The representative logo must appear on the business card design. Do not replace it with text or a similar symbol.
 - Do not typeset the brand name or category as separate editable text outside the provided logo. Logo lettering belongs to the logo artwork only.
 - Design for a future vector PDF renderer: text, lines, icons, QR, and shapes must be visually separable.
- - Use the canonical Printy field icons below only for contact fields, and keep each icon immediately next to its matching text field.
- - Name and role are text-only fields. Do not add icons, pictograms, vertical bars, markers, bullets, badges, or divider lines next to the name or role.
- - Never create a person, user, profile, avatar, head, shoulders, badge, ID-card, or human icon for the name or role field.
+- Use the canonical Printy field icons below only for contact fields, and keep each icon immediately next to its matching text field.
+- Name and role are text-only fields. Do not add icons, pictograms, vertical bars, markers, bullets, badges, or divider lines next to the name or role.
+- Never create a person, user, profile, avatar, head, shoulders, badge, ID-card, or human icon for the name or role field.
 
 CANONICAL FIELD ICONS:
 ${buildAiBusinessCardIconPromptGuide()}
@@ -138,6 +176,7 @@ BRAND:
 - Brand name: ${compact(input.brandName)}
 - Category: ${compact(input.category)}
 - Mood: ${compact(input.mood)}
+- User mockup design request: ${compact(input.mockupRequest)}
 - Preferred colors: ${compact(input.colors)}
 - Reference style: ${compact(input.referenceStyle)}
 - Front note: ${compact(input.frontNote)}
@@ -153,17 +192,29 @@ ADMIN TEMPLATE STRUCTURE TO FOLLOW EXACTLY:
 - Place each selected information field at the same relative position and size as the template box below.
 - Match the listed font size, weight, and alignment as closely as possible in the mockup image.
 - Do not move selected fields to a different side, do not omit selected fields, and do not invent additional customer fields.
+- Do not invent, paraphrase, translate, or autocomplete any customer text.
+- If a selected title or advertising field is listed as none, keep that area visually blank or decorative only. Never write your own slogans, promotions, offers, descriptors, or advertising copy.
+- The word advertising only describes the field type; it is not permission to create ad copy.
 - The final PDF will use these template coordinates, so the mockup should visually match them.
 ${templateGuideText(input, template)}
 
 CONTENT TO PLACE:
 ${selectedContentText(input)}
 
+TEXT ACCURACY RULES:
+- Use only the exact non-none text values listed above.
+- Do not add placeholder text such as sample names, made-up phone numbers, fake addresses, taglines, promotion copy, or brand claims.
+- For QR code, render only a QR-like image area if the user provided a QR image; do not invent a URL or QR content.
+
 Concept variation number: ${conceptNumber}. Make it visually distinct from other possible concepts.`;
 }
 
-export function buildAiBusinessCardCleanBackgroundPrompt(conceptNumber: number) {
+export function buildAiBusinessCardCleanBackgroundPrompt(conceptNumber: number, overrides: AiBusinessCardPromptOverrides = {}) {
   return `Edit the provided completed Printy Korean business-card mockup into a CLEAN BACKGROUND companion image.
+
+ADMIN CLEANUP INSTRUCTIONS:
+${adminInstructionsText(overrides.cleanInstructions)}
+- Follow these admin cleanup instructions unless they conflict with the strict clean background rules below.
 
 STRICT CLEAN BACKGROUND RULES:
 - Treat the provided image as the locked source mockup.
@@ -172,9 +223,11 @@ STRICT CLEAN BACKGROUND RULES:
 - Keep exactly one flat front design and exactly one flat back design on the same 92mm x 104mm vertical sheet.
 - The sheet is split horizontally into exactly two equal 92mm x 52mm panels: top half front, bottom half back.
 - Keep the front and back panels the exact same visible size as the source image. The back side must not become shorter, thinner, cropped, or a different ratio.
-- Remove all customer-entered field text glyphs: name, role, phone, main phone, fax, email, website, address, and account number.
-- Also remove all field icons and markers next to those fields, including phone, mobile, email, fax, address/location, website, account, bullets, dividers, and any accidental name/role marker.
-- Fill only the removed text/icon/marker pixels with the immediately surrounding background texture/color. Do not modify other pixels.
+- Remove all customer-entered field text glyphs: name, role, phone, main phone, fax, email, website, address, account number, Instagram, title lines, advertising lines, and QR code artwork.
+- Also remove all field icons and markers next to those fields, including phone, mobile, email, fax, address/location, website, account, Instagram, QR, bullets, dividers, and any accidental name/role marker.
+- Fill only the removed text/icon/marker/QR pixels with the immediately surrounding background texture/color. Do not modify other pixels.
+- If a QR code or QR-like square is removed, leave that area as clean empty background only. Never replace the removed QR area with a logo, logo fragment, icon, symbol, decorative square, pattern, text, or any new artwork.
+- Do not move, copy, enlarge, duplicate, or add the representative logo into any removed field area. The logo may remain only where it already existed in the source mockup.
 - Do not remove or alter any text that is part of the representative logo image. Logo lettering must remain exactly as-is.
 - Do not remove or alter brand lettering that is visually embedded inside the logo mark or logo lockup.
 - Do not preserve field icons, bullets, dividers, or field markers in the clean background. The final PDF renderer will redraw selected icons and text as vectors.

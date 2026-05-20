@@ -130,6 +130,7 @@ export type AiBusinessCardInput = {
   referenceStyle?: string;
   frontNote?: string;
   backNote?: string;
+  mockupRequest?: string;
   member: Member;
   logo?: ResolvedLogoOption;
   templateId?: string;

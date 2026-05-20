@@ -1,6 +1,6 @@
 import "server-only";
 
-import { AiBusinessCardBackgroundError, createCleanBusinessCardBackgrounds, type AiBusinessCardCleanBackgrounds } from "@/lib/ai-business-card/backgrounds";
+import { createCleanBusinessCardBackgrounds, type AiBusinessCardCleanBackgrounds } from "@/lib/ai-business-card/backgrounds";
 import { buildAiBusinessCardHtml } from "@/lib/ai-business-card/renderer";
 import type { AiBusinessCardDesign, AiBusinessCardInput } from "@/lib/ai-business-card/schema";
 import { launchPrintyChromium } from "@/lib/server/chromium-renderer";
@@ -19,11 +19,11 @@ function safePdfFileName(brandName: string) {
 }
 
 export async function generateAiBusinessCardPdf(design: AiBusinessCardDesign, input: AiBusinessCardInput, options: { origin?: string; includeProductionMarks?: boolean; mockupImageUrl?: string; cleanMockupImageUrl?: string; cleanBackgrounds?: AiBusinessCardCleanBackgrounds } = {}): Promise<AiBusinessCardPdfResult> {
-  if (!options.mockupImageUrl && !options.cleanMockupImageUrl && !options.cleanBackgrounds) {
-    throw new AiBusinessCardBackgroundError("AI business card mockup image is required for PDF generation.");
+  if (!options.cleanBackgrounds && !options.cleanMockupImageUrl) {
+    throw new Error("클린 명함 목업 이미지가 필요해요. 목업을 다시 생성해 주세요.");
   }
 
-  const cleanBackgrounds = options.cleanBackgrounds ?? await createCleanBusinessCardBackgrounds(options.cleanMockupImageUrl ?? options.mockupImageUrl ?? "");
+  const cleanBackgrounds = options.cleanBackgrounds ?? await createCleanBusinessCardBackgrounds(options.cleanMockupImageUrl ?? "");
   const printHtml = await buildAiBusinessCardHtml(design, input, { origin: options.origin, includeProductionMarks: options.includeProductionMarks ?? true, cleanBackgrounds });
   const browser = await launchPrintyChromium();
 

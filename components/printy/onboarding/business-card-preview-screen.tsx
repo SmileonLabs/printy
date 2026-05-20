@@ -2,12 +2,14 @@
 
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { BusinessCardLayoutBuilder } from "@/components/admin/business-card-layout-builder";
 import { HomeExitAction } from "@/components/printy/onboarding/home-exit-action";
 import { onboardingTotalSteps, stepNumbers } from "@/components/printy/shared/onboarding-progress";
-import { AppButton, ProgressHeader, Screen, SoftCard } from "@/components/ui";
+import { AppButton, ProgressHeader, Screen, SoftCard, TextAreaField } from "@/components/ui";
 import { createAiBusinessCardMockupSignature, createAiBusinessCardRequestBody } from "@/lib/ai-business-card/client";
+import { getBusinessCardTemplateOrientation } from "@/lib/business-card-templates";
 import type { AiBusinessCardDesign } from "@/lib/ai-business-card/schema";
-import type { AiBusinessCardMockup } from "@/lib/types";
+import type { AiBusinessCardMockup, BusinessCardTemplateLayout } from "@/lib/types";
 import { usePrintyStore } from "@/store/use-printy-store";
 
 type DownloadState = {
@@ -23,7 +25,33 @@ type AiBusinessCardJobResponse =
   | { jobId: string; kind: "mockups" | "pdf"; status: "failed" | "cancelled"; reason: string };
 
 const clientRequestTimeoutMs = 540_000;
-const aiBusinessCardPdfRendererVersion = "pdf-bg-icon-anchor-v19-half-font";
+const aiBusinessCardPdfRendererVersion = "pdf-template-bg-v20-fast-mockup";
+
+function cloneBusinessCardTemplateLayout(layout: BusinessCardTemplateLayout): BusinessCardTemplateLayout {
+  return {
+    canvas: {
+      trim: { ...layout.canvas.trim },
+      edit: { ...layout.canvas.edit },
+      safe: { ...layout.canvas.safe },
+    },
+    sides: {
+      front: {
+        logo: { visible: layout.sides.front.logo.visible, box: { ...layout.sides.front.logo.box } },
+        fields: layout.sides.front.fields.map((field) => ({ ...field, box: { ...field.box } })),
+        icons: layout.sides.front.icons.map((icon) => ({ ...icon, box: { ...icon.box } })),
+        lines: layout.sides.front.lines.map((line) => ({ ...line, box: { ...line.box } })),
+        background: { ...layout.sides.front.background },
+      },
+      back: {
+        logo: { visible: layout.sides.back.logo.visible, box: { ...layout.sides.back.logo.box } },
+        fields: layout.sides.back.fields.map((field) => ({ ...field, box: { ...field.box } })),
+        icons: layout.sides.back.icons.map((icon) => ({ ...icon, box: { ...icon.box } })),
+        lines: layout.sides.back.lines.map((line) => ({ ...line, box: { ...line.box } })),
+        background: { ...layout.sides.back.background },
+      },
+    },
+  };
+}
 
 function readApiErrorReason(value: unknown, fallback: string) {
   return typeof value === "object" && value !== null && "reason" in value && typeof value.reason === "string" ? value.reason : fallback;
@@ -112,14 +140,6 @@ function createSavedMockupSearchParams(signature: string, input: { brandName: st
   return params;
 }
 
-function createAiBusinessCardStableMockupKey(input: { brandId?: string; memberId?: string; logoId?: string }) {
-  if (!input.brandId || !input.memberId || !input.logoId) {
-    return undefined;
-  }
-
-  return `brand:${input.brandId}|member:${input.memberId}|logo:${input.logoId}`;
-}
-
 async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit) {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), clientRequestTimeoutMs);
@@ -157,30 +177,36 @@ async function pollAiBusinessCardJob(jobId: string) {
 }
 
 export function BusinessCardPreviewScreen() {
-  const { brandDraft, memberDraft, selectedLogoId, aiBusinessCardMockups, aiBusinessCardMockupStatus, aiBusinessCardMockupMessage, aiBusinessCardMockupSignature, selectedAiBusinessCardMockupUrl, beginAiBusinessCardMockupGeneration, syncAiBusinessCardMockups, finishAiBusinessCardMockupGeneration, failAiBusinessCardMockupGeneration, selectAiBusinessCardMockup, deleteAiBusinessCardMockup, beginAiBusinessCardPdfGeneration, finishAiBusinessCardPdfGeneration, failAiBusinessCardPdfGeneration, dismissAiBusinessCardPdfNotice } = usePrintyStore();
+  const { brandDraft, memberDraft, selectedLogoId, aiBusinessCardMockups, aiBusinessCardMockupStatus, aiBusinessCardMockupMessage, aiBusinessCardMockupSignature, activeAiBusinessCardMockupJobId, selectedAiBusinessCardMockupUrl, beginAiBusinessCardMockupGeneration, setActiveAiBusinessCardMockupJob, syncAiBusinessCardMockups, finishAiBusinessCardMockupGeneration, failAiBusinessCardMockupGeneration, selectAiBusinessCardMockup, deleteAiBusinessCardMockup, beginAiBusinessCardPdfGeneration, finishAiBusinessCardPdfGeneration, failAiBusinessCardPdfGeneration, dismissAiBusinessCardPdfNotice } = usePrintyStore();
   const isAuthenticated = usePrintyStore((state) => state.isAuthenticated);
   const authUserId = usePrintyStore((state) => state.authSession?.userId);
-  const selectedBrandId = usePrintyStore((state) => state.selectedBrandId);
   const effectiveLogoId = usePrintyStore((state) => state.brands.find((brand) => brand.id === state.selectedBrandId)?.selectedLogoId ?? selectedLogoId);
   const selectedTemplateId = usePrintyStore((state) => state.selectedTemplateId);
+  const selectedTemplate = usePrintyStore((state) => state.templates.find((template) => template.id === state.selectedTemplateId));
   const productionOptions = usePrintyStore((state) => state.businessCardProductionOptions);
   const logo = usePrintyStore((state) => [...state.generatedLogoOptions, ...state.savedGeneratedLogoOptions].find((item) => item.id === effectiveLogoId));
   const [downloadState, setDownloadState] = useState<DownloadState>({});
   const [pdfProgressMessages, setPdfProgressMessages] = useState<Record<string, string>>({});
   const [pdfStageErrors, setPdfStageErrors] = useState<Record<string, string>>({});
   const [runningPdfStages, setRunningPdfStages] = useState<Record<string, PdfStage>>({});
+  const [mockupRequest, setMockupRequest] = useState("");
+  const [editableLayout, setEditableLayout] = useState<BusinessCardTemplateLayout>();
   const loadedServerMockupKeysRef = useRef<Set<string>>(new Set());
-  const input = { brandName: brandDraft.name, category: brandDraft.category, member: memberDraft, logo, mood: brandDraft.designRequest, templateId: selectedTemplateId, productionOptions };
+  const productionOptionsWithLayout = useMemo(() => editableLayout ? { ...productionOptions, layout: editableLayout } : productionOptions, [editableLayout, productionOptions]);
+  const input = { brandName: brandDraft.name, category: brandDraft.category, member: memberDraft, logo, mood: brandDraft.designRequest, mockupRequest, templateId: selectedTemplateId, productionOptions: productionOptionsWithLayout };
   const currentSignature = createAiBusinessCardMockupSignature(input);
-  const stableMockupKey = createAiBusinessCardStableMockupKey({ brandId: selectedBrandId, memberId: memberDraft.id, logoId: effectiveLogoId });
-  const serverMockupKeys = useMemo(() => Array.from(new Set([stableMockupKey, currentSignature].filter((key): key is string => Boolean(key)))), [stableMockupKey, currentSignature]);
-  const serverMockupLoadKey = serverMockupKeys.join("\n");
+  const serverMockupKeys = useMemo(() => [currentSignature], [currentSignature]);
+  const serverMockupLoadKey = currentSignature;
   const hasCurrentMockups = aiBusinessCardMockupSignature === currentSignature && aiBusinessCardMockups.length > 0;
   const isGeneratingCurrentMockups = aiBusinessCardMockupSignature === currentSignature && aiBusinessCardMockupStatus === "generating";
   const canGenerateMockups = Boolean(logo?.imageUrl);
   const aiBusinessCardPdfStatus = usePrintyStore((state) => state.aiBusinessCardPdfStatus);
   const aiBusinessCardPdfSignature = usePrintyStore((state) => state.aiBusinessCardPdfSignature);
   const aiBusinessCardPdfRecords = usePrintyStore((state) => state.aiBusinessCardPdfRecords);
+
+  useEffect(() => {
+    setEditableLayout(selectedTemplate?.layout ? cloneBusinessCardTemplateLayout(selectedTemplate.layout) : undefined);
+  }, [selectedTemplate?.id, selectedTemplate?.layout]);
 
   const requestBody = () => createAiBusinessCardRequestBody(input);
 
@@ -252,13 +278,18 @@ export function BusinessCardPreviewScreen() {
     let isActive = true;
 
     async function recoverMockupJob() {
-      const response = await fetch(`/api/ai-business-cards/jobs/active?kind=mockups&signature=${encodeURIComponent(currentSignature)}`, { cache: "no-store" });
+      const response = await fetch(activeAiBusinessCardMockupJobId ? `/api/ai-business-cards/jobs/${encodeURIComponent(activeAiBusinessCardMockupJobId)}` : `/api/ai-business-cards/jobs/active?kind=mockups&signature=${encodeURIComponent(currentSignature)}`, { cache: "no-store" });
 
       if (response.status === 404 || !isActive) {
         return;
       }
 
       const queuedJob = await readAiBusinessCardJob(response);
+
+      if (queuedJob.status === "queued" || queuedJob.status === "running") {
+        setActiveAiBusinessCardMockupJob(queuedJob.jobId);
+      }
+
       const job = queuedJob.status === "succeeded" || queuedJob.status === "failed" || queuedJob.status === "cancelled" ? queuedJob : await pollAiBusinessCardJob(queuedJob.jobId);
 
       if (!isActive) {
@@ -282,7 +313,7 @@ export function BusinessCardPreviewScreen() {
     return () => {
       isActive = false;
     };
-  }, [hasCurrentMockups, aiBusinessCardMockupSignature, currentSignature, failAiBusinessCardMockupGeneration, finishAiBusinessCardMockupGeneration]);
+  }, [hasCurrentMockups, aiBusinessCardMockupSignature, aiBusinessCardMockupStatus, activeAiBusinessCardMockupJobId, currentSignature, failAiBusinessCardMockupGeneration, finishAiBusinessCardMockupGeneration, setActiveAiBusinessCardMockupJob]);
 
   const startBackgroundMockups = () => {
     if (!canGenerateMockups) {
@@ -296,6 +327,7 @@ export function BusinessCardPreviewScreen() {
     const signature = currentSignature;
 
     beginAiBusinessCardMockupGeneration(signature);
+    setActiveAiBusinessCardMockupJob(undefined);
     dismissAiBusinessCardPdfNotice();
     setDownloadState({});
 
@@ -306,6 +338,11 @@ export function BusinessCardPreviewScreen() {
     })
       .then(async (response) => {
         const queuedJob = await readAiBusinessCardJob(response);
+
+        if (queuedJob.status === "queued" || queuedJob.status === "running") {
+          setActiveAiBusinessCardMockupJob(queuedJob.jobId);
+        }
+
         const job = queuedJob.status === "succeeded" || queuedJob.status === "failed" || queuedJob.status === "cancelled" ? queuedJob : await pollAiBusinessCardJob(queuedJob.jobId);
 
         if (job.status === "failed" || job.status === "cancelled") {
@@ -328,7 +365,13 @@ export function BusinessCardPreviewScreen() {
         saveServerMockups(serverMockups);
       })
       .catch((error: unknown) => {
-        const message = error instanceof DOMException && error.name === "AbortError" ? "AI 명함 시안 생성이 오래 걸렸어요. 다시 시도해 주세요." : error instanceof Error ? error.message : "AI 명함 시안을 만들 수 없어요. 잠시 후 다시 시도해 주세요.";
+        if (error instanceof DOMException && error.name === "AbortError") {
+          beginAiBusinessCardMockupGeneration(signature, "명함 목업 디자인을 백그라운드에서 계속 확인하고 있어요. 완료되면 이 화면에 자동으로 표시돼요.");
+          setDownloadState({});
+          return;
+        }
+
+        const message = error instanceof Error ? error.message : "AI 명함 시안을 만들 수 없어요. 잠시 후 다시 시도해 주세요.";
 
         failAiBusinessCardMockupGeneration(signature, message);
         setDownloadState({ error: message });
@@ -465,10 +508,20 @@ export function BusinessCardPreviewScreen() {
   return (
     <Screen>
       <ProgressHeader eyebrow="AI 명함 생성" title="앞면과 뒷면을 AI로 구성해요" description="먼저 대표 로고와 입력 정보를 기준으로 정면 양면 목업을 만들어요." step={stepNumbers.businessCardPreview} total={onboardingTotalSteps} action={<HomeExitAction />} />
+      {selectedTemplate?.layout && editableLayout ? (
+        <SoftCard>
+          <div className="mb-4">
+            <p className="text-sm font-black text-ink">앞면/뒷면 레이아웃 직접 조정</p>
+            <p className="mt-2 text-xs font-bold leading-5 text-muted">관리자 템플릿을 기준으로 위치를 조정하세요. 여기에서 저장한 좌표가 AI 목업 프롬프트와 최종 PDF 렌더링에 함께 사용돼요.</p>
+          </div>
+          <BusinessCardLayoutBuilder layout={editableLayout} orientation={getBusinessCardTemplateOrientation(selectedTemplate)} managedBackgrounds={[]} onChange={setEditableLayout} />
+        </SoftCard>
+      ) : null}
       <SoftCard>
         <p className="text-sm font-black text-ink">인쇄용 양면 PDF 생성 방식</p>
         <p className="mt-2 text-xs font-bold leading-5 text-muted">gpt-image-2가 92x52mm 비율의 앞면 1장, 뒷면 1장을 정면 목업으로 만들어요. 실행 후에는 다른 페이지로 이동해도 되고, 완료되면 상단 알림에 표시돼요.</p>
         <div className="mt-4 grid gap-2">
+          <TextAreaField label="목업 디자인 요청" placeholder="예: 검정 배경에 금색 포인트, 여백 넓게, 고급스러운 분위기. 입력한 명함 문구 외 문장은 추가하지 않기." value={mockupRequest} onChange={setMockupRequest} />
           <AppButton onClick={handleGenerateMockups} disabled={!canGenerateMockups || downloadState.status === "mockups" || isGeneratingCurrentMockups} className="disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0">
             {downloadState.status === "mockups" || isGeneratingCurrentMockups ? "명함 목업 디자인 생성 중" : hasCurrentMockups ? "명함 목업 하나 더 만들기" : "명함 목업 디자인 시작하기"}
           </AppButton>

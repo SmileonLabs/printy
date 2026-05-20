@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { findLatestAiBusinessCardJob } from "@/lib/server/ai-business-card-jobs";
+import { findLatestAiBusinessCardJob, processAiBusinessCardJobs } from "@/lib/server/ai-business-card-jobs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,6 +17,16 @@ export async function GET(request: Request) {
 
   if (!job) {
     return NextResponse.json({ reason: "작업을 찾지 못했어요." }, { status: 404 });
+  }
+
+  if (job.status === "queued") {
+    await processAiBusinessCardJobs();
+
+    const refreshedJob = await findLatestAiBusinessCardJob(kind, signature);
+
+    if (refreshedJob) {
+      return NextResponse.json(refreshedJob, { headers: { "Cache-Control": "no-store" } });
+    }
   }
 
   return NextResponse.json(job, { headers: { "Cache-Control": "no-store" } });

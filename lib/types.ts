@@ -224,6 +224,7 @@ export type BusinessCardProductionOptions = {
   frontElements: BusinessCardUserElementId[];
   backElements: BusinessCardUserElementId[];
   color: BusinessCardColorPaletteId;
+  layout?: BusinessCardTemplateLayout;
 };
 
 export type AiBusinessCardMockup = {

@@ -47,7 +47,7 @@ const emptyMemberFormValues: MemberFormValues = {
 const memberFormFields: Array<{ label: string; field: keyof MemberFormValues; placeholder: string; multiline?: boolean }> = [
   { label: "이름", field: "name", placeholder: "김하린" },
   { label: "직함", field: "role", placeholder: "대표" },
-  { label: "휴대폰", field: "phone", placeholder: "010-0000-0000" },
+  { label: "전화번호", field: "phone", placeholder: "010-0000-0000" },
   { label: "대표전화", field: "mainPhone", placeholder: "02-0000-0000" },
   { label: "팩스", field: "fax", placeholder: "02-0000-0001" },
   { label: "이메일", field: "email", placeholder: "hello@brand.kr" },
@@ -64,7 +64,7 @@ const memberFormFields: Array<{ label: string; field: keyof MemberFormValues; pl
 const businessCardUserElements: Array<{ id: BusinessCardUserElementId; label: string }> = [
   { id: "name", label: "이름" },
   { id: "role", label: "직함" },
-  { id: "phone", label: "휴대전화" },
+  { id: "phone", label: "전화번호" },
   { id: "mainPhone", label: "대표전화" },
   { id: "fax", label: "팩스" },
   { id: "email", label: "이메일" },
@@ -90,7 +90,7 @@ const businessCardColorOptions: Array<{ id: BusinessCardColorPaletteId; label: s
   { id: "red", label: "레드", color: "#ef4444" },
 ];
 const clientRequestTimeoutMs = 540_000;
-const aiBusinessCardPdfRendererVersion = "pdf-bg-icon-anchor-v19-half-font";
+const aiBusinessCardPdfRendererVersion = "pdf-template-bg-v20-fast-mockup";
 type AiBusinessCardJobResponse =
   | { jobId: string; kind: "mockups" | "pdf"; status: "queued" | "running" }
   | { jobId: string; kind: "mockups"; status: "succeeded"; mockups: unknown[] }
@@ -914,72 +914,71 @@ function createBusinessCardPreviewMember(brand: Brand): Member {
   };
 }
 
-function businessCardTemplateSideHasElement(template: PrintTemplate, sideId: "front" | "back", elementId: BusinessCardUserElementId) {
-  const side = template.layout?.sides[sideId];
-
-  if (!side) {
-    return false;
-  }
-
-  if (elementId === "logo" || elementId === "brandName" || elementId === "category") {
-    return true;
-  }
-
-  if (elementId === "instagramIcon") {
-    return side.icons.some((icon) => icon.icon === "instagram" && icon.visible);
-  }
-
-  if (elementId === "qrCode") {
-    return side.fields.some((field) => field.id === "qrCode" && field.visible);
-  }
-
-  return side.fields.some((field) => field.id === elementId && field.visible);
+function isSelectableBusinessCardElementId(elementId: string): elementId is BusinessCardUserElementId {
+  return businessCardUserElements.some((item) => item.id === elementId);
 }
 
-function businessCardTemplateHasElement(template: PrintTemplate, elementId: BusinessCardUserElementId) {
-  return businessCardTemplateSideHasElement(template, "front", elementId) || businessCardTemplateSideHasElement(template, "back", elementId);
-}
-
-function businessCardTemplateElementsForSide(template: PrintTemplate, sideId: "front" | "back") {
+function businessCardTemplateSelectableElementsForSide(template: PrintTemplate, sideId: "front" | "back"): BusinessCardUserElementId[] {
   const side = template.layout?.sides[sideId];
 
   if (!side) {
     return [];
   }
 
-  return side.fields.filter((field) => field.visible).map((field) => field.id);
+  return side.fields.filter((field) => field.visible && isSelectableBusinessCardElementId(field.id)).map((field) => field.id as BusinessCardUserElementId);
 }
 
-function businessCardTemplateElements(template: PrintTemplate) {
-  return [...new Set([...businessCardTemplateElementsForSide(template, "front"), ...businessCardTemplateElementsForSide(template, "back")])];
+function businessCardTemplateSelectableElements(template: PrintTemplate): BusinessCardUserElementId[] {
+  return [...new Set([...businessCardTemplateSelectableElementsForSide(template, "front"), ...businessCardTemplateSelectableElementsForSide(template, "back")])];
 }
 
 function mergeBusinessCardElements(frontElements: BusinessCardUserElementId[], backElements: BusinessCardUserElementId[]) {
   return [...new Set([...frontElements, ...backElements])];
 }
 
+function hasSameBusinessCardElements(templateElements: BusinessCardUserElementId[], selectedElements: BusinessCardUserElementId[]) {
+  return templateElements.length === selectedElements.length && selectedElements.every((elementId) => templateElements.includes(elementId));
+}
+
 function findMatchingBusinessCardTemplate(templates: PrintTemplate[], frontElements: BusinessCardUserElementId[], backElements: BusinessCardUserElementId[]) {
   const selectedElements = mergeBusinessCardElements(frontElements, backElements);
   const publishedTemplates = templates.filter((template) => template.productId === "business-card" && template.status === "published" && template.layout);
-  const candidates = publishedTemplates.filter((template) => selectedElements.every((elementId) => businessCardTemplateHasElement(template, elementId)));
+  const candidates = publishedTemplates.filter((template) => hasSameBusinessCardElements(businessCardTemplateSelectableElements(template), selectedElements));
 
-  if (candidates.length > 0) {
-    return candidates[Math.floor(Math.random() * candidates.length)];
+  return candidates.length > 0 ? candidates[Math.floor(Math.random() * candidates.length)] : undefined;
+}
+
+function findClosestBusinessCardTemplateMismatch(templates: PrintTemplate[], frontElements: BusinessCardUserElementId[], backElements: BusinessCardUserElementId[]) {
+  const selectedElements = mergeBusinessCardElements(frontElements, backElements);
+  const rankedTemplates = templates
+    .filter((template) => template.productId === "business-card" && template.status === "published" && template.layout)
+    .map((template) => {
+      const templateElements = businessCardTemplateSelectableElements(template);
+      const selectedOnlyElements = selectedElements.filter((elementId) => !templateElements.includes(elementId));
+      const templateOnlyElements = templateElements.filter((elementId) => !selectedElements.includes(elementId));
+
+      return {
+        template,
+        selectedOnlyElements,
+        templateOnlyElements,
+        overlap: selectedElements.filter((elementId) => templateElements.includes(elementId)).length,
+        differenceCount: selectedOnlyElements.length + templateOnlyElements.length,
+      };
+    })
+    .sort((a, b) => a.differenceCount - b.differenceCount || b.overlap - a.overlap);
+  const bestTemplate = rankedTemplates[0]?.template;
+
+  if (!bestTemplate) {
+    return undefined;
   }
 
-  const rankedTemplates = publishedTemplates
-    .map((template) => ({ template, score: selectedElements.filter((elementId) => businessCardTemplateHasElement(template, elementId)).length }))
-    .filter((item) => item.score > 0)
-    .sort((a, b) => b.score - a.score);
+  const bestMismatch = rankedTemplates[0];
 
-  if (rankedTemplates.length === 0) {
-    return publishedTemplates[Math.floor(Math.random() * publishedTemplates.length)];
-  }
-
-  const bestScore = rankedTemplates[0]?.score ?? 0;
-  const bestTemplates = rankedTemplates.filter((item) => item.score === bestScore);
-
-  return bestTemplates[Math.floor(Math.random() * bestTemplates.length)]?.template;
+  return {
+    template: bestTemplate,
+    selectedOnlyElements: bestMismatch.selectedOnlyElements,
+    templateOnlyElements: bestMismatch.templateOnlyElements,
+  };
 }
 
 function businessCardElementHasInputValue(elementId: BusinessCardUserElementId, brand: Brand, members: Member[]) {
@@ -1013,9 +1012,11 @@ function businessCardElementsWithInputValues(brand: Brand, members: Member[]) {
 }
 
 function selectableBusinessCardElements(elements: BusinessCardUserElementId[]) {
-  const selectableIds = new Set(businessCardUserElements.map((item) => item.id));
+  return elements.filter(isSelectableBusinessCardElementId);
+}
 
-  return elements.filter((elementId) => selectableIds.has(elementId));
+function businessCardElementLabel(elementId: BusinessCardUserElementId) {
+  return businessCardUserElements.find((item) => item.id === elementId)?.label ?? elementId;
 }
 
 type OrderedBusinessCard = {
@@ -1171,16 +1172,21 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
     const matchedTemplate = findMatchingBusinessCardTemplate(templates, frontElements, backElements);
 
     if (!matchedTemplate) {
-      setProductionNotice("선택한 명함 요소를 모두 포함한 관리자 템플릿이 없어요. 관리자에서 해당 요소가 보이는 템플릿을 먼저 공개해 주세요.");
+      const mismatch = findClosestBusinessCardTemplateMismatch(templates, frontElements, backElements);
+      const selectedOnlyElements = mismatch?.selectedOnlyElements.map(businessCardElementLabel).join(", ") || "없음";
+      const templateOnlyElements = mismatch?.templateOnlyElements.map(businessCardElementLabel).join(", ") || "없음";
+      const message = mismatch
+        ? `선택한 명함 요소와 100% 일치하는 공개 템플릿이 없어요. 가장 가까운 템플릿 '${mismatch.template.title}' 기준, 사용자가 선택했지만 관리자 템플릿에 없는 요소: ${selectedOnlyElements}. 관리자 템플릿에는 있지만 사용자가 선택하지 않은 요소: ${templateOnlyElements}.`
+        : "선택한 명함 요소와 100% 일치하는 공개 템플릿이 없어요. 관리자에서 같은 요소가 보이는 템플릿을 먼저 공개해 주세요.";
+
+      setProductionNotice(message);
       return;
     }
 
     setProductionNotice("");
     const selectedElements = mergeBusinessCardElements(frontElements, backElements);
-    const matchedElements = selectedElements.filter((elementId) => businessCardTemplateHasElement(matchedTemplate, elementId));
-    const productionElements = matchedElements.length > 0 ? matchedElements : businessCardTemplateElements(matchedTemplate);
 
-    updateBusinessCardProductionOptions({ frontElements: productionElements, backElements: productionElements, color: selectedColor });
+    updateBusinessCardProductionOptions({ frontElements: selectedElements, backElements: selectedElements, color: selectedColor });
     onStartProduction(selectedMemberIds.length > 0 ? selectedMemberIds : brand.members.map((member) => member.id), matchedTemplate.id);
   };
   const handleDownloadMockupPdf = async (mockup: { id: string; imageUrl: string; cleanImageUrl?: string }) => {
@@ -1362,7 +1368,7 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
   const currentBrandMockupSignatureEntries = brand.members.map((member) => ({ member, signature: createAiBusinessCardMockupSignature({ brandName: brand.name, category: brand.category, mood: brand.designRequest, member, logo, templateId: selectedTemplateId, productionOptions }) }));
   const hasExactMockupSignature = aiBusinessCardMockupSignature ? currentBrandMockupSignatureEntries.some((entry) => entry.signature === aiBusinessCardMockupSignature) : false;
   const hasRelaxedMockupSignature = savedAiBusinessCardMockupSignatureMatches(aiBusinessCardMockupSignature, { brandName: brand.name, logoId: logo.id, members: brand.members });
-  const visibleAiBusinessCardMockups = hasExactMockupSignature || hasRelaxedMockupSignature ? aiBusinessCardMockups : [];
+  const visibleAiBusinessCardMockups = hasExactMockupSignature || hasRelaxedMockupSignature ? aiBusinessCardMockups.filter((mockup) => mockup.imageUrl && mockup.cleanImageUrl) : [];
 
   return (
     <div className="grid gap-5">

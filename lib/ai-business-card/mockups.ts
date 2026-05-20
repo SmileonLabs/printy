@@ -5,6 +5,7 @@ import sharp from "sharp";
 import { readOpenAIImageModel, runLimitedImageGeneration } from "@/lib/ai-business-card/image-generation";
 import { buildAiBusinessCardCleanBackgroundPrompt, buildAiBusinessCardMockupPrompt } from "@/lib/ai-business-card/prompts";
 import type { AiBusinessCardInput } from "@/lib/ai-business-card/schema";
+import { getAiBusinessCardPromptSettings } from "@/lib/server/ai-business-card-settings";
 import { readBrandAssetBytesByPublicUrl, readGeneratedLogoBytesByPublicUrl, saveBrandAssetImageBytes } from "@/lib/server/storage";
 import type { PrintTemplate } from "@/lib/types";
 
@@ -42,6 +43,9 @@ export class AiBusinessCardMockupGenerationError extends Error {
   }
 }
 
+const mockupSheetWidth = 920;
+const mockupSideHeight = 520;
+
 function decodeDataPng(value: string) {
   const prefix = "data:image/png;base64,";
 
@@ -49,18 +53,13 @@ function decodeDataPng(value: string) {
 }
 
 async function createBusinessCardSheetGuideBytes() {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="920" height="1040" viewBox="0 0 920 1040">
-  <rect x="0" y="0" width="920" height="1040" fill="#ffffff" fill-opacity="0"/>
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${mockupSheetWidth}" height="${mockupSideHeight * 2}" viewBox="0 0 ${mockupSheetWidth} ${mockupSideHeight * 2}">
+  <rect x="0" y="0" width="${mockupSheetWidth}" height="${mockupSideHeight * 2}" fill="#ffffff"/>
+  <rect x="0" y="0" width="${mockupSheetWidth}" height="${mockupSideHeight}" fill="#fffdf8"/>
+  <rect x="0" y="${mockupSideHeight}" width="${mockupSheetWidth}" height="${mockupSideHeight}" fill="#f8fbff"/>
 </svg>`;
 
   return sharp(Buffer.from(svg)).png().toBuffer();
-}
-
-async function normalizeBusinessCardSheetBytes(bytes: Buffer) {
-  return sharp(bytes)
-    .resize(920, 1040, { fit: "fill" })
-    .png()
-    .toBuffer();
 }
 
 async function readLogoBytes(input: AiBusinessCardInput) {
@@ -99,10 +98,12 @@ export async function generateAiBusinessCardMockups(input: AiBusinessCardInput, 
   const total = Math.min(Math.max(Math.round(count), 1), 1);
   const logoBytes = await readLogoBytes(input);
   const guideBytes = await createBusinessCardSheetGuideBytes();
+  const promptSettings = await getAiBusinessCardPromptSettings();
 
   for (let index = 0; index < total; index += 1) {
-    const prompt = buildAiBusinessCardMockupPrompt(input, index + 1, template);
-    const cleanPrompt = buildAiBusinessCardCleanBackgroundPrompt(index + 1);
+    const promptTemplate = template && input.productionOptions?.layout ? { ...template, layout: input.productionOptions.layout } : template;
+    const prompt = buildAiBusinessCardMockupPrompt(input, index + 1, promptTemplate, promptSettings);
+    const cleanPrompt = buildAiBusinessCardCleanBackgroundPrompt(index + 1, promptSettings);
     const response = await runLimitedImageGeneration(async (signal) => client.images.edit({
           model: readOpenAIImageModel(),
           image: [
@@ -122,7 +123,8 @@ export async function generateAiBusinessCardMockups(input: AiBusinessCardInput, 
       throw new Error("OpenAI business card mockup generation returned no image data.");
     }
 
-    const normalMockupBytes = await normalizeBusinessCardSheetBytes(Buffer.from(imageData, "base64"));
+    const normalMockupBytes = Buffer.from(imageData, "base64");
+    const stored = await saveBrandAssetImageBytes(normalMockupBytes);
     const cleanResponse = await runLimitedImageGeneration(async (signal) => client.images.edit({
           model: readOpenAIImageModel(),
           image: await toFile(normalMockupBytes, "completed-business-card-mockup.png", { type: "image/png" }),
@@ -139,8 +141,7 @@ export async function generateAiBusinessCardMockups(input: AiBusinessCardInput, 
       throw new Error("OpenAI clean business card mockup generation returned no image data.");
     }
 
-    const cleanMockupBytes = await normalizeBusinessCardSheetBytes(Buffer.from(cleanImageData, "base64"));
-    const stored = await saveBrandAssetImageBytes(normalMockupBytes);
+    const cleanMockupBytes = Buffer.from(cleanImageData, "base64");
     const cleanStored = await saveBrandAssetImageBytes(cleanMockupBytes);
 
     mockups.push({ id: `ai-business-card-mockup-${Date.now()}-${index + 1}`, imageUrl: stored.publicUrl, cleanImageUrl: cleanStored.publicUrl, title: `AI 명함 시안 ${index + 1}` });

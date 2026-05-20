@@ -55,6 +55,7 @@ export const usePrintyStore = create<PrintyState>()(
       aiBusinessCardMockupStatus: "idle",
       aiBusinessCardMockupMessage: undefined,
       aiBusinessCardMockupSignature: undefined,
+      activeAiBusinessCardMockupJobId: undefined,
       selectedAiBusinessCardMockupUrl: undefined,
       aiBusinessCardPdfStatus: "idle",
       aiBusinessCardPdfMessage: undefined,

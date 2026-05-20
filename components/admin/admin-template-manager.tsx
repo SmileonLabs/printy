@@ -157,6 +157,24 @@ type AdminBankAccountResponse = {
   bankAccount: BankAccountSettings;
 };
 
+type AdminAiBusinessCardPromptVersion = {
+  id: string;
+  mockupInstructions: string;
+  cleanInstructions: string;
+  createdAt: string;
+};
+
+type AdminAiBusinessCardPromptSettings = {
+  mockupInstructions: string;
+  cleanInstructions: string;
+  history: AdminAiBusinessCardPromptVersion[];
+  updatedAt?: string;
+};
+
+type AdminAiBusinessCardPromptsResponse = {
+  prompts: AdminAiBusinessCardPromptSettings;
+};
+
 type PublicTemplatesResponse = {
   templates: PrintTemplate[];
 };
@@ -451,6 +469,22 @@ function readAdminBankAccountResponse(value: unknown): AdminBankAccountResponse 
   return { bankAccount: value.bankAccount };
 }
 
+function isAdminAiBusinessCardPromptVersion(value: unknown): value is AdminAiBusinessCardPromptVersion {
+  return isRecord(value) && typeof value.id === "string" && typeof value.mockupInstructions === "string" && typeof value.cleanInstructions === "string" && typeof value.createdAt === "string";
+}
+
+function isAdminAiBusinessCardPromptSettings(value: unknown): value is AdminAiBusinessCardPromptSettings {
+  return isRecord(value) && typeof value.mockupInstructions === "string" && typeof value.cleanInstructions === "string" && Array.isArray(value.history) && value.history.every(isAdminAiBusinessCardPromptVersion) && (value.updatedAt === undefined || typeof value.updatedAt === "string");
+}
+
+function readAdminAiBusinessCardPromptsResponse(value: unknown): AdminAiBusinessCardPromptsResponse | undefined {
+  if (!isRecord(value) || !isAdminAiBusinessCardPromptSettings(value.prompts)) {
+    return undefined;
+  }
+
+  return { prompts: value.prompts };
+}
+
 function isOrderRecord(value: unknown): value is OrderRecord {
   if (!isRecord(value)) {
     return false;
@@ -703,6 +737,9 @@ export function AdminTemplateManager() {
   const [isUploadingFileArchiveFile, setIsUploadingFileArchiveFile] = useState(false);
   const [bankAccount, setBankAccount] = useState<BankAccountSettings>({ bankName: "", accountNumber: "", accountHolder: "", memo: "" });
   const [isSavingBankAccount, setIsSavingBankAccount] = useState(false);
+  const [aiBusinessCardPrompts, setAiBusinessCardPrompts] = useState<AdminAiBusinessCardPromptSettings>({ mockupInstructions: "", cleanInstructions: "", history: [] });
+  const [isSavingAiBusinessCardPrompts, setIsSavingAiBusinessCardPrompts] = useState(false);
+  const [rollingBackAiBusinessCardPromptId, setRollingBackAiBusinessCardPromptId] = useState<string>();
 
   const selectedTemplate = useMemo(() => templates.find((template) => template.id === selectedTemplateId), [selectedTemplateId, templates]);
   const publishedCount = templates.filter((template) => template.status === "published").length;
@@ -875,6 +912,23 @@ export function AdminTemplateManager() {
     setBankAccount(data.bankAccount);
   };
 
+  const loadAiBusinessCardPrompts = async () => {
+    const response = await fetch("/api/admin/settings/ai-business-card-prompts", { credentials: "include", cache: "no-store" });
+
+    if (!response.ok) {
+      setAuthenticated(false);
+      throw new Error("AI 명함 프롬프트를 불러오지 못했어요.");
+    }
+
+    const data = readAdminAiBusinessCardPromptsResponse(await response.json());
+
+    if (!data) {
+      throw new Error("AI 명함 프롬프트 응답이 올바르지 않아요.");
+    }
+
+    setAiBusinessCardPrompts(data.prompts);
+  };
+
   const refreshPublicTemplates = async () => {
     const response = await fetch("/api/templates", { cache: "no-store" });
 
@@ -910,7 +964,7 @@ export function AdminTemplateManager() {
 
       setAuthenticated(true);
       setToken("");
-      await Promise.all([loadTemplates(), refreshPublicTemplates(), loadManagedBackgrounds(), loadLogoReferenceImages(), loadAdminOrders(), loadLogoGenerationStatus(), loadBrandTransferData(), loadFileArchive(), loadBankAccount()]);
+      await Promise.all([loadTemplates(), refreshPublicTemplates(), loadManagedBackgrounds(), loadLogoReferenceImages(), loadAdminOrders(), loadLogoGenerationStatus(), loadBrandTransferData(), loadFileArchive(), loadBankAccount(), loadAiBusinessCardPrompts()]);
       setActiveSection("dashboard");
       setStatus("success");
       setMessage("관리자 화면이 열렸어요. 토큰은 화면 상태에서만 사용했어요.");
@@ -947,6 +1001,7 @@ export function AdminTemplateManager() {
     setFileArchiveFile(undefined);
     setFileArchiveFileInputKey((current) => current + 1);
     setBankAccount({ bankName: "", accountNumber: "", accountHolder: "", memo: "" });
+    setAiBusinessCardPrompts({ mockupInstructions: "", cleanInstructions: "", history: [] });
     setLogoReferenceFile(undefined);
     setLogoReferenceFileInputKey((current) => current + 1);
     setActiveSection("dashboard");
@@ -1453,6 +1508,65 @@ export function AdminTemplateManager() {
     }
   };
 
+  const handleSaveAiBusinessCardPrompts = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsSavingAiBusinessCardPrompts(true);
+    setStatus("loading");
+    setMessage("AI 명함 프롬프트를 저장하고 있어요.");
+
+    try {
+      const response = await fetch("/api/admin/settings/ai-business-card-prompts", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(aiBusinessCardPrompts),
+      });
+      const data = readAdminAiBusinessCardPromptsResponse(await response.json().catch(() => undefined));
+
+      if (!response.ok || !data) {
+        throw new Error("AI 명함 프롬프트를 저장하지 못했어요.");
+      }
+
+      setAiBusinessCardPrompts(data.prompts);
+      setStatus("success");
+      setMessage("AI 명함 프롬프트를 저장했어요. 다음 목업 생성부터 반영됩니다.");
+    } catch (error) {
+      setStatus("error");
+      setMessage(error instanceof Error ? error.message : "AI 명함 프롬프트를 저장하지 못했어요.");
+    } finally {
+      setIsSavingAiBusinessCardPrompts(false);
+    }
+  };
+
+  const handleRollbackAiBusinessCardPrompts = async (versionId: string) => {
+    setRollingBackAiBusinessCardPromptId(versionId);
+    setStatus("loading");
+    setMessage("AI 명함 프롬프트를 이전 이력으로 되돌리고 있어요.");
+
+    try {
+      const response = await fetch("/api/admin/settings/ai-business-card-prompts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ versionId }),
+      });
+      const data = readAdminAiBusinessCardPromptsResponse(await response.json().catch(() => undefined));
+
+      if (!response.ok || !data) {
+        throw new Error("AI 명함 프롬프트 이력을 되돌리지 못했어요.");
+      }
+
+      setAiBusinessCardPrompts(data.prompts);
+      setStatus("success");
+      setMessage("AI 명함 프롬프트를 이전 이력으로 되돌렸어요.");
+    } catch (error) {
+      setStatus("error");
+      setMessage(error instanceof Error ? error.message : "AI 명함 프롬프트 이력을 되돌리지 못했어요.");
+    } finally {
+      setRollingBackAiBusinessCardPromptId(undefined);
+    }
+  };
+
   const handleUpdateOrderStatus = async (orderId: string, status: OrderRecord["status"]) => {
     setStatus("loading");
     setMessage("주문 상태를 변경하고 있어요.");
@@ -1502,7 +1616,7 @@ export function AdminTemplateManager() {
     ) : activeSection === "fileArchive" ? (
       <FileArchivePanel users={fileArchiveUsers} files={fileArchiveFiles} selectedUserId={fileArchiveUserId} displayName={fileArchiveDisplayName} note={fileArchiveNote} fileInputKey={fileArchiveFileInputKey} selectedFile={fileArchiveFile} isUploading={isUploadingFileArchiveFile} status={status} message={message} onUserChange={setFileArchiveUserId} onDisplayNameChange={setFileArchiveDisplayName} onNoteChange={setFileArchiveNote} onFileChange={handleFileArchiveFileChange} onUpload={handleUploadFileArchiveFile} onRefresh={loadFileArchive} />
     ) : activeSection === "settings" ? (
-      <CommonSettingsPanel backgrounds={managedBackgrounds} bankAccount={bankAccount} backgroundName={backgroundName} backgroundTagsText={backgroundTagsText} backgroundFile={backgroundFile} backgroundFilePreviewUrl={backgroundFilePreviewUrl} backgroundFileInputKey={backgroundFileInputKey} status={status} message={message} isUploadingBackgroundImage={isUploadingBackgroundImage} isCleaningBackgroundImages={isCleaningBackgroundImages} isSavingBankAccount={isSavingBankAccount} deletingBackgroundId={deletingBackgroundId} updatingBackgroundId={updatingBackgroundId} onBankAccountChange={setBankAccount} onSaveBankAccount={handleSaveBankAccount} onBackgroundNameChange={setBackgroundName} onBackgroundTagsTextChange={setBackgroundTagsText} onBackgroundFileChange={handleBackgroundFileChange} onUploadBackground={handleUploadManagedBackground} onUpdateBackground={handleUpdateManagedBackground} onDeleteBackground={handleDeleteManagedBackground} onCleanupBackgroundImages={handleCleanupBackgroundImages} />
+      <CommonSettingsPanel backgrounds={managedBackgrounds} bankAccount={bankAccount} aiBusinessCardPrompts={aiBusinessCardPrompts} backgroundName={backgroundName} backgroundTagsText={backgroundTagsText} backgroundFile={backgroundFile} backgroundFilePreviewUrl={backgroundFilePreviewUrl} backgroundFileInputKey={backgroundFileInputKey} status={status} message={message} isUploadingBackgroundImage={isUploadingBackgroundImage} isCleaningBackgroundImages={isCleaningBackgroundImages} isSavingBankAccount={isSavingBankAccount} isSavingAiBusinessCardPrompts={isSavingAiBusinessCardPrompts} rollingBackAiBusinessCardPromptId={rollingBackAiBusinessCardPromptId} deletingBackgroundId={deletingBackgroundId} updatingBackgroundId={updatingBackgroundId} onBankAccountChange={setBankAccount} onAiBusinessCardPromptsChange={setAiBusinessCardPrompts} onSaveBankAccount={handleSaveBankAccount} onSaveAiBusinessCardPrompts={handleSaveAiBusinessCardPrompts} onRollbackAiBusinessCardPrompts={handleRollbackAiBusinessCardPrompts} onBackgroundNameChange={setBackgroundName} onBackgroundTagsTextChange={setBackgroundTagsText} onBackgroundFileChange={handleBackgroundFileChange} onUploadBackground={handleUploadManagedBackground} onUpdateBackground={handleUpdateManagedBackground} onDeleteBackground={handleDeleteManagedBackground} onCleanupBackgroundImages={handleCleanupBackgroundImages} />
     ) : activeSection === "logoReferences" ? (
       <LogoReferencePanel logoReferenceImages={logoReferenceImages} logoReferenceFile={logoReferenceFile} logoReferencePrompt={logoReferencePrompt} logoReferenceFileInputKey={logoReferenceFileInputKey} status={status} message={message} isUploadingLogoReferenceImage={isUploadingLogoReferenceImage} deletingLogoReferenceImageId={deletingLogoReferenceImageId} updatingLogoReferenceImageId={updatingLogoReferenceImageId} onLogoReferenceFileChange={handleLogoReferenceFileChange} onLogoReferencePromptChange={setLogoReferencePrompt} onUploadLogoReferenceImage={handleUploadLogoReferenceImage} onDeleteLogoReferenceImage={handleDeleteLogoReferenceImage} onUpdateForcedInstructions={handleUpdateLogoReferenceForcedInstructions} />
     ) : (
@@ -2034,7 +2148,7 @@ function OrderInfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function CommonSettingsPanel({ backgrounds, bankAccount, backgroundName, backgroundTagsText, backgroundFile, backgroundFilePreviewUrl, backgroundFileInputKey, status, message, isUploadingBackgroundImage, isCleaningBackgroundImages, isSavingBankAccount, deletingBackgroundId, updatingBackgroundId, onBankAccountChange, onSaveBankAccount, onBackgroundNameChange, onBackgroundTagsTextChange, onBackgroundFileChange, onUploadBackground, onUpdateBackground, onDeleteBackground, onCleanupBackgroundImages }: { backgrounds: ManagedBusinessCardBackgroundWithUsage[]; bankAccount: BankAccountSettings; backgroundName: string; backgroundTagsText: string; backgroundFile?: File; backgroundFilePreviewUrl: string; backgroundFileInputKey: number; status: RequestStatus; message: string; isUploadingBackgroundImage: boolean; isCleaningBackgroundImages: boolean; isSavingBankAccount: boolean; deletingBackgroundId?: string; updatingBackgroundId?: string; onBankAccountChange: (settings: BankAccountSettings) => void; onSaveBankAccount: (event: FormEvent<HTMLFormElement>) => void; onBackgroundNameChange: (value: string) => void; onBackgroundTagsTextChange: (value: string) => void; onBackgroundFileChange: (event: ChangeEvent<HTMLInputElement>) => void; onUploadBackground: (event: FormEvent<HTMLFormElement>) => void; onUpdateBackground: (background: ManagedBusinessCardBackgroundWithUsage, name: string, tagsText: string) => void; onDeleteBackground: (background: ManagedBusinessCardBackgroundWithUsage) => void; onCleanupBackgroundImages: () => void }) {
+function CommonSettingsPanel({ backgrounds, bankAccount, aiBusinessCardPrompts, backgroundName, backgroundTagsText, backgroundFile, backgroundFilePreviewUrl, backgroundFileInputKey, status, message, isUploadingBackgroundImage, isCleaningBackgroundImages, isSavingBankAccount, isSavingAiBusinessCardPrompts, rollingBackAiBusinessCardPromptId, deletingBackgroundId, updatingBackgroundId, onBankAccountChange, onAiBusinessCardPromptsChange, onSaveBankAccount, onSaveAiBusinessCardPrompts, onRollbackAiBusinessCardPrompts, onBackgroundNameChange, onBackgroundTagsTextChange, onBackgroundFileChange, onUploadBackground, onUpdateBackground, onDeleteBackground, onCleanupBackgroundImages }: { backgrounds: ManagedBusinessCardBackgroundWithUsage[]; bankAccount: BankAccountSettings; aiBusinessCardPrompts: AdminAiBusinessCardPromptSettings; backgroundName: string; backgroundTagsText: string; backgroundFile?: File; backgroundFilePreviewUrl: string; backgroundFileInputKey: number; status: RequestStatus; message: string; isUploadingBackgroundImage: boolean; isCleaningBackgroundImages: boolean; isSavingBankAccount: boolean; isSavingAiBusinessCardPrompts: boolean; rollingBackAiBusinessCardPromptId?: string; deletingBackgroundId?: string; updatingBackgroundId?: string; onBankAccountChange: (settings: BankAccountSettings) => void; onAiBusinessCardPromptsChange: (settings: AdminAiBusinessCardPromptSettings) => void; onSaveBankAccount: (event: FormEvent<HTMLFormElement>) => void; onSaveAiBusinessCardPrompts: (event: FormEvent<HTMLFormElement>) => void; onRollbackAiBusinessCardPrompts: (versionId: string) => void; onBackgroundNameChange: (value: string) => void; onBackgroundTagsTextChange: (value: string) => void; onBackgroundFileChange: (event: ChangeEvent<HTMLInputElement>) => void; onUploadBackground: (event: FormEvent<HTMLFormElement>) => void; onUpdateBackground: (background: ManagedBusinessCardBackgroundWithUsage, name: string, tagsText: string) => void; onDeleteBackground: (background: ManagedBusinessCardBackgroundWithUsage) => void; onCleanupBackgroundImages: () => void }) {
   return (
     <div className="grid gap-4">
       <SoftCard className="bg-[linear-gradient(180deg,var(--color-surface)_0%,var(--color-surface-blue)_100%)] p-5 sm:p-6">
@@ -2056,6 +2170,42 @@ function CommonSettingsPanel({ backgrounds, bankAccount, backgroundName, backgro
             </button>
           </div>
         </form>
+      </SoftCard>
+      <SoftCard className="bg-[linear-gradient(180deg,var(--color-surface)_0%,var(--color-surface-blue)_100%)] p-5 sm:p-6">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <p className="text-xs font-black text-primary-strong">AI 명함 프롬프트</p>
+            <h2 className="mt-1 text-2xl font-black tracking-[-0.05em] text-ink">목업 생성 지시문 관리</h2>
+            <p className="mt-2 text-sm font-bold leading-6 text-muted">로고 보존, 92x52mm, 텍스트 정확도 같은 필수 규칙은 코드에 고정하고, 운영에서 바꿀 추가 지시문만 관리해요.</p>
+          </div>
+          <span className="rounded-md bg-surface px-4 py-3 text-sm font-black text-primary-strong shadow-soft">이력 {aiBusinessCardPrompts.history.length}개</span>
+        </div>
+        <form className="mt-5 grid gap-4 rounded-lg border border-line bg-surface p-4 shadow-soft" onSubmit={onSaveAiBusinessCardPrompts}>
+          <AdminTextArea label="목업 생성 추가 지시문" value={aiBusinessCardPrompts.mockupInstructions} maxLength={4000} placeholder="예: 고급 인쇄물 느낌, 여백 넓게, 절제된 장식. 입력된 고객 문구 외 문장은 추가하지 않기." onChange={(value) => onAiBusinessCardPromptsChange({ ...aiBusinessCardPrompts, mockupInstructions: value })} />
+          <AdminTextArea label="클린 목업 추가 지시문" value={aiBusinessCardPrompts.cleanInstructions} maxLength={4000} placeholder="예: QR 제거 영역은 주변 배경만 자연스럽게 채우고 새 장식은 넣지 않기." onChange={(value) => onAiBusinessCardPromptsChange({ ...aiBusinessCardPrompts, cleanInstructions: value })} />
+          <div className="flex flex-wrap items-center gap-3">
+            <button className="rounded-md bg-primary px-4 py-3 text-sm font-black text-white shadow-soft transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0" type="submit" disabled={isSavingAiBusinessCardPrompts}>
+              {isSavingAiBusinessCardPrompts ? "저장 중" : "AI 명함 프롬프트 저장"}
+            </button>
+            {aiBusinessCardPrompts.updatedAt ? <span className="text-xs font-bold text-muted">최근 저장: {new Date(aiBusinessCardPrompts.updatedAt).toLocaleString("ko-KR")}</span> : null}
+          </div>
+        </form>
+        {aiBusinessCardPrompts.history.length > 0 ? (
+          <div className="mt-4 grid gap-3">
+            {aiBusinessCardPrompts.history.map((version) => (
+              <article key={version.id} className="grid gap-3 rounded-lg border border-line bg-surface p-4 shadow-soft lg:grid-cols-[1fr_auto] lg:items-start">
+                <div className="grid gap-2 text-xs font-bold leading-5 text-muted">
+                  <p className="font-black text-ink">{new Date(version.createdAt).toLocaleString("ko-KR")}</p>
+                  <p><span className="font-black text-primary-strong">목업</span> {version.mockupInstructions || "추가 지시문 없음"}</p>
+                  <p><span className="font-black text-primary-strong">클린</span> {version.cleanInstructions || "추가 지시문 없음"}</p>
+                </div>
+                <button className="rounded-md bg-surface-blue px-4 py-3 text-sm font-black text-primary-strong shadow-soft transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0" type="button" disabled={rollingBackAiBusinessCardPromptId === version.id} onClick={() => onRollbackAiBusinessCardPrompts(version.id)}>
+                  {rollingBackAiBusinessCardPromptId === version.id ? "롤백 중" : "이 버전으로 롤백"}
+                </button>
+              </article>
+            ))}
+          </div>
+        ) : null}
       </SoftCard>
       <SoftCard className="bg-[linear-gradient(180deg,var(--color-surface)_0%,var(--color-surface-blue)_100%)] p-5 sm:p-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">

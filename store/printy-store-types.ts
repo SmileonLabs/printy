@@ -74,6 +74,7 @@ export type PrintyState = {
   aiBusinessCardMockupStatus: AiBusinessCardMockupStatus;
   aiBusinessCardMockupMessage?: string;
   aiBusinessCardMockupSignature?: string;
+  activeAiBusinessCardMockupJobId?: string;
   selectedAiBusinessCardMockupUrl?: string;
   aiBusinessCardPdfStatus: "idle" | "generating" | "ready" | "failed";
   aiBusinessCardPdfMessage?: string;
@@ -130,6 +131,7 @@ export type PrintyState = {
   saveBrandShell: () => void;
   ensureBusinessCardDraft: () => BusinessCardDraft;
   beginAiBusinessCardMockupGeneration: (signature: string, message?: string) => void;
+  setActiveAiBusinessCardMockupJob: (jobId?: string) => void;
   syncAiBusinessCardMockups: (signature: string, mockups: AiBusinessCardMockup[]) => void;
   finishAiBusinessCardMockupGeneration: (signature: string, mockups: AiBusinessCardMockup[]) => void;
   failAiBusinessCardMockupGeneration: (signature: string, message: string) => void;

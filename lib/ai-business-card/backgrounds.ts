@@ -56,7 +56,7 @@ export async function createCleanBusinessCardBackgrounds(cleanMockupImageUrl: st
     const bounds = cropBoundsFromSheetHalf(sideId, imageWidth, imageHeight);
     const backgroundBytes = await sharp(mockupBytes)
       .extract(bounds)
-      .resize(outputPixelWidth, outputPixelHeight, { fit: "fill" })
+      .resize(outputPixelWidth, outputPixelHeight, { fit: "cover" })
       .png()
       .toBuffer();
 

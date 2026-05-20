@@ -40,7 +40,7 @@ const maxQueuedJobsPerClientWindow = 8;
 const clientRateLimitWindowMs = 10 * 60 * 1000;
 const maxAttempts = 2;
 const runningJobTimeoutMs = 10 * 60 * 1000;
-const processorBatchSize = 1;
+const processorBatchSize = 2;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;

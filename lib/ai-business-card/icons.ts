@@ -10,7 +10,7 @@ export type AiBusinessCardFieldIcon = {
 };
 
 export const aiBusinessCardFieldIcons: AiBusinessCardFieldIcon[] = [
-  { field: "phone", icon: "mobile", label: "휴대폰", promptDescription: "a simple mobile phone handset screen icon" },
+  { field: "phone", icon: "mobile", label: "전화번호", promptDescription: "a simple mobile phone handset screen icon" },
   { field: "mainPhone", icon: "phone", label: "전화", promptDescription: "a simple landline telephone handset icon" },
   { field: "fax", icon: "fax", label: "팩스", promptDescription: "a simple fax/printer icon" },
   { field: "address", icon: "address", label: "주소", promptDescription: "a simple map pin location icon" },
