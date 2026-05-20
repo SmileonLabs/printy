@@ -19,6 +19,22 @@ function cloneBox(box: BusinessCardTemplateBox): BusinessCardTemplateBox {
   return { ...box };
 }
 
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function containBox(box: BusinessCardTemplateBox): BusinessCardTemplateBox {
+  const width = clamp(box.width, 1, 100);
+  const height = clamp(box.height, 1, 100);
+
+  return {
+    x: clamp(box.x, 0, 100 - width),
+    y: clamp(box.y, 0, 100 - height),
+    width,
+    height,
+  };
+}
+
 function baseLayout(): BusinessCardTemplateLayout {
   return {
     canvas: {
@@ -47,16 +63,16 @@ function baseLayout(): BusinessCardTemplateLayout {
 
 function fieldBox(fieldId: BusinessCardTemplateTextFieldId, index: number, total: number, sideId: BusinessCardTemplateSideId): BusinessCardTemplateBox {
   if (fieldId === "qrCode") {
-    return sideId === "front" ? { x: 78, y: 66, width: 14, height: 24 } : { x: 76, y: 58, width: 16, height: 28 };
+    return containBox(sideId === "front" ? { x: 78, y: 66, width: 14, height: 24 } : { x: 76, y: 58, width: 16, height: 28 });
   }
 
   if (marketingFields.includes(fieldId)) {
-    return { x: 10, y: 12 + index * 11, width: 80, height: 9 };
+    return containBox({ x: 10, y: 12 + index * 11, width: 80, height: 9 });
   }
 
   const startY = Math.max(16, 50 - Math.min(total, 8) * 4.5);
 
-  return { x: sideId === "front" ? 48 : 12, y: startY + index * 9, width: sideId === "front" ? 42 : 70, height: 7.5 };
+  return containBox({ x: sideId === "front" ? 48 : 12, y: startY + index * 9, width: sideId === "front" ? 42 : 70, height: 7.5 });
 }
 
 function selectedTextFields(elements: BusinessCardUserElementId[]): BusinessCardTemplateTextFieldId[] {
@@ -69,7 +85,7 @@ function applySide(layout: BusinessCardTemplateLayout, sideId: BusinessCardTempl
   const contactFieldIds = fieldIds.filter((fieldId) => contactFields.includes(fieldId));
   const selectedLogo = elements.some((elementId) => elementId === "logo" || elementId === "brandName" || elementId === "category");
 
-  side.logo = { ...side.logo, visible: selectedLogo, box: sideId === "front" ? { x: 8, y: 18, width: 28, height: 28 } : { x: 36, y: 18, width: 28, height: 28 } };
+  side.logo = { ...side.logo, visible: selectedLogo, box: containBox(sideId === "front" ? { x: 8, y: 18, width: 28, height: 28 } : { x: 36, y: 18, width: 28, height: 28 }) };
   side.fields = side.fields.map((field) => {
     const visible = fieldIds.includes(field.id);
     const index = fieldIds.indexOf(field.id);
@@ -79,7 +95,7 @@ function applySide(layout: BusinessCardTemplateLayout, sideId: BusinessCardTempl
   side.icons = contactFieldIds.flatMap((fieldId, index) => {
     const icon = fieldIconMap[fieldId];
 
-    return icon ? [{ id: `system-${sideId}-${fieldId}-icon`, icon, visible: true, box: { x: sideId === "front" ? 45 : 9, y: fieldBox(fieldId, index, contactFieldIds.length, sideId).y + 0.4, width: 2.4, height: 2.4 }, color: "#111827" }] : [];
+    return icon ? [{ id: `system-${sideId}-${fieldId}-icon`, icon, visible: true, box: containBox({ x: sideId === "front" ? 45 : 9, y: fieldBox(fieldId, index, contactFieldIds.length, sideId).y + 0.4, width: 2.4, height: 2.4 }), color: "#111827" }] : [];
   });
 }
 

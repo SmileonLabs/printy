@@ -37,6 +37,7 @@ type BoxKey = keyof BusinessCardTemplateBox;
 type ResizeCorner = "top-left" | "top-right" | "bottom-left" | "bottom-right";
 type SelectedItem = { type: "field"; fieldId: BusinessCardTemplateTextFieldId } | { type: "logo" } | { type: "icon"; iconId: string } | { type: "line"; lineId: string } | { type: "info-block"; blockId: string };
 type ControlsPosition = { x: number; y: number };
+type UserExpandableFieldId = "titleLine1" | "titleLine2" | "adLine1" | "adLine2" | "qrCode";
 
 type DragState =
   | {
@@ -217,7 +218,8 @@ const sideIds: BusinessCardTemplateSideId[] = ["front", "back"];
 const defaultIconColor = "#075dcb";
 const defaultLineColor = "#111827";
 const gridStep = 2.5;
-const userEditableFieldIds: BusinessCardTemplateTextFieldId[] = ["titleLine1", "titleLine2", "adLine1", "adLine2"];
+const userEditableFieldIds: UserExpandableFieldId[] = ["titleLine1", "titleLine2", "adLine1", "adLine2"];
+const userExpandableFieldIds: UserExpandableFieldId[] = ["titleLine1", "titleLine2", "adLine1", "adLine2", "qrCode"];
 
 const resizeCorners: Array<{ corner: ResizeCorner; className: string; cursorClassName: string }> = [
   { corner: "top-left", className: "left-0 top-0", cursorClassName: "cursor-nwse-resize" },
@@ -400,6 +402,7 @@ export function BusinessCardLayoutBuilder({ layout, orientation, managedBackgrou
   const [controlsPositions, setControlsPositions] = useState<Record<string, ControlsPosition>>({});
   const [dragState, setDragState] = useState<DragState>();
   const [showGrid, setShowGrid] = useState(true);
+  const [expandedUserFieldId, setExpandedUserFieldId] = useState<UserExpandableFieldId>();
   const historyRef = useRef<BusinessCardTemplateLayout[]>([]);
   const layoutRef = useRef(layout);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -421,11 +424,15 @@ export function BusinessCardLayoutBuilder({ layout, orientation, managedBackgrou
   const selectedControlsPosition = selectedControlsKey ? controlsPositions[selectedControlsKey] ?? { x: 12, y: 12 } : { x: 12, y: 12 };
   const [canvasScale, setCanvasScale] = useState(1);
   const renderPixelScale = cssPixelScale * canvasScale;
-  const contactLayout = resolveBusinessCardContactLayout(side.fields, side.icons, (field) => field.customValue ?? sampleFieldValue(field.id));
+  const readUserFieldValue = (fieldId: BusinessCardTemplateTextFieldId) => userFieldValues?.[fieldId]?.trim() || undefined;
+  const readFieldValue = (field: BusinessCardTemplateTextElement) => readUserFieldValue(field.id) ?? field.customValue ?? sampleFieldValue(field.id);
+  const contactLayout = resolveBusinessCardContactLayout(side.fields, side.icons, readFieldValue);
   const selectedInfoBlock = selectedItem?.type === "info-block" ? contactLayout.blocks.find((block) => block.id === selectedItem.blockId) : undefined;
   const isUserMode = mode === "user";
-  const visibleUserEditableFields = userEditableFieldIds.map((fieldId) => getField(layout, activeSide, fieldId)).filter((field) => field.visible);
+  const expandedUserField = expandedUserFieldId ? getField(layout, activeSide, expandedUserFieldId) : undefined;
+  const isExpandedUserFieldVisible = Boolean(expandedUserField?.visible);
   const isQrCodeVisible = getField(layout, activeSide, "qrCode").visible;
+  const canvasWidthClass = isUserMode && orientation === "vertical" ? "max-w-[14rem] sm:max-w-[16rem]" : orientation === "vertical" ? "max-w-md" : "max-w-4xl";
 
   useEffect(() => {
     layoutRef.current = layout;
@@ -465,11 +472,48 @@ export function BusinessCardLayoutBuilder({ layout, orientation, managedBackgrou
           onChange(previousLayout);
         }
       }
+
+      if ((event.key === "Delete" || event.key === "Backspace") && selectedItem) {
+        const target = event.target;
+
+        if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement || target instanceof HTMLButtonElement) {
+          return;
+        }
+
+        const currentLayout = layoutRef.current;
+        const currentSide = currentLayout.sides[activeSide];
+
+        event.preventDefault();
+
+        if (selectedItem.type === "field") {
+          onChange({ ...currentLayout, sides: { ...currentLayout.sides, [activeSide]: { ...currentSide, fields: currentSide.fields.map((field) => field.id === selectedItem.fieldId ? { ...field, visible: false } : field) } } });
+          setExpandedUserFieldId((current) => current === selectedItem.fieldId ? undefined : current);
+          setSelectedItem(undefined);
+          return;
+        }
+
+        if (selectedItem.type === "icon") {
+          onChange({ ...currentLayout, sides: { ...currentLayout.sides, [activeSide]: { ...currentSide, icons: currentSide.icons.map((icon) => icon.id === selectedItem.iconId ? { ...icon, visible: false } : icon) } } });
+          setSelectedItem(undefined);
+          return;
+        }
+
+        if (selectedItem.type === "line") {
+          onChange({ ...currentLayout, sides: { ...currentLayout.sides, [activeSide]: { ...currentSide, lines: currentSide.lines.map((line) => line.id === selectedItem.lineId ? { ...line, visible: false } : line) } } });
+          setSelectedItem(undefined);
+          return;
+        }
+
+        if (selectedItem.type === "logo") {
+          onChange({ ...currentLayout, sides: { ...currentLayout.sides, [activeSide]: { ...currentSide, logo: { ...currentSide.logo, visible: false } } } });
+          setSelectedItem(undefined);
+        }
+      }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onChange]);
+  }, [activeSide, onChange, selectedItem]);
 
   const updateLayout = (nextLayout: BusinessCardTemplateLayout) => {
     historyRef.current = [...historyRef.current.slice(-39), layoutRef.current];
@@ -874,6 +918,27 @@ export function BusinessCardLayoutBuilder({ layout, orientation, managedBackgrou
     setSelectedItem({ type: "icon", iconId: nextIcon.id });
   };
 
+  const toggleUserField = (fieldId: BusinessCardTemplateTextFieldId) => {
+    const field = getField(layout, activeSide, fieldId);
+    const nextVisible = !field.visible;
+
+    updateField(fieldId, (current) => ({ ...current, visible: nextVisible }));
+
+    if (nextVisible) {
+      setSelectedItem({ type: "field", fieldId });
+      setExpandedUserFieldId(userExpandableFieldIds.includes(fieldId as UserExpandableFieldId) ? fieldId as UserExpandableFieldId : undefined);
+      return;
+    }
+
+    if (selectedItem?.type === "field" && selectedItem.fieldId === fieldId) {
+      setSelectedItem(undefined);
+    }
+
+    if (expandedUserFieldId === fieldId) {
+      setExpandedUserFieldId(undefined);
+    }
+  };
+
   const addLine = (orientation: BusinessCardTemplateLineElement["orientation"]) => {
     const usedLineIds = new Set(side.lines.map((line) => line.id));
     let lineSequence = side.lines.length + 1;
@@ -896,50 +961,37 @@ export function BusinessCardLayoutBuilder({ layout, orientation, managedBackgrou
     setSelectedItem({ type: "line", lineId: nextLine.id });
   };
   const userTextFieldSection = (
-    <section className="mb-4 rounded-lg border border-line bg-surface p-4 shadow-soft">
-      <div className="mb-4">
+    <section className="mb-4 rounded-lg border border-line bg-surface p-3 shadow-soft">
+      <div className="mb-3">
         <p className="text-xs font-black text-primary-strong">텍스트 필드</p>
-        <p className="mt-1 text-xs font-bold text-muted">명함에 넣을 정보를 선택해요. 직접 입력이 필요한 문구와 QR 이미지는 아래에서 바로 입력해요.</p>
+        <p className="mt-1 text-xs font-bold text-muted">버튼을 켜면 캔버스에 표시되고, 추가 입력이 필요한 항목은 아래에 열려요.</p>
       </div>
-      <div className="mb-4 flex flex-wrap gap-2">
+      <div className="mb-3 flex flex-wrap gap-2">
         {businessCardTemplateFieldIds.map((fieldId) => {
           const field = getField(layout, activeSide, fieldId);
+          const isExpandable = userExpandableFieldIds.includes(fieldId as UserExpandableFieldId);
 
           return (
-            <button key={fieldId} className={`rounded-md px-3 py-2 text-xs font-black transition ${field.visible ? "bg-primary text-white shadow-soft" : "bg-surface-blue text-primary-strong hover:bg-primary-soft"}`} type="button" aria-pressed={field.visible} onClick={() => {
-              updateField(fieldId, (current) => ({ ...current, visible: !current.visible }));
-
-              if (!field.visible) {
-                setSelectedItem({ type: "field", fieldId });
-              } else if (selectedItem?.type === "field" && selectedItem.fieldId === fieldId) {
-                setSelectedItem(undefined);
-              }
-            }}>
+            <button key={fieldId} className={`rounded-md px-3 py-2 text-xs font-black transition ${field.visible ? "bg-primary text-white shadow-soft" : "bg-surface-blue text-primary-strong hover:bg-primary-soft"}`} type="button" aria-pressed={field.visible} onClick={() => toggleUserField(fieldId)}>
               {fieldLabels[fieldId]}
+              {isExpandable && expandedUserFieldId === fieldId && field.visible ? <span className="ml-1 text-[10px]">열림</span> : null}
             </button>
           );
         })}
       </div>
-      {visibleUserEditableFields.length > 0 ? (
+      {expandedUserField && isExpandedUserFieldVisible && expandedUserField.id !== "qrCode" ? (
         <div className="grid gap-3 rounded-md border border-line bg-surface-blue p-3">
-          {visibleUserEditableFields.map((field) => {
-            const isMultiline = isMultilineBusinessCardTextFieldId(field.id);
-            const value = userFieldValues?.[field.id] ?? "";
-
-            return (
-              <label key={field.id} className="block">
-                <span className="mb-1 block text-xs font-black text-primary-strong">{fieldLabels[field.id]}</span>
-                {isMultiline ? (
-                  <textarea className="min-h-20 w-full resize-y rounded-md border border-line bg-white px-3 py-2 text-sm font-bold text-ink outline-none transition focus:border-primary focus:shadow-soft" placeholder={`${fieldLabels[field.id]}을 입력해 주세요.`} value={value} onChange={(event) => onUserFieldValueChange?.(field.id, event.currentTarget.value)} />
-                ) : (
-                  <input className="h-11 w-full rounded-md border border-line bg-white px-3 text-sm font-bold text-ink outline-none transition focus:border-primary focus:shadow-soft" placeholder={`${fieldLabels[field.id]}을 입력해 주세요.`} value={value} onChange={(event) => onUserFieldValueChange?.(field.id, event.currentTarget.value)} />
-                )}
-              </label>
-            );
-          })}
+          <label className="block">
+            <span className="mb-1 block text-xs font-black text-primary-strong">{fieldLabels[expandedUserField.id]}</span>
+            {isMultilineBusinessCardTextFieldId(expandedUserField.id) ? (
+              <textarea className="min-h-20 w-full resize-y rounded-md border border-line bg-white px-3 py-2 text-sm font-bold text-ink outline-none transition focus:border-primary focus:shadow-soft" placeholder={`${fieldLabels[expandedUserField.id]}을 입력해 주세요.`} value={userFieldValues?.[expandedUserField.id] ?? ""} onChange={(event) => onUserFieldValueChange?.(expandedUserField.id, event.currentTarget.value)} />
+            ) : (
+              <input className="h-11 w-full rounded-md border border-line bg-white px-3 text-sm font-bold text-ink outline-none transition focus:border-primary focus:shadow-soft" placeholder={`${fieldLabels[expandedUserField.id]}을 입력해 주세요.`} value={userFieldValues?.[expandedUserField.id] ?? ""} onChange={(event) => onUserFieldValueChange?.(expandedUserField.id, event.currentTarget.value)} />
+            )}
+          </label>
         </div>
       ) : null}
-      {isQrCodeVisible && onUserQrCodeImageChange && onUserQrCodeImageClear ? <div className="mt-3"><QrCodeImageField value={userQrCodeImageUrl} onChange={onUserQrCodeImageChange} onClear={onUserQrCodeImageClear} /></div> : null}
+      {expandedUserFieldId === "qrCode" && isQrCodeVisible && onUserQrCodeImageChange && onUserQrCodeImageClear ? <div className="mt-3"><QrCodeImageField value={userQrCodeImageUrl} onChange={onUserQrCodeImageChange} onClear={onUserQrCodeImageClear} /></div> : null}
     </section>
   );
   const userIconSection = (
@@ -967,7 +1019,7 @@ export function BusinessCardLayoutBuilder({ layout, orientation, managedBackgrou
           <h3 className="mt-1 text-xl font-black tracking-[-0.04em] text-ink">안전 영역을 참고해 배치해요</h3>
           {!isUserMode ? <p className="mt-2 text-xs font-bold leading-5 text-muted">실선 안전선은 인쇄 여백을 확인하는 참고선이에요. 격자를 켜면 드래그를 놓는 순간 가까운 점에 맞춰요.</p> : null}
         </div>
-        <div className="grid gap-2">
+        <div className="flex flex-wrap gap-2">
           {onOrientationChange ? (
             <div className="flex rounded-md bg-surface p-1 shadow-soft">
               {(["horizontal", "vertical"] as const).map((orientationId) => (
@@ -1001,8 +1053,8 @@ export function BusinessCardLayoutBuilder({ layout, orientation, managedBackgrou
               <CheckboxPill label="격자 보기" checked={showGrid} onChange={setShowGrid} />
             </div>
           </div>
-          <div className={`grid place-items-center rounded-lg bg-[radial-gradient(circle_at_20%_20%,var(--color-primary-soft)_0%,transparent_28%),linear-gradient(135deg,var(--color-surface)_0%,var(--color-surface-blue)_100%)] ${isUserMode ? "p-2 sm:p-3 lg:p-4" : "p-4 sm:p-6 lg:p-8"}`}>
-            <div ref={canvasRef} className={`relative w-full overflow-visible rounded-md border border-line bg-surface shadow-floating ${orientation === "vertical" ? "max-w-md" : "max-w-4xl"}`} style={{ aspectRatio: canvasAspect, backgroundColor: activeBackgroundColor || undefined }} onPointerDown={(event) => {
+          <div className={`grid place-items-center rounded-lg ${isUserMode ? "bg-transparent p-0" : "bg-[radial-gradient(circle_at_20%_20%,var(--color-primary-soft)_0%,transparent_28%),linear-gradient(135deg,var(--color-surface)_0%,var(--color-surface-blue)_100%)] p-4 sm:p-6 lg:p-8"}`}>
+            <div ref={canvasRef} className={`relative w-full overflow-visible rounded-md border border-line bg-surface shadow-floating ${canvasWidthClass}`} style={{ aspectRatio: canvasAspect, backgroundColor: activeBackgroundColor || undefined }} onPointerDown={(event) => {
               if (event.currentTarget === event.target) {
                 setSelectedItem(undefined);
               }
@@ -1013,7 +1065,7 @@ export function BusinessCardLayoutBuilder({ layout, orientation, managedBackgrou
               <GuideBox box={layout.canvas.safe} label="SAFE" tone="safe" />
               {!isUserMode ? side.lines.map((line) => (line.visible ? <LinePreview key={line.id} line={line} selected={selectedItem?.type === "line" && selectedItem.lineId === line.id} onPointerDown={(event) => handleLinePointerDown(event, line)} onResizePointerDown={(event, corner) => handleLineResizePointerDown(event, line, corner)} onPointerMove={handlePointerMove} onPointerUp={stopPointerDrag} onPointerCancel={stopPointerDrag} /> : null)) : null}
               {!isUserMode ? contactLayout.blocks.map((block) => <BusinessCardInfoBlockRenderer key={block.id} block={block} cssPixelScale={renderPixelScale} gapScale={canvasScale} trimWidthScale={trimWidthScale} className="pointer-events-none absolute z-10 overflow-visible" />) : null}
-              {contactLayout.fields.map((field) => (field.visible ? <TextFieldPreview key={field.id} field={field} selected={selectedItem?.type === "field" && selectedItem.fieldId === field.id} renderPixelScale={renderPixelScale} trimWidthScale={trimWidthScale} labelOnly={isUserMode} onDoubleClick={() => isUserMode ? undefined : updateFieldText(field)} onPointerDown={(event) => handleTextFieldPointerDown(event, field)} onResizePointerDown={(event, corner) => handleTextFieldResizePointerDown(event, field, corner)} onPointerMove={handlePointerMove} onPointerUp={stopPointerDrag} onPointerCancel={stopPointerDrag} /> : null))}
+              {contactLayout.fields.map((field) => (field.visible ? <TextFieldPreview key={field.id} field={field} displayValue={displayBusinessCardFieldValue(field.id, readFieldValue(field))} selected={selectedItem?.type === "field" && selectedItem.fieldId === field.id} renderPixelScale={renderPixelScale} trimWidthScale={trimWidthScale} onDoubleClick={() => isUserMode ? undefined : updateFieldText(field)} onPointerDown={(event) => handleTextFieldPointerDown(event, field)} onResizePointerDown={(event, corner) => handleTextFieldResizePointerDown(event, field, corner)} onPointerMove={handlePointerMove} onPointerUp={stopPointerDrag} onPointerCancel={stopPointerDrag} /> : null))}
               {contactLayout.icons.map((icon) => (icon.visible ? <IconPreview key={icon.id} icon={icon} selected={selectedItem?.type === "icon" && selectedItem.iconId === icon.id} cssPixelScale={renderPixelScale} onPointerDown={(event) => handleIconPointerDown(event, icon)} onResizePointerDown={(event, corner) => handleIconResizePointerDown(event, icon, corner)} onPointerMove={handlePointerMove} onPointerUp={stopPointerDrag} onPointerCancel={stopPointerDrag} /> : null))}
               {!isUserMode ? contactLayout.blocks.map((block) => <InfoBlockMovePreview key={block.id} block={block} selected={selectedItem?.type === "info-block" && selectedItem.blockId === block.id} onPointerDown={(event) => handleInfoBlockPointerDown(event, block)} onPointerMove={handlePointerMove} onPointerUp={stopPointerDrag} onPointerCancel={stopPointerDrag} />) : null}
               {side.logo.visible ? (
@@ -1031,7 +1083,7 @@ export function BusinessCardLayoutBuilder({ layout, orientation, managedBackgrou
               {!isUserMode && selectedItem && (selectedItem.type !== "logo" || side.logo.visible) ? <QuickControls selectedItem={selectedItem} position={selectedControlsPosition} field={selectedItem.type === "field" ? selectedField : undefined} icon={selectedIcon} line={selectedLine} logo={selectedItem.type === "logo" ? side.logo : undefined} infoBlock={selectedInfoBlock} onPositionChange={updateSelectedControlsPosition} onFieldChange={(updater) => updateField(selectedFieldId, updater)} onIconChange={(updater) => selectedIcon ? updateIcon(selectedIcon.id, updater) : undefined} onLineChange={(updater) => selectedLine ? updateLine(selectedLine.id, updater) : undefined} onLogoChange={(updater) => updateActiveSide({ ...side, logo: updater(side.logo) })} onInfoBlockChange={(updater) => selectedInfoBlock ? updateInfoBlock(selectedInfoBlock, updater) : undefined} onInfoBlockFieldsChange={(updater) => selectedInfoBlock ? updateInfoBlockFields(selectedInfoBlock, updater) : undefined} onInfoBlockFieldChange={updateInfoBlockField} onInfoBlockIconChange={(updater) => selectedInfoBlock ? updateInfoBlockIcon(selectedInfoBlock, updater) : undefined} /> : null}
             </div>
           </div>
-          {isUserMode && selectedItem && (selectedItem.type !== "logo" || side.logo.visible) ? <div className="mt-4"><QuickControls fixed selectedItem={selectedItem} position={selectedControlsPosition} field={selectedItem.type === "field" ? selectedField : undefined} icon={selectedIcon} line={selectedLine} logo={selectedItem.type === "logo" ? side.logo : undefined} infoBlock={selectedInfoBlock} onPositionChange={updateSelectedControlsPosition} onFieldChange={(updater) => updateField(selectedFieldId, updater)} onIconChange={(updater) => selectedIcon ? updateIcon(selectedIcon.id, updater) : undefined} onLineChange={(updater) => selectedLine ? updateLine(selectedLine.id, updater) : undefined} onLogoChange={(updater) => updateActiveSide({ ...side, logo: updater(side.logo) })} onInfoBlockChange={(updater) => selectedInfoBlock ? updateInfoBlock(selectedInfoBlock, updater) : undefined} onInfoBlockFieldsChange={(updater) => selectedInfoBlock ? updateInfoBlockFields(selectedInfoBlock, updater) : undefined} onInfoBlockFieldChange={updateInfoBlockField} onInfoBlockIconChange={(updater) => selectedInfoBlock ? updateInfoBlockIcon(selectedInfoBlock, updater) : undefined} /></div> : null}
+          {isUserMode && selectedItem && (selectedItem.type !== "logo" || side.logo.visible) ? <div className="mt-4"><QuickControls fixed hideLogoVisibility selectedItem={selectedItem} position={selectedControlsPosition} field={selectedItem.type === "field" ? selectedField : undefined} icon={selectedIcon} line={selectedLine} logo={selectedItem.type === "logo" ? side.logo : undefined} infoBlock={selectedInfoBlock} onPositionChange={updateSelectedControlsPosition} onFieldChange={(updater) => updateField(selectedFieldId, updater)} onIconChange={(updater) => selectedIcon ? updateIcon(selectedIcon.id, updater) : undefined} onLineChange={(updater) => selectedLine ? updateLine(selectedLine.id, updater) : undefined} onLogoChange={(updater) => updateActiveSide({ ...side, logo: updater(side.logo) })} onInfoBlockChange={(updater) => selectedInfoBlock ? updateInfoBlock(selectedInfoBlock, updater) : undefined} onInfoBlockFieldsChange={(updater) => selectedInfoBlock ? updateInfoBlockFields(selectedInfoBlock, updater) : undefined} onInfoBlockFieldChange={updateInfoBlockField} onInfoBlockIconChange={(updater) => selectedInfoBlock ? updateInfoBlockIcon(selectedInfoBlock, updater) : undefined} /></div> : null}
         </div>
 
         <div className="grid content-start gap-4">
@@ -1059,26 +1111,6 @@ export function BusinessCardLayoutBuilder({ layout, orientation, managedBackgrou
                 );
               })}
             </div>
-            {isUserMode && visibleUserEditableFields.length > 0 ? (
-              <div className="grid gap-3 rounded-md border border-line bg-surface-blue p-3">
-                {visibleUserEditableFields.map((field) => {
-                  const isMultiline = isMultilineBusinessCardTextFieldId(field.id);
-                  const value = userFieldValues?.[field.id] ?? "";
-
-                  return (
-                    <label key={field.id} className="block">
-                      <span className="mb-1 block text-xs font-black text-primary-strong">{fieldLabels[field.id]}</span>
-                      {isMultiline ? (
-                        <textarea className="min-h-20 w-full resize-y rounded-md border border-line bg-white px-3 py-2 text-sm font-bold text-ink outline-none transition focus:border-primary focus:shadow-soft" placeholder={`${fieldLabels[field.id]}을 입력해 주세요.`} value={value} onChange={(event) => onUserFieldValueChange?.(field.id, event.currentTarget.value)} />
-                      ) : (
-                        <input className="h-11 w-full rounded-md border border-line bg-white px-3 text-sm font-bold text-ink outline-none transition focus:border-primary focus:shadow-soft" placeholder={`${fieldLabels[field.id]}을 입력해 주세요.`} value={value} onChange={(event) => onUserFieldValueChange?.(field.id, event.currentTarget.value)} />
-                      )}
-                    </label>
-                  );
-                })}
-              </div>
-            ) : null}
-            {isUserMode && isQrCodeVisible && onUserQrCodeImageChange && onUserQrCodeImageClear ? <div className="mt-3"><QrCodeImageField value={userQrCodeImageUrl} onChange={onUserQrCodeImageChange} onClear={onUserQrCodeImageClear} /></div> : null}
           </section>}
 
           <section className="rounded-lg border border-line bg-surface p-4 shadow-soft">
@@ -1190,12 +1222,12 @@ function textPreviewStyle(field: BusinessCardTemplateTextElement, renderPixelSca
   };
 }
 
-function TextFieldPreview({ field, selected, renderPixelScale, trimWidthScale, labelOnly = false, onDoubleClick, onPointerDown, onResizePointerDown, onPointerMove, onPointerUp, onPointerCancel }: { field: BusinessCardTemplateTextElement; selected: boolean; renderPixelScale: number; trimWidthScale: number; labelOnly?: boolean; onDoubleClick: () => void; onPointerDown: (event: PointerEvent<HTMLDivElement>) => void; onResizePointerDown: (event: PointerEvent<HTMLSpanElement>, corner: ResizeCorner) => void; onPointerMove: (event: PointerEvent<HTMLElement>) => void; onPointerUp: (event: PointerEvent<HTMLElement>) => void; onPointerCancel: (event: PointerEvent<HTMLElement>) => void }) {
-  const value = displayFieldValue(field);
+function TextFieldPreview({ field, displayValue, selected, renderPixelScale, trimWidthScale, onDoubleClick, onPointerDown, onResizePointerDown, onPointerMove, onPointerUp, onPointerCancel }: { field: BusinessCardTemplateTextElement; displayValue?: string; selected: boolean; renderPixelScale: number; trimWidthScale: number; onDoubleClick: () => void; onPointerDown: (event: PointerEvent<HTMLDivElement>) => void; onResizePointerDown: (event: PointerEvent<HTMLSpanElement>, corner: ResizeCorner) => void; onPointerMove: (event: PointerEvent<HTMLElement>) => void; onPointerUp: (event: PointerEvent<HTMLElement>) => void; onPointerCancel: (event: PointerEvent<HTMLElement>) => void }) {
+  const value = displayValue ?? displayFieldValue(field);
 
   return (
     <div className={`absolute touch-none cursor-grab overflow-hidden rounded-sm border transition active:cursor-grabbing ${fontPreviewClasses[field.fontFamily]} ${selected ? "border-primary bg-surface/20 shadow-soft ring-2 ring-primary-soft" : "border-transparent bg-transparent hover:border-primary-soft/50"}`} style={{ ...boxStyle(field.box), ...textPreviewStyle(field, renderPixelScale, value, trimWidthScale), padding: `0 ${formatPercent(8 * renderPixelScale, 4)}px` }} onDoubleClick={onDoubleClick} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel}>
-      <span className={`block overflow-hidden ${isMultilineBusinessCardTextFieldId(field.id) ? "whitespace-pre-line" : "whitespace-nowrap"}`}>{labelOnly ? fieldLabels[field.id] : value}</span>
+      <span className={`block overflow-hidden ${isMultilineBusinessCardTextFieldId(field.id) ? "whitespace-pre-line" : "whitespace-nowrap"}`}>{value}</span>
       {selected ? <ResizeHandles onResizePointerDown={onResizePointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel} /> : null}
     </div>
   );
@@ -1248,7 +1280,7 @@ function ResizeHandles({ onResizePointerDown, onPointerMove, onPointerUp, onPoin
   );
 }
 
-function QuickControls({ selectedItem, position, fixed = false, field, icon, line, logo, infoBlock, onPositionChange, onFieldChange, onIconChange, onLineChange, onLogoChange, onInfoBlockChange, onInfoBlockFieldsChange, onInfoBlockFieldChange, onInfoBlockIconChange }: { selectedItem: SelectedItem; position: ControlsPosition; fixed?: boolean; field?: BusinessCardTemplateTextElement; icon?: BusinessCardTemplateIconElement; line?: BusinessCardTemplateLineElement; logo?: BusinessCardTemplateLogoElement; infoBlock?: BusinessCardInfoBlock; onPositionChange: (position: ControlsPosition) => void; onFieldChange: (updater: (field: BusinessCardTemplateTextElement) => BusinessCardTemplateTextElement) => void; onIconChange: (updater: (icon: BusinessCardTemplateIconElement) => BusinessCardTemplateIconElement) => void; onLineChange: (updater: (line: BusinessCardTemplateLineElement) => BusinessCardTemplateLineElement) => void; onLogoChange: (updater: (logo: BusinessCardTemplateLogoElement) => BusinessCardTemplateLogoElement) => void; onInfoBlockChange: (updater: (box: BusinessCardTemplateBox) => BusinessCardTemplateBox) => void; onInfoBlockFieldsChange: (updater: (field: BusinessCardTemplateTextElement) => BusinessCardTemplateTextElement) => void; onInfoBlockFieldChange: (fieldId: BusinessCardTemplateTextFieldId, updater: (field: BusinessCardTemplateTextElement) => BusinessCardTemplateTextElement) => void; onInfoBlockIconChange: (updater: (icon: BusinessCardTemplateIconElement) => BusinessCardTemplateIconElement) => void }) {
+function QuickControls({ selectedItem, position, fixed = false, hideLogoVisibility = false, field, icon, line, logo, infoBlock, onPositionChange, onFieldChange, onIconChange, onLineChange, onLogoChange, onInfoBlockChange, onInfoBlockFieldsChange, onInfoBlockFieldChange, onInfoBlockIconChange }: { selectedItem: SelectedItem; position: ControlsPosition; fixed?: boolean; hideLogoVisibility?: boolean; field?: BusinessCardTemplateTextElement; icon?: BusinessCardTemplateIconElement; line?: BusinessCardTemplateLineElement; logo?: BusinessCardTemplateLogoElement; infoBlock?: BusinessCardInfoBlock; onPositionChange: (position: ControlsPosition) => void; onFieldChange: (updater: (field: BusinessCardTemplateTextElement) => BusinessCardTemplateTextElement) => void; onIconChange: (updater: (icon: BusinessCardTemplateIconElement) => BusinessCardTemplateIconElement) => void; onLineChange: (updater: (line: BusinessCardTemplateLineElement) => BusinessCardTemplateLineElement) => void; onLogoChange: (updater: (logo: BusinessCardTemplateLogoElement) => BusinessCardTemplateLogoElement) => void; onInfoBlockChange: (updater: (box: BusinessCardTemplateBox) => BusinessCardTemplateBox) => void; onInfoBlockFieldsChange: (updater: (field: BusinessCardTemplateTextElement) => BusinessCardTemplateTextElement) => void; onInfoBlockFieldChange: (fieldId: BusinessCardTemplateTextFieldId, updater: (field: BusinessCardTemplateTextElement) => BusinessCardTemplateTextElement) => void; onInfoBlockIconChange: (updater: (icon: BusinessCardTemplateIconElement) => BusinessCardTemplateIconElement) => void }) {
   const controlsRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ pointerId: number; startClientX: number; startClientY: number; startX: number; startY: number } | undefined>(undefined);
   const controlsStyle: CSSProperties | undefined = fixed ? undefined : { left: `${position.x}px`, top: `${position.y}px` };
@@ -1288,7 +1320,7 @@ function QuickControls({ selectedItem, position, fixed = false, field, icon, lin
     const iconTextGapPx = infoBlock.icon?.textGapPx ?? businessCardInfoBlockIconTextGapPx;
 
     return (
-      <div ref={controlsRef} className={`${fixed ? "relative" : "absolute z-20"} grid w-full max-w-[430px] gap-2 rounded-lg border border-line bg-surface/95 p-2 shadow-card backdrop-blur`} style={controlsStyle}>
+      <div ref={controlsRef} className={`${fixed ? "relative" : "absolute z-20"} grid w-full gap-2 rounded-lg border border-line bg-surface/95 p-2 shadow-card backdrop-blur`} style={controlsStyle}>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="cursor-move select-none text-[11px] font-black text-primary-strong" onPointerDown={startControlsDrag} onPointerMove={moveControlsDrag} onPointerUp={stopControlsDrag} onPointerCancel={stopControlsDrag}>{infoBlockLabels[infoBlock.id] ?? "정보 영역"}</span>
           <CheckboxPill label="표시" checked={allVisible} onChange={(visible) => onInfoBlockFieldsChange((current) => ({ ...current, visible }))} />
@@ -1343,32 +1375,30 @@ function QuickControls({ selectedItem, position, fixed = false, field, icon, lin
 
   if (selectedItem.type === "field" && field) {
     return (
-      <div ref={controlsRef} className={`${fixed ? "relative" : "absolute z-20"} grid w-full max-w-[390px] gap-2 rounded-lg border border-line bg-surface/95 p-2 shadow-card backdrop-blur`} style={controlsStyle}>
+      <div ref={controlsRef} className={`${fixed ? "relative" : "absolute z-20"} grid w-full gap-2 rounded-lg border border-line bg-surface/95 p-2 shadow-card backdrop-blur`} style={controlsStyle}>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="cursor-move select-none text-[11px] font-black text-primary-strong" onPointerDown={startControlsDrag} onPointerMove={moveControlsDrag} onPointerUp={stopControlsDrag} onPointerCancel={stopControlsDrag}>{fieldLabels[field.id]} 텍스트</span>
           <CheckboxPill label="표시" checked={field.visible} onChange={(visible) => onFieldChange((current) => ({ ...current, visible }))} />
         </div>
-        <div className="grid grid-cols-[72px_48px_98px_38px_46px] items-end gap-1">
+        <div className="grid grid-cols-5 gap-1">
+          <CompactNumberInput label="X" value={field.box.x} min={0} max={100 - field.box.width} step={0.01} onChange={(value) => onFieldChange((current) => ({ ...current, box: updateBoxValue(current.box, "x", value) }))} />
+          <CompactNumberInput label="Y" value={field.box.y} min={0} max={100 - field.box.height} step={0.01} onChange={(value) => onFieldChange((current) => ({ ...current, box: updateBoxValue(current.box, "y", value) }))} />
+          <CompactNumberInput label="가로" value={field.box.width} min={1} max={100 - field.box.x} step={0.01} onChange={(value) => onFieldChange((current) => ({ ...current, box: updateBoxValue(current.box, "width", value) }))} />
+          <CompactNumberInput label="세로" value={field.box.height} min={1} max={100 - field.box.y} step={0.01} onChange={(value) => onFieldChange((current) => ({ ...current, box: updateBoxValue(current.box, "height", value) }))} />
+          <CompactNumberInput label="크기" value={field.fontSize} min={6} max={36} step={1} onChange={(value) => onFieldChange((current) => ({ ...current, fontSize: roundPercent(clamp(value, 6, 36)) }))} />
+        </div>
+        <div className="grid grid-cols-[minmax(72px,1fr)_40px_34px_34px_34px_34px_34px] items-end gap-1">
           <label className="block">
             <span className="mb-1 block text-[10px] font-extrabold text-soft">폰트</span>
             <select className="h-8 w-full rounded-sm border border-line bg-surface px-1 text-[11px] font-black text-ink outline-none focus:border-primary" value={field.fontFamily} onChange={(event) => onFieldChange((current) => ({ ...current, fontFamily: readFontFamily(event.target.value) }))}>
               {businessCardTemplateFontFamilies.map((fontFamily) => <option key={fontFamily} value={fontFamily}>{fontLabels[fontFamily]}</option>)}
             </select>
           </label>
-          <CompactNumberInput label="크기" value={field.fontSize} min={6} max={36} step={1} onChange={(value) => onFieldChange((current) => ({ ...current, fontSize: roundPercent(clamp(value, 6, 36)) }))} />
           <CompactColorInput label="색" value={field.color} onChange={(color) => onFieldChange((current) => ({ ...current, color }))} />
-          <button className={`h-8 rounded-sm px-1 text-[10px] font-black ${field.fontWeight === "bold" ? "bg-primary text-white" : "bg-surface-blue text-primary-strong"}`} type="button" onClick={() => onFieldChange((current) => ({ ...current, fontWeight: current.fontWeight === "bold" ? "regular" : "bold" }))}>굵게</button>
-          <button className={`h-8 rounded-sm px-1 text-[10px] font-black italic whitespace-nowrap ${field.italic ? "bg-primary text-white" : "bg-surface-blue text-primary-strong"}`} type="button" onClick={() => onFieldChange((current) => ({ ...current, italic: !current.italic }))}>이탤릭</button>
-        </div>
-        <div className="grid grid-cols-[48px_48px_48px_48px] gap-1">
-          <CompactNumberInput label="X" value={field.box.x} min={0} max={100 - field.box.width} step={0.01} onChange={(value) => onFieldChange((current) => ({ ...current, box: updateBoxValue(current.box, "x", value) }))} />
-          <CompactNumberInput label="Y" value={field.box.y} min={0} max={100 - field.box.height} step={0.01} onChange={(value) => onFieldChange((current) => ({ ...current, box: updateBoxValue(current.box, "y", value) }))} />
-          <CompactNumberInput label="가로" value={field.box.width} min={1} max={100 - field.box.x} step={0.01} onChange={(value) => onFieldChange((current) => ({ ...current, box: updateBoxValue(current.box, "width", value) }))} />
-          <CompactNumberInput label="세로" value={field.box.height} min={1} max={100 - field.box.y} step={0.01} onChange={(value) => onFieldChange((current) => ({ ...current, box: updateBoxValue(current.box, "height", value) }))} />
-        </div>
-        <div className="flex flex-wrap gap-1">
+          <button className={`h-8 rounded-sm px-1 text-[13px] font-black ${field.fontWeight === "bold" ? "bg-primary text-white" : "bg-surface-blue text-primary-strong"}`} type="button" aria-label="굵게" onClick={() => onFieldChange((current) => ({ ...current, fontWeight: current.fontWeight === "bold" ? "regular" : "bold" }))}>B</button>
+          <button className={`h-8 rounded-sm px-1 text-[13px] font-black italic ${field.italic ? "bg-primary text-white" : "bg-surface-blue text-primary-strong"}`} type="button" aria-label="이탤릭" onClick={() => onFieldChange((current) => ({ ...current, italic: !current.italic }))}>I</button>
           {(["left", "center", "right"] satisfies BusinessCardTemplateTextAlign[]).map((align) => (
-            <button key={align} className={`h-8 rounded-sm px-2 text-[10px] font-black ${field.align === align ? "bg-primary text-white" : "bg-surface-blue text-primary-strong"}`} type="button" onClick={() => onFieldChange((current) => ({ ...current, align }))}>{textAlignLabels[align]}</button>
+            <button key={align} className={`h-8 rounded-sm px-1 text-[12px] font-black ${field.align === align ? "bg-primary text-white" : "bg-surface-blue text-primary-strong"}`} type="button" aria-label={textAlignLabels[align]} onClick={() => onFieldChange((current) => ({ ...current, align }))}>{align === "left" ? "≡" : align === "center" ? "☰" : "≣"}</button>
           ))}
         </div>
       </div>
@@ -1377,7 +1407,7 @@ function QuickControls({ selectedItem, position, fixed = false, field, icon, lin
 
   if (selectedItem.type === "icon" && icon) {
     return (
-      <div ref={controlsRef} className={`${fixed ? "relative" : "absolute z-20"} grid w-full max-w-[330px] gap-2 rounded-lg border border-line bg-surface/95 p-2 shadow-card backdrop-blur`} style={controlsStyle}>
+      <div ref={controlsRef} className={`${fixed ? "relative" : "absolute z-20"} grid w-full gap-2 rounded-lg border border-line bg-surface/95 p-2 shadow-card backdrop-blur`} style={controlsStyle}>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="cursor-move select-none text-[11px] font-black text-primary-strong" onPointerDown={startControlsDrag} onPointerMove={moveControlsDrag} onPointerUp={stopControlsDrag} onPointerCancel={stopControlsDrag}>아이콘</span>
           <CheckboxPill label="표시" checked={icon.visible} onChange={(visible) => onIconChange((current) => ({ ...current, visible }))} />
@@ -1405,7 +1435,7 @@ function QuickControls({ selectedItem, position, fixed = false, field, icon, lin
     const isHorizontal = line.orientation === "horizontal";
 
     return (
-      <div ref={controlsRef} className={`${fixed ? "relative" : "absolute z-20"} grid w-full max-w-[330px] gap-2 rounded-lg border border-line bg-surface/95 p-2 shadow-card backdrop-blur`} style={controlsStyle}>
+      <div ref={controlsRef} className={`${fixed ? "relative" : "absolute z-20"} grid w-full gap-2 rounded-lg border border-line bg-surface/95 p-2 shadow-card backdrop-blur`} style={controlsStyle}>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="cursor-move select-none text-[11px] font-black text-primary-strong" onPointerDown={startControlsDrag} onPointerMove={moveControlsDrag} onPointerUp={stopControlsDrag} onPointerCancel={stopControlsDrag}>라인</span>
           <CheckboxPill label="표시" checked={line.visible} onChange={(visible) => onLineChange((current) => ({ ...current, visible }))} />
@@ -1432,10 +1462,10 @@ function QuickControls({ selectedItem, position, fixed = false, field, icon, lin
 
   if (selectedItem.type === "logo" && logo) {
     return (
-      <div ref={controlsRef} className={`${fixed ? "relative" : "absolute z-20"} grid w-full max-w-[237px] gap-2 rounded-lg border border-line bg-surface/95 p-2 shadow-card backdrop-blur`} style={controlsStyle}>
+      <div ref={controlsRef} className={`${fixed ? "relative" : "absolute z-20"} grid w-full gap-2 rounded-lg border border-line bg-surface/95 p-2 shadow-card backdrop-blur`} style={controlsStyle}>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="cursor-move select-none text-[11px] font-black text-primary-strong" onPointerDown={startControlsDrag} onPointerMove={moveControlsDrag} onPointerUp={stopControlsDrag} onPointerCancel={stopControlsDrag}>로고</span>
-          <CheckboxPill label="표시" checked={logo.visible} onChange={(visible) => onLogoChange((current) => ({ ...current, visible }))} />
+          {hideLogoVisibility ? null : <CheckboxPill label="표시" checked={logo.visible} onChange={(visible) => onLogoChange((current) => ({ ...current, visible }))} />}
         </div>
         <div className="grid grid-cols-[48px_48px_48px_48px] gap-1">
           <CompactNumberInput label="X" value={logo.box.x} min={0} max={100 - logo.box.width} step={0.01} onChange={(value) => onLogoChange((current) => ({ ...current, box: updateBoxValue(current.box, "x", value) }))} />
