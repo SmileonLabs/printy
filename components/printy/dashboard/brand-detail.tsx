@@ -10,10 +10,10 @@ import { AppButton, SoftCard, TextAreaField, TextField } from "@/components/ui";
 import { getLogo, LogoMark } from "@/components/ui/logo";
 import { createAiBusinessCardMockupSignature, createAiBusinessCardRequestBody } from "@/lib/ai-business-card/client";
 import type { AiBusinessCardDesign } from "@/lib/ai-business-card/schema";
-import { createBusinessCardLayoutFromSelection } from "@/lib/business-card-layout-generator";
+import { createBusinessCardLayoutFromSelection, getBusinessCardLayoutOrientation } from "@/lib/business-card-layout-generator";
 import { brandDetailSections } from "@/lib/mock-data";
 import { readQrImageFile } from "@/lib/member-qr-image";
-import type { ActiveBrandMockupJob, Brand, BrandAsset, BrandDetailSectionId, BusinessCardDraft, BusinessCardUserElementId, Member, OrderRecord, PrintTemplate, ResolvedLogoOption } from "@/lib/types";
+import type { ActiveBrandMockupJob, Brand, BrandAsset, BrandDetailSectionId, BusinessCardDraft, BusinessCardTemplateLayout, BusinessCardUserElementId, Member, OrderRecord, PrintTemplate, ResolvedLogoOption } from "@/lib/types";
 import { usePrintyStore } from "@/store/use-printy-store";
 
 type LogoWithImage = Extract<ResolvedLogoOption, { imageUrl: string }>;
@@ -945,6 +945,10 @@ function selectableBusinessCardElements(elements: BusinessCardUserElementId[]) {
   return elements.filter(isSelectableBusinessCardElementId);
 }
 
+function visibleBusinessCardElements(layout: BusinessCardTemplateLayout, sideId: "front" | "back"): BusinessCardUserElementId[] {
+  return layout.sides[sideId].fields.filter((field) => field.visible).map((field) => field.id);
+}
+
 type OrderedBusinessCard = {
   order: OrderRecord;
   draft: BusinessCardDraft;
@@ -973,9 +977,12 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
   const [runningMockupPdfId, setRunningMockupPdfId] = useState<string>();
   const [mockupPdfErrors, setMockupPdfErrors] = useState<Record<string, string>>({});
   const [mockupPdfRecords, setMockupPdfRecords] = useState<Record<string, { url: string; fileName: string }>>({});
+  const [selectedSavedLayoutDraftId, setSelectedSavedLayoutDraftId] = useState("");
   const previewMember = createBusinessCardPreviewMember(brand);
   const selectedMembers = useMemo(() => brand.members.filter((member) => selectedMemberIds.includes(member.id)), [brand.members, selectedMemberIds]);
   const suggestedBusinessCardElements = useMemo(() => businessCardElementsWithInputValues(brand, selectedMembers.length > 0 ? selectedMembers : brand.members), [brand, selectedMembers]);
+  const savedLayoutDrafts = useMemo(() => businessCardDrafts.filter((draft) => draft.brandId === brand.id && Boolean(draft.layout)), [brand.id, businessCardDrafts]);
+  const selectedSavedLayoutDraft = savedLayoutDrafts.find((draft) => draft.id === selectedSavedLayoutDraftId) ?? savedLayoutDrafts[0];
 
   useEffect(() => {
     setSelectedMemberIds((current) => {
@@ -1083,6 +1090,22 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
 
     updateBusinessCardProductionOptions({ frontElements, backElements, color: selectedColor, layout: nextLayout });
     onStartProduction([draft.member.id], template.id);
+  };
+  const handleLoadSavedLayout = (draft: BusinessCardDraft) => {
+    if (!draft.layout) {
+      return;
+    }
+
+    const nextFrontElements = visibleBusinessCardElements(draft.layout, "front");
+    const nextBackElements = visibleBusinessCardElements(draft.layout, "back");
+
+    setProductionNotice("");
+    setFrontElements(nextFrontElements);
+    setBackElements(nextBackElements);
+    setSelectedMemberIds([draft.member.id]);
+    setSelectedSavedLayoutDraftId(draft.id);
+    updateBusinessCardProductionOptions({ frontElements: nextFrontElements, backElements: nextBackElements, color: selectedColor, layout: draft.layout });
+    onStartProduction([draft.member.id], draft.templateId);
   };
   const handleDownloadMockupPdf = async (mockup: { id: string; imageUrl: string; cleanImageUrl?: string }) => {
     const pdfRecordKey = `${mockup.id}:${aiBusinessCardPdfRendererVersion}`;
@@ -1241,6 +1264,30 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
       <AppButton variant="primary" onClick={handleStartProduction} disabled={brand.members.length > 0 && selectedMemberIds.length === 0} className="py-4 text-base font-black shadow-floating disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0">
         명함 제작하기
       </AppButton>
+      {savedLayoutDrafts.length > 0 ? (
+        <div className="grid gap-2 rounded-lg border border-line bg-surface p-3 shadow-soft">
+          <div>
+            <p className="text-xs font-black text-ink">임시 저장된 레이아웃 불러오기</p>
+            <p className="mt-1 text-[11px] font-bold leading-5 text-muted">이미지 생성 전에 저장해둔 좌표를 선택해서 이어서 편집할 수 있어요.</p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+            <select className="min-h-10 rounded-md border border-line bg-white px-3 text-xs font-bold text-ink outline-none transition focus:border-primary focus:ring-4 focus:ring-primary-soft" value={selectedSavedLayoutDraft?.id ?? ""} onChange={(event) => setSelectedSavedLayoutDraftId(event.target.value)}>
+              {savedLayoutDrafts.map((draft) => {
+                const orientation = draft.layout ? getBusinessCardLayoutOrientation(draft.layout) : "horizontal";
+
+                return (
+                  <option key={draft.id} value={draft.id}>
+                    {draft.member.name || "이름 미입력"} · {orientation === "vertical" ? "세로형" : "가로형"} · {draft.createdAt}
+                  </option>
+                );
+              })}
+            </select>
+            <AppButton className="py-2 text-xs" variant="secondary" onClick={() => selectedSavedLayoutDraft ? handleLoadSavedLayout(selectedSavedLayoutDraft) : undefined} disabled={!selectedSavedLayoutDraft}>
+              불러오기
+            </AppButton>
+          </div>
+        </div>
+      ) : null}
       <div className="grid gap-4">
         {visibleAiBusinessCardMockups.length > 0 ? (
           <div className="grid gap-3 rounded-lg border border-line bg-surface p-4 shadow-card">

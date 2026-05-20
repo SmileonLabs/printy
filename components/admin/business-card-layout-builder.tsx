@@ -972,7 +972,7 @@ export function BusinessCardLayoutBuilder({ layout, orientation, managedBackgrou
           const isExpandable = userExpandableFieldIds.includes(fieldId as UserExpandableFieldId);
 
           return (
-            <button key={fieldId} className={`rounded-md px-3 py-2 text-xs font-black transition ${field.visible ? "bg-primary text-white shadow-soft" : "bg-surface-blue text-primary-strong hover:bg-primary-soft"}`} type="button" aria-pressed={field.visible} onClick={() => toggleUserField(fieldId)}>
+            <button key={fieldId} className={`rounded-sm px-2 py-1 text-[10px] font-black transition ${field.visible ? "bg-primary text-white shadow-soft" : "bg-surface-blue text-primary-strong hover:bg-primary-soft"}`} type="button" aria-pressed={field.visible} onClick={() => toggleUserField(fieldId)}>
               {fieldLabels[fieldId]}
               {isExpandable && expandedUserFieldId === fieldId && field.visible ? <span className="ml-1 text-[10px]">열림</span> : null}
             </button>
@@ -1002,8 +1002,8 @@ export function BusinessCardLayoutBuilder({ layout, orientation, managedBackgrou
       </div>
       <div className="flex flex-wrap gap-2">
         {businessCardTemplateIconIds.map((iconId) => (
-          <button key={iconId} className={`inline-flex items-center gap-2 rounded-md px-3 py-2 text-xs font-black shadow-soft transition hover:-translate-y-0.5 ${side.icons.some((icon) => icon.icon === iconId && icon.visible) ? "bg-primary text-white" : "bg-surface-blue text-primary-strong hover:bg-primary-soft"}`} type="button" onClick={() => toggleIcon(iconId)} aria-pressed={side.icons.some((icon) => icon.icon === iconId && icon.visible)}>
-            <span className="h-4 w-4">{iconMarkup(iconId)}</span>
+          <button key={iconId} className={`inline-flex items-center gap-1 rounded-sm px-2 py-1 text-[10px] font-black shadow-soft transition hover:-translate-y-0.5 ${side.icons.some((icon) => icon.icon === iconId && icon.visible) ? "bg-primary text-white" : "bg-surface-blue text-primary-strong hover:bg-primary-soft"}`} type="button" onClick={() => toggleIcon(iconId)} aria-pressed={side.icons.some((icon) => icon.icon === iconId && icon.visible)}>
+            <span className="h-3 w-3">{iconMarkup(iconId)}</span>
             {iconLabels[iconId]}
           </button>
         ))}
@@ -1023,7 +1023,7 @@ export function BusinessCardLayoutBuilder({ layout, orientation, managedBackgrou
           {onOrientationChange ? (
             <div className="flex rounded-md bg-surface p-1 shadow-soft">
               {(["horizontal", "vertical"] as const).map((orientationId) => (
-                <button key={orientationId} className={`rounded-sm px-4 py-2 text-xs font-black transition ${orientation === orientationId ? "bg-primary text-white shadow-soft" : "text-primary-strong hover:bg-surface-blue"}`} type="button" onClick={() => onOrientationChange(orientationId)}>
+                <button key={orientationId} className={`rounded-sm px-2 py-1 text-[10px] font-black transition ${orientation === orientationId ? "bg-primary text-white shadow-soft" : "text-primary-strong hover:bg-surface-blue"}`} type="button" onClick={() => onOrientationChange(orientationId)}>
                   {orientationId === "horizontal" ? "가로" : "세로"}
                 </button>
               ))}
@@ -1031,7 +1031,7 @@ export function BusinessCardLayoutBuilder({ layout, orientation, managedBackgrou
           ) : null}
           <div className="flex rounded-md bg-surface p-1 shadow-soft">
             {sideIds.map((sideId) => (
-              <button key={sideId} className={`rounded-sm px-4 py-2 text-xs font-black transition ${activeSide === sideId ? "bg-primary text-white shadow-soft" : "text-primary-strong hover:bg-surface-blue"}`} type="button" onClick={() => {
+              <button key={sideId} className={`rounded-sm px-2 py-1 text-[10px] font-black transition ${activeSide === sideId ? "bg-primary text-white shadow-soft" : "text-primary-strong hover:bg-surface-blue"}`} type="button" onClick={() => {
                 setActiveSide(sideId);
                 setSelectedItem(layout.sides[sideId].logo.visible ? { type: "logo" } : undefined);
               }}>
@@ -1378,7 +1378,7 @@ function QuickControls({ selectedItem, position, fixed = false, hideLogoVisibili
       <div ref={controlsRef} className={`${fixed ? "relative" : "absolute z-20"} grid w-full gap-2 rounded-lg border border-line bg-surface/95 p-2 shadow-card backdrop-blur`} style={controlsStyle}>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="cursor-move select-none text-[11px] font-black text-primary-strong" onPointerDown={startControlsDrag} onPointerMove={moveControlsDrag} onPointerUp={stopControlsDrag} onPointerCancel={stopControlsDrag}>{fieldLabels[field.id]} 텍스트</span>
-          <CheckboxPill label="표시" checked={field.visible} onChange={(visible) => onFieldChange((current) => ({ ...current, visible }))} />
+          <CheckboxPill label="표시" checked={field.visible} compact onChange={(visible) => onFieldChange((current) => ({ ...current, visible }))} />
         </div>
         <div className="grid grid-cols-5 gap-1">
           <CompactNumberInput label="X" value={field.box.x} min={0} max={100 - field.box.width} step={0.01} onChange={(value) => onFieldChange((current) => ({ ...current, box: updateBoxValue(current.box, "x", value) }))} />
@@ -1387,18 +1387,18 @@ function QuickControls({ selectedItem, position, fixed = false, hideLogoVisibili
           <CompactNumberInput label="세로" value={field.box.height} min={1} max={100 - field.box.y} step={0.01} onChange={(value) => onFieldChange((current) => ({ ...current, box: updateBoxValue(current.box, "height", value) }))} />
           <CompactNumberInput label="크기" value={field.fontSize} min={6} max={36} step={1} onChange={(value) => onFieldChange((current) => ({ ...current, fontSize: roundPercent(clamp(value, 6, 36)) }))} />
         </div>
-        <div className="grid grid-cols-[minmax(72px,1fr)_40px_34px_34px_34px_34px_34px] items-end gap-1">
+        <div className="grid grid-cols-[minmax(64px,1fr)_minmax(88px,1.2fr)_24px_24px_24px_24px_24px] items-end gap-1">
           <label className="block">
             <span className="mb-1 block text-[10px] font-extrabold text-soft">폰트</span>
-            <select className="h-8 w-full rounded-sm border border-line bg-surface px-1 text-[11px] font-black text-ink outline-none focus:border-primary" value={field.fontFamily} onChange={(event) => onFieldChange((current) => ({ ...current, fontFamily: readFontFamily(event.target.value) }))}>
+            <select className="h-6 w-full rounded-sm border border-line bg-surface px-1 text-[10px] font-black text-ink outline-none focus:border-primary" value={field.fontFamily} onChange={(event) => onFieldChange((current) => ({ ...current, fontFamily: readFontFamily(event.target.value) }))}>
               {businessCardTemplateFontFamilies.map((fontFamily) => <option key={fontFamily} value={fontFamily}>{fontLabels[fontFamily]}</option>)}
             </select>
           </label>
           <CompactColorInput label="색" value={field.color} onChange={(color) => onFieldChange((current) => ({ ...current, color }))} />
-          <button className={`h-8 rounded-sm px-1 text-[13px] font-black ${field.fontWeight === "bold" ? "bg-primary text-white" : "bg-surface-blue text-primary-strong"}`} type="button" aria-label="굵게" onClick={() => onFieldChange((current) => ({ ...current, fontWeight: current.fontWeight === "bold" ? "regular" : "bold" }))}>B</button>
-          <button className={`h-8 rounded-sm px-1 text-[13px] font-black italic ${field.italic ? "bg-primary text-white" : "bg-surface-blue text-primary-strong"}`} type="button" aria-label="이탤릭" onClick={() => onFieldChange((current) => ({ ...current, italic: !current.italic }))}>I</button>
+          <button className={`h-6 rounded-sm px-1 text-[11px] font-black ${field.fontWeight === "bold" ? "bg-primary text-white" : "bg-surface-blue text-primary-strong"}`} type="button" aria-label="굵게" onClick={() => onFieldChange((current) => ({ ...current, fontWeight: current.fontWeight === "bold" ? "regular" : "bold" }))}>B</button>
+          <button className={`h-6 rounded-sm px-1 text-[11px] font-black italic ${field.italic ? "bg-primary text-white" : "bg-surface-blue text-primary-strong"}`} type="button" aria-label="이탤릭" onClick={() => onFieldChange((current) => ({ ...current, italic: !current.italic }))}>I</button>
           {(["left", "center", "right"] satisfies BusinessCardTemplateTextAlign[]).map((align) => (
-            <button key={align} className={`h-8 rounded-sm px-1 text-[12px] font-black ${field.align === align ? "bg-primary text-white" : "bg-surface-blue text-primary-strong"}`} type="button" aria-label={textAlignLabels[align]} onClick={() => onFieldChange((current) => ({ ...current, align }))}>{align === "left" ? "≡" : align === "center" ? "☰" : "≣"}</button>
+            <button key={align} className={`h-6 rounded-sm px-1 text-[10px] font-black ${field.align === align ? "bg-primary text-white" : "bg-surface-blue text-primary-strong"}`} type="button" aria-label={textAlignLabels[align]} onClick={() => onFieldChange((current) => ({ ...current, align }))}>{align === "left" ? "≡" : align === "center" ? "☰" : "≣"}</button>
           ))}
         </div>
       </div>
@@ -1529,8 +1529,8 @@ function CompactNumberInput({ label, value, min, max, step, onChange }: { label:
 
   return (
     <label className="block">
-      <span className="mb-1 block text-[10px] font-extrabold text-soft">{label}</span>
-      <input key={`${label}-${value}`} className="h-9 w-full rounded-sm border border-line bg-surface px-2 text-xs font-black text-ink outline-none focus:border-primary" type="text" inputMode="decimal" defaultValue={value} onBlur={(event) => commitValue(event.currentTarget)} onKeyDown={(event) => {
+      <span className="mb-0.5 block text-[9px] font-extrabold text-soft">{label}</span>
+      <input key={`${label}-${value}`} className="h-7 w-full rounded-sm border border-line bg-surface px-1 text-[10px] font-black text-ink outline-none focus:border-primary" type="text" inputMode="decimal" defaultValue={value} onBlur={(event) => commitValue(event.currentTarget)} onKeyDown={(event) => {
         if (event.key === "Enter") {
           event.currentTarget.blur();
         }
@@ -1580,10 +1580,10 @@ function CompactColorInput({ label, value, onChange }: { label: string; value: s
 
   return (
     <label className="block">
-      <span className="mb-1 block text-[10px] font-extrabold text-soft">{label}</span>
-      <div className="grid grid-cols-[32px_64px] gap-1">
-        <input className="h-8 w-full cursor-pointer rounded-sm border border-line bg-surface p-1" type="color" value={value} onChange={(event) => onChange(event.target.value)} />
-        <input key={`${label}-${value}`} className="h-8 w-full rounded-sm border border-line bg-surface px-1 text-[10px] font-black text-ink outline-none focus:border-primary" type="text" defaultValue={value} onBlur={(event) => commitValue(event.currentTarget)} onKeyDown={(event) => {
+      <span className="mb-0.5 block text-[9px] font-extrabold text-soft">{label}</span>
+      <div className="grid min-w-0 grid-cols-[22px_minmax(62px,1fr)] gap-1">
+        <input className="h-6 w-full cursor-pointer rounded-sm border border-line bg-surface p-0.5" type="color" value={value} onChange={(event) => onChange(event.target.value)} />
+        <input key={`${label}-${value}`} className="h-6 w-full min-w-0 rounded-sm border border-line bg-surface px-1 text-[9px] font-black text-ink outline-none focus:border-primary" type="text" defaultValue={value} onBlur={(event) => commitValue(event.currentTarget)} onKeyDown={(event) => {
           if (event.key === "Enter") {
             event.currentTarget.blur();
           }
@@ -1593,10 +1593,10 @@ function CompactColorInput({ label, value, onChange }: { label: string; value: s
   );
 }
 
-function CheckboxPill({ label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void }) {
+function CheckboxPill({ label, checked, compact = false, onChange }: { label: string; checked: boolean; compact?: boolean; onChange: (checked: boolean) => void }) {
   return (
-    <label className={`inline-flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-xs font-black transition ${checked ? "bg-primary text-white shadow-soft" : "bg-surface-blue text-primary-strong"}`}>
-      <input className="h-4 w-4 accent-primary" type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
+    <label className={`inline-flex cursor-pointer items-center rounded-md font-black transition ${compact ? "gap-1 px-2 py-1 text-[10px]" : "gap-2 px-3 py-2 text-xs"} ${checked ? "bg-primary text-white shadow-soft" : "bg-surface-blue text-primary-strong"}`}>
+      <input className={`${compact ? "h-3 w-3" : "h-4 w-4"} accent-primary`} type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
       {label}
     </label>
   );

@@ -182,7 +182,7 @@ async function pollAiBusinessCardJob(jobId: string) {
 }
 
 export function BusinessCardPreviewScreen() {
-  const { brandDraft, memberDraft, selectedLogoId, aiBusinessCardMockups, aiBusinessCardMockupStatus, aiBusinessCardMockupMessage, aiBusinessCardMockupSignature, activeAiBusinessCardMockupJobId, selectedAiBusinessCardMockupUrl, beginAiBusinessCardMockupGeneration, setActiveAiBusinessCardMockupJob, syncAiBusinessCardMockups, finishAiBusinessCardMockupGeneration, failAiBusinessCardMockupGeneration, selectAiBusinessCardMockup, deleteAiBusinessCardMockup, beginAiBusinessCardPdfGeneration, finishAiBusinessCardPdfGeneration, failAiBusinessCardPdfGeneration, dismissAiBusinessCardPdfNotice, updateMemberDraft, updateBusinessCardProductionOptions } = usePrintyStore();
+  const { brandDraft, memberDraft, selectedLogoId, aiBusinessCardMockups, aiBusinessCardMockupStatus, aiBusinessCardMockupMessage, aiBusinessCardMockupSignature, activeAiBusinessCardMockupJobId, selectedAiBusinessCardMockupUrl, beginAiBusinessCardMockupGeneration, setActiveAiBusinessCardMockupJob, syncAiBusinessCardMockups, finishAiBusinessCardMockupGeneration, failAiBusinessCardMockupGeneration, selectAiBusinessCardMockup, deleteAiBusinessCardMockup, beginAiBusinessCardPdfGeneration, finishAiBusinessCardPdfGeneration, failAiBusinessCardPdfGeneration, dismissAiBusinessCardPdfNotice, updateMemberDraft, updateBusinessCardProductionOptions, ensureBusinessCardDraft } = usePrintyStore();
   const isAuthenticated = usePrintyStore((state) => state.isAuthenticated);
   const authUserId = usePrintyStore((state) => state.authSession?.userId);
   const effectiveLogoId = usePrintyStore((state) => state.brands.find((brand) => brand.id === state.selectedBrandId)?.selectedLogoId ?? selectedLogoId);
@@ -196,6 +196,7 @@ export function BusinessCardPreviewScreen() {
   const [runningPdfStages, setRunningPdfStages] = useState<Record<string, PdfStage>>({});
   const [mockupRequest, setMockupRequest] = useState("");
   const [editableLayout, setEditableLayout] = useState<BusinessCardTemplateLayout>();
+  const [savedLayoutMessage, setSavedLayoutMessage] = useState("");
   const loadedServerMockupKeysRef = useRef<Set<string>>(new Set());
   const productionOptionsWithLayout = useMemo(() => editableLayout ? { ...productionOptions, layout: editableLayout } : productionOptions, [editableLayout, productionOptions]);
   const input = { brandName: brandDraft.name, category: brandDraft.category, member: memberDraft, logo, mood: brandDraft.designRequest, mockupRequest, templateId: selectedTemplateId, productionOptions: productionOptionsWithLayout };
@@ -430,6 +431,18 @@ export function BusinessCardPreviewScreen() {
     startBackgroundMockups();
   };
 
+  const handleSaveLayoutDraft = () => {
+    if (!editableLayout) {
+      return;
+    }
+
+    syncProductionOptionsLayout(editableLayout);
+    const draft = ensureBusinessCardDraft();
+
+    setSavedLayoutMessage(`${draft.member.name || "이름 미입력"} 명함 레이아웃을 임시 저장했어요.`);
+    setDownloadState({});
+  };
+
   const createPdfSignature = (mockupImageUrl: string, cleanMockupImageUrl?: string) => `${currentSignature}|mockup:${mockupImageUrl}|clean:${cleanMockupImageUrl ?? ""}|renderer:${aiBusinessCardPdfRendererVersion}`;
 
   const markPdfStageRunning = (pdfSignature: string, stage: PdfStage, message: string) => {
@@ -566,10 +579,14 @@ export function BusinessCardPreviewScreen() {
         <p className="mt-2 text-xs font-bold leading-5 text-muted">AI가 92x52mm 비율의 앞면 1장, 뒷면 1장을 정면 목업으로 만들어요. 실행 후에는 다른 페이지로 이동해도 되고, 완료되면 상단 알림에 표시돼요.</p>
         <div className="mt-4 grid gap-2">
           <TextAreaField label="목업 디자인 요청" placeholder="예: 검정 배경에 금색 포인트, 여백 넓게, 고급스러운 분위기. 입력한 명함 문구 외 문장은 추가하지 않기." value={mockupRequest} onChange={setMockupRequest} />
+          <AppButton variant="secondary" onClick={handleSaveLayoutDraft} disabled={!editableLayout} className="py-3 text-xs disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0">
+            레이아웃 임시 저장하기
+          </AppButton>
           <AppButton onClick={handleGenerateMockups} disabled={!canGenerateMockups || downloadState.status === "mockups" || isGeneratingCurrentMockups} className="disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0">
             {downloadState.status === "mockups" || isGeneratingCurrentMockups ? "명함 목업 디자인 생성 중" : hasCurrentMockups ? "명함 목업 하나 더 만들기" : "명함 목업 디자인 시작하기"}
           </AppButton>
         </div>
+        {savedLayoutMessage ? <p className="mt-3 rounded-md bg-success/10 px-4 py-3 text-xs font-bold leading-5 text-success">{savedLayoutMessage}</p> : null}
         {!canGenerateMockups ? <p className="mt-3 rounded-md bg-danger/10 px-4 py-3 text-xs font-bold leading-5 text-danger">대표 로고 이미지가 필요해요. 브랜드의 대표 로고를 먼저 생성하거나 등록해 주세요.</p> : null}
         {aiBusinessCardMockupMessage ? <p className="mt-3 rounded-md bg-surface-blue px-4 py-3 text-xs font-bold leading-5 text-muted">{aiBusinessCardMockupMessage}</p> : null}
         {downloadState.error ? <p className="mt-3 rounded-md bg-danger/10 px-4 py-3 text-xs font-bold leading-5 text-danger">{downloadState.error}</p> : null}
