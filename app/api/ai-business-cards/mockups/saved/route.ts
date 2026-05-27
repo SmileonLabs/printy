@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentDbSession } from "@/lib/server/auth/session";
-import { loadAiBusinessCardMockups, loadAiBusinessCardMockupsByLookup, readAiBusinessCardMockups, saveAiBusinessCardMockups } from "@/lib/server/ai-business-card-mockups";
+import { loadAiBusinessCardMockupMatchByLookup, loadAiBusinessCardMockups, readAiBusinessCardMockups, recoverLatestAiBusinessCardMockup, saveAiBusinessCardMockups } from "@/lib/server/ai-business-card-mockups";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,24 +34,32 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const signature = readSignature(url.searchParams.get("signature"));
 
-    if (!signature) {
+    const lookup = {
+      brandName: readOptionalSearchParam(url, "brandName"),
+      logoId: readOptionalSearchParam(url, "logoId"),
+      memberName: readOptionalSearchParam(url, "memberName"),
+      memberPhone: readOptionalSearchParam(url, "memberPhone"),
+    };
+
+    if (!signature && !lookup.brandName && !lookup.logoId && !lookup.memberName && !lookup.memberPhone) {
       return NextResponse.json(invalidResponse, { status: 400 });
     }
 
-    const exactMockups = await loadAiBusinessCardMockups(session.user.id, signature);
+    const exactMockups = signature ? await loadAiBusinessCardMockups(session.user.id, signature) : [];
 
     if (exactMockups.length > 0) {
       return NextResponse.json({ mockups: exactMockups });
     }
 
-    return NextResponse.json({
-      mockups: await loadAiBusinessCardMockupsByLookup(session.user.id, {
-        brandName: readOptionalSearchParam(url, "brandName"),
-        logoId: readOptionalSearchParam(url, "logoId"),
-        memberName: readOptionalSearchParam(url, "memberName"),
-        memberPhone: readOptionalSearchParam(url, "memberPhone"),
-      }),
-    });
+    const recoveredMockups = signature ? await recoverLatestAiBusinessCardMockup(session.user.id, signature) : [];
+
+    if (recoveredMockups.length > 0) {
+      return NextResponse.json({ mockups: recoveredMockups, recovered: true });
+    }
+
+    const match = await loadAiBusinessCardMockupMatchByLookup(session.user.id, lookup);
+
+    return NextResponse.json({ mockups: match?.mockups ?? [], signature: match?.signature });
   } catch {
     return NextResponse.json(unavailableResponse, { status: 503 });
   }

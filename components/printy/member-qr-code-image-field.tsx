@@ -1,7 +1,5 @@
 "use client";
 
-import Image from "next/image";
-
 export function QrCodeImageField({ value, onChange, onClear }: { value: string; onChange: (file: File | undefined) => void; onClear: () => void }) {
   return (
     <div className="rounded-md border border-line bg-surface-blue p-3">
@@ -13,7 +11,7 @@ export function QrCodeImageField({ value, onChange, onClear }: { value: string; 
       {value ? (
         <div className="mt-3 flex items-center gap-3">
           <div className="relative h-16 w-16 overflow-hidden rounded-sm border border-line bg-white">
-            <Image src={value} alt="업로드한 QR 코드" fill sizes="64px" className="object-contain" unoptimized />
+            <img src={value} alt="업로드한 QR 코드" className="h-full w-full object-contain" />
           </div>
           <button className="rounded-sm bg-white px-3 py-2 text-xs font-black text-danger shadow-soft" type="button" onClick={onClear}>
             QR 삭제

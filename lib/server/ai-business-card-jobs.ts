@@ -1,8 +1,8 @@
 import "server-only";
 
-import { randomUUID } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import type { PoolClient, QueryResultRow } from "pg";
-import { generateAiBusinessCardMockups, type AiBusinessCardMockup } from "@/lib/ai-business-card/mockups";
+import { editAiBusinessCardCleanBackground, generateAiBusinessCardMockups, type AiBusinessCardMockup } from "@/lib/ai-business-card/mockups";
 import { generateAiBusinessCardPdf } from "@/lib/ai-business-card/pdf";
 import { readAiBusinessCardInput } from "@/lib/ai-business-card/request";
 import { validateAiBusinessCardDesign } from "@/lib/ai-business-card/schema";
@@ -43,6 +43,16 @@ const maxAttempts = 2;
 const runningJobTimeoutMs = 10 * 60 * 1000;
 const processorBatchSize = 2;
 
+function normalizeIndexedKey(value: string) {
+  const key = value.trim();
+
+  if (key.length <= 512) {
+    return key;
+  }
+
+  return `sha256:${createHash("sha256").update(key).digest("hex")}`;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -61,6 +71,17 @@ function readMockups(value: unknown): AiBusinessCardMockup[] {
   }
 
   return value.mockups.filter((item): item is AiBusinessCardMockup => isRecord(item) && typeof item.id === "string" && typeof item.imageUrl === "string" && typeof item.cleanImageUrl === "string" && typeof item.title === "string");
+}
+
+function readBackgroundEditRequest(value: unknown) {
+  if (!isRecord(value) || value.backgroundEdit !== true) {
+    return undefined;
+  }
+
+  const cleanImageUrl = readString(value.cleanImageUrl);
+  const editRequest = readString(value.editRequest);
+
+  return cleanImageUrl && editRequest ? { cleanImageUrl, editRequest } : undefined;
 }
 
 function readPdfResult(value: unknown) {
@@ -95,7 +116,9 @@ async function isClientRateLimited(clientKey: string) {
 }
 
 export async function createAiBusinessCardJob(kind: AiBusinessCardJobKind, requestPayload: unknown, clientKey: string, dedupeKey: string) {
-  if (!isRecord(requestPayload) || !readAiBusinessCardInput(requestPayload)) {
+  const isBackgroundEditJob = kind === "mockups" && Boolean(readBackgroundEditRequest(requestPayload));
+
+  if (!isRecord(requestPayload) || (!isBackgroundEditJob && !readAiBusinessCardInput(requestPayload))) {
     throw new Error(kind === "pdf" ? "명함 PDF에 넣을 브랜드와 구성원 정보를 확인해 주세요." : "명함에 넣을 브랜드와 구성원 정보를 확인해 주세요.");
   }
 
@@ -107,7 +130,8 @@ export async function createAiBusinessCardJob(kind: AiBusinessCardJobKind, reque
     throw new Error("AI 명함 생성 요청이 너무 많아요. 잠시 후 다시 시도해 주세요.");
   }
 
-  const reusable = await findLatestAiBusinessCardJob(kind, dedupeKey);
+  const indexedDedupeKey = normalizeIndexedKey(dedupeKey);
+  const reusable = await findLatestAiBusinessCardJob(kind, indexedDedupeKey);
 
   if (reusable && reusable.status !== "failed" && reusable.status !== "cancelled") {
     return reusable;
@@ -119,7 +143,7 @@ export async function createAiBusinessCardJob(kind: AiBusinessCardJobKind, reque
       insert into ai_business_card_jobs (id, kind, dedupe_key, client_key, status, request_payload)
       values ($1, $2, $3, $4, 'queued', $5::jsonb)
     `,
-    [jobId, kind, dedupeKey, clientKey, JSON.stringify(requestPayload)],
+    [jobId, kind, indexedDedupeKey, clientKey, JSON.stringify(requestPayload)],
   );
 
   return { jobId, status: "queued" as const };
@@ -289,6 +313,14 @@ async function markAiBusinessCardJobFailed(jobId: string, reason: string, attemp
 
 async function processClaimedAiBusinessCardJob(job: ClaimedAiBusinessCardJob) {
   try {
+    const backgroundEdit = readBackgroundEditRequest(job.requestPayload);
+
+    if (job.kind === "mockups" && backgroundEdit) {
+      const mockup = await editAiBusinessCardCleanBackground(backgroundEdit.cleanImageUrl, backgroundEdit.editRequest);
+      await markAiBusinessCardJobSucceeded(job.id, { mockups: [mockup] });
+      return;
+    }
+
     const input = readAiBusinessCardInput(job.requestPayload);
 
     if (!input) {

@@ -19,10 +19,6 @@ const elementLabels: Record<string, string> = {
   website: "website",
   address: "address",
   account: "account number",
-  titleLine1: "title line 1",
-  titleLine2: "title line 2",
-  adLine1: "advertising line 1",
-  adLine2: "advertising line 2",
   instagram: "instagram",
   qrCode: "QR code",
 };
@@ -64,7 +60,7 @@ function templateSideGuide(input: AiBusinessCardInput, template: PrintTemplate, 
   }
 
   const wantsElement = (elementId: BusinessCardUserElementId) => !selectedElements || selectedElements.includes(elementId);
-  const logo = side.logo.visible && (wantsElement("logo") || wantsElement("brandName") || wantsElement("category")) ? [`representative logo artwork (${boxText(side.logo.box)})`] : [];
+  const logo = side.logo.visible ? [`reserved logo slot for Printy renderer (${boxText(side.logo.box)}); leave this area clean and do not draw the logo in the AI mockup`] : [];
   const fields = side.fields
     .filter((field) => field.visible && wantsElement(field.id))
     .map((field) => `${elementLabels[field.id] ?? field.id} text: ${boxText(field.box)}, font ${field.fontSize}px, ${field.fontWeight}, ${field.align}`);
@@ -77,6 +73,12 @@ function templateSideGuide(input: AiBusinessCardInput, template: PrintTemplate, 
     .map((icon) => `${icon.icon} icon: ${boxText(icon.box)}`);
 
   return `${sideId}: ${[...logo, ...fields, ...icons].join("; ") || "no visible elements"}`;
+}
+
+function hasPlacedLogo(input: AiBusinessCardInput, template: PrintTemplate | undefined) {
+  const layout = input.productionOptions?.layout ?? template?.layout;
+
+  return Boolean(layout?.sides.front.logo.visible || layout?.sides.back.logo.visible);
 }
 
 function contentLine(label: string, value: string | undefined) {
@@ -97,10 +99,6 @@ function selectedContentText(input: AiBusinessCardInput) {
     selectedFields.has("website") ? contentLine("Website", input.member.website) : undefined,
     selectedFields.has("address") ? contentLine("Address", input.member.address) : undefined,
     selectedFields.has("account") ? contentLine("Account", input.member.account) : undefined,
-    selectedFields.has("titleLine1") ? contentLine("Title line 1", input.member.titleLine1) : undefined,
-    selectedFields.has("titleLine2") ? contentLine("Title line 2", input.member.titleLine2) : undefined,
-    selectedFields.has("adLine1") ? contentLine("Advertising line 1", input.member.adLine1) : undefined,
-    selectedFields.has("adLine2") ? contentLine("Advertising line 2", input.member.adLine2) : undefined,
     selectedFields.has("instagram") ? contentLine("Instagram", input.member.instagram) : undefined,
     selectedFields.has("qrCode") ? contentLine("QR code image placeholder", input.member.qrCodeImageUrl ? "provided by user" : undefined) : undefined,
   ].filter((line): line is string => Boolean(line));
@@ -128,6 +126,8 @@ function adminInstructionsText(value: string | undefined) {
 }
 
 export function buildAiBusinessCardMockupPrompt(input: AiBusinessCardInput, conceptNumber: number, template?: PrintTemplate, overrides: AiBusinessCardPromptOverrides = {}) {
+  const usesPlacedLogo = hasPlacedLogo(input, template);
+
   return `Create one premium Korean business card sheet for Printy: a vertical 92mm x 104mm image that is made by stacking two complete horizontal 92mm x 52mm business cards.
 
 USER DESIGN REQUEST - HIGHEST PRIORITY STYLE DIRECTION:
@@ -159,10 +159,10 @@ STRICT IMAGE RULES:
 - Front-facing, flat, orthographic view only.
 - No perspective, no 3D mockup, no hands, no desk, no shadows, no angled view.
 - Keep cards perfectly rectangular and unwarped.
-- MANDATORY LOGO RULE: if a source logo image is provided, use that exact representative logo as-is.
+- MANDATORY LOGO RULE: ${usesPlacedLogo ? "the layout contains an explicit Printy logo slot, so do not draw, paint, trace, duplicate, watermark, or embed the representative logo anywhere in the AI background/mockup. Leave the reserved logo slot clean; Printy will place the real logo as a separate vector/PNG element later." : "if a source logo image is provided, use that exact representative logo as-is."}
 - Do not reinterpret, redraw, restyle, simplify, recolor, retypograph, or invent a new logo.
-- You may only place, scale, crop-safe fit, or visually composite the provided representative logo onto the card design.
-- The representative logo must appear on the business card design. Do not replace it with text or a similar symbol.
+- ${usesPlacedLogo ? "Do not place the source logo in the generated mockup image at all." : "You may only place, scale, crop-safe fit, or visually composite the provided representative logo onto the card design."}
+- ${usesPlacedLogo ? "The representative logo will appear only through Printy's renderer after background generation." : "The representative logo must appear on the business card design. Do not replace it with text or a similar symbol."}
 - Do not typeset the brand name or category as separate editable text outside the provided logo. Logo lettering belongs to the logo artwork only.
 - Design for a future vector PDF renderer: text, lines, icons, QR, and shapes must be visually separable.
 - Use the canonical Printy field icons below only for contact fields, and keep each icon immediately next to its matching text field.

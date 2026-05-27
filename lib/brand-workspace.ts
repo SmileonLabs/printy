@@ -2,13 +2,14 @@ import { isGeneratedLogoOption } from "@/lib/logo/logoValidation";
 import { normalizeMemberContact } from "@/lib/member-contact";
 import { logoOptions } from "@/lib/mock-data";
 import { isOrderStatus } from "@/lib/order-status";
-import type { Brand, BrandAsset, BusinessCardDraft, GeneratedLogoOption, Member, OrderRecord, PaymentMethod, ShippingInfo } from "@/lib/types";
+import type { Brand, BrandAsset, BusinessCardDraft, GeneratedLogoOption, Member, OrderRecord, PaymentMethod, PrintProductDraft, ShippingInfo } from "@/lib/types";
 import { normalizeBusinessCardTemplateLayout } from "@/lib/business-card-templates";
 
 export type BrandWorkspace = {
   brands: Brand[];
   savedGeneratedLogoOptions: GeneratedLogoOption[];
   businessCardDrafts: BusinessCardDraft[];
+  printProductDrafts: PrintProductDraft[];
   orders: OrderRecord[];
   brandAssets: BrandAsset[];
 };
@@ -40,7 +41,7 @@ export function isMember(value: unknown): value is Member {
     return false;
   }
 
-  return isNonEmptyString(value.id) && isString(value.name) && isString(value.role) && isString(value.phone) && (value.mainPhone === undefined || isString(value.mainPhone)) && (value.fax === undefined || isString(value.fax)) && (value.email === undefined || isString(value.email)) && (value.website === undefined || isString(value.website)) && (value.address === undefined || isString(value.address)) && (value.account === undefined || isString(value.account)) && (value.titleLine1 === undefined || isString(value.titleLine1)) && (value.titleLine2 === undefined || isString(value.titleLine2)) && (value.adLine1 === undefined || isString(value.adLine1)) && (value.adLine2 === undefined || isString(value.adLine2)) && (value.instagram === undefined || isString(value.instagram)) && (value.qrCodeImageUrl === undefined || isString(value.qrCodeImageUrl));
+  return isNonEmptyString(value.id) && isString(value.name) && isString(value.role) && isString(value.phone) && (value.mainPhone === undefined || isString(value.mainPhone)) && (value.fax === undefined || isString(value.fax)) && (value.email === undefined || isString(value.email)) && (value.website === undefined || isString(value.website)) && (value.address === undefined || isString(value.address)) && (value.account === undefined || isString(value.account)) && (value.instagram === undefined || isString(value.instagram)) && (value.qrCodeImageUrl === undefined || isString(value.qrCodeImageUrl));
 }
 
 function normalizeBrandContacts(brand: Brand): Brand {
@@ -85,9 +86,19 @@ export function isBusinessCardDraft(value: unknown): value is BusinessCardDraft 
     isString(value.selectedLogoId) &&
     (value.templateId === undefined || isString(value.templateId)) &&
     (value.layout === undefined || Boolean(normalizeBusinessCardTemplateLayout(value.layout))) &&
+    (value.completedMockupSignature === undefined || isString(value.completedMockupSignature)) &&
+    (value.completedMockupAt === undefined || isString(value.completedMockupAt)) &&
     isMember(value.member) &&
     isString(value.createdAt)
   );
+}
+
+export function isPrintProductDraft(value: unknown): value is PrintProductDraft {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return isNonEmptyString(value.id) && isString(value.brandId) && (value.productType === "banner" || value.productType === "signage" || value.productType === "flyer") && isString(value.title) && isString(value.request) && isRecord(value.layout) && Array.isArray(value.mockups) && isString(value.createdAt) && isString(value.updatedAt);
 }
 
 export function isOrderRecord(value: unknown): value is OrderRecord {
@@ -152,15 +163,17 @@ export function readBrandWorkspace(value: unknown): BrandWorkspace | undefined {
   }));
   const savedGeneratedLogoOptions = value.savedGeneratedLogoOptions.filter(isGeneratedLogoOption);
   const businessCardDrafts = value.businessCardDrafts.filter(isBusinessCardDraft).map(normalizeBusinessCardDraftContacts);
+  const rawPrintProductDrafts = Array.isArray(value.printProductDrafts) ? value.printProductDrafts : [];
+  const printProductDrafts = rawPrintProductDrafts.filter(isPrintProductDraft);
   const orders = value.orders.filter(isOrderRecord);
   const rawBrandAssets = Array.isArray(value.brandAssets) ? value.brandAssets : [];
   const brandAssets = rawBrandAssets.filter(isBrandAsset);
 
-  if (brands.length !== value.brands.length || savedGeneratedLogoOptions.length !== value.savedGeneratedLogoOptions.length || businessCardDrafts.length !== value.businessCardDrafts.length || orders.length !== value.orders.length || brandAssets.length !== rawBrandAssets.length) {
+  if (brands.length !== value.brands.length || savedGeneratedLogoOptions.length !== value.savedGeneratedLogoOptions.length || businessCardDrafts.length !== value.businessCardDrafts.length || printProductDrafts.length !== rawPrintProductDrafts.length || orders.length !== value.orders.length || brandAssets.length !== rawBrandAssets.length) {
     return undefined;
   }
 
-  if (!hasUniqueIds(brands) || !hasUniqueIds(savedGeneratedLogoOptions) || !hasUniqueIds(businessCardDrafts) || !hasUniqueIds(orders) || !hasUniqueIds(brandAssets)) {
+  if (!hasUniqueIds(brands) || !hasUniqueIds(savedGeneratedLogoOptions) || !hasUniqueIds(businessCardDrafts) || !hasUniqueIds(printProductDrafts) || !hasUniqueIds(orders) || !hasUniqueIds(brandAssets)) {
     return undefined;
   }
 
@@ -170,7 +183,7 @@ export function readBrandWorkspace(value: unknown): BrandWorkspace | undefined {
     return undefined;
   }
 
-  return { brands, savedGeneratedLogoOptions, businessCardDrafts, orders, brandAssets };
+  return { brands, savedGeneratedLogoOptions, businessCardDrafts, printProductDrafts, orders, brandAssets };
 }
 
 function mergeById<T extends { id: string }>(localItems: T[], serverItems: T[]) {
@@ -201,6 +214,45 @@ function mergeByIdWithServerPriority<T extends { id: string }>(localItems: T[], 
   return Array.from(merged.values());
 }
 
+function mergeBusinessCardDrafts(localDrafts: BusinessCardDraft[], serverDrafts: BusinessCardDraft[]) {
+  const merged = new Map<string, BusinessCardDraft>();
+
+  for (const draft of serverDrafts) {
+    merged.set(draft.id, draft);
+  }
+
+  for (const localDraft of localDrafts) {
+    const serverDraft = merged.get(localDraft.id);
+
+    merged.set(localDraft.id, serverDraft?.completedMockupSignature && !localDraft.completedMockupSignature
+      ? {
+          ...localDraft,
+          completedMockupSignature: serverDraft.completedMockupSignature,
+          completedMockup: serverDraft.completedMockup,
+          completedMockupAt: serverDraft.completedMockupAt,
+        }
+      : localDraft);
+  }
+
+  return Array.from(merged.values());
+}
+
+function mergeGeneratedLogos(localLogos: GeneratedLogoOption[], serverLogos: GeneratedLogoOption[]) {
+  const merged = new Map<string, GeneratedLogoOption>();
+
+  for (const logo of serverLogos) {
+    merged.set(logo.id, logo);
+  }
+
+  for (const localLogo of localLogos) {
+    const serverLogo = merged.get(localLogo.id);
+
+    merged.set(localLogo.id, serverLogo?.vectorSvgUrl && !localLogo.vectorSvgUrl ? { ...localLogo, vectorSvgUrl: serverLogo.vectorSvgUrl } : localLogo);
+  }
+
+  return Array.from(merged.values());
+}
+
 function mergeBrands(localBrands: Brand[], serverBrands: Brand[]) {
   const merged = new Map<string, Brand>();
 
@@ -220,15 +272,16 @@ function mergeBrands(localBrands: Brand[], serverBrands: Brand[]) {
 export function mergeBrandWorkspaces(localWorkspace: BrandWorkspace, serverWorkspace: BrandWorkspace): BrandWorkspace {
   return {
     brands: mergeBrands(localWorkspace.brands, serverWorkspace.brands),
-    savedGeneratedLogoOptions: mergeById(localWorkspace.savedGeneratedLogoOptions, serverWorkspace.savedGeneratedLogoOptions),
-    businessCardDrafts: mergeById(localWorkspace.businessCardDrafts, serverWorkspace.businessCardDrafts),
+    savedGeneratedLogoOptions: mergeGeneratedLogos(localWorkspace.savedGeneratedLogoOptions, serverWorkspace.savedGeneratedLogoOptions),
+    businessCardDrafts: mergeBusinessCardDrafts(localWorkspace.businessCardDrafts, serverWorkspace.businessCardDrafts),
+    printProductDrafts: mergeById(localWorkspace.printProductDrafts, serverWorkspace.printProductDrafts),
     orders: mergeById(localWorkspace.orders, serverWorkspace.orders),
     brandAssets: mergeById(localWorkspace.brandAssets, serverWorkspace.brandAssets),
   };
 }
 
 export function hasBrandWorkspaceData(workspace: BrandWorkspace) {
-  return workspace.brands.length > 0 || workspace.savedGeneratedLogoOptions.length > 0 || workspace.businessCardDrafts.length > 0 || workspace.orders.length > 0 || workspace.brandAssets.length > 0;
+  return workspace.brands.length > 0 || workspace.savedGeneratedLogoOptions.length > 0 || workspace.businessCardDrafts.length > 0 || workspace.printProductDrafts.length > 0 || workspace.orders.length > 0 || workspace.brandAssets.length > 0;
 }
 
 export function createBrandWorkspaceSignature(workspace: BrandWorkspace) {

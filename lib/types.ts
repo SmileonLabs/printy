@@ -129,6 +129,7 @@ export type GeneratedLogoOption = {
   label: string;
   description: string;
   imageUrl: string;
+  vectorSvgUrl?: string;
   source: GeneratedLogoSource;
   prompt?: string;
   promptSummary?: string;
@@ -186,10 +187,6 @@ export type Member = {
   website?: string;
   address: string;
   account?: string;
-  titleLine1?: string;
-  titleLine2?: string;
-  adLine1?: string;
-  adLine2?: string;
   instagram?: string;
   qrCodeImageUrl?: string;
 };
@@ -215,16 +212,22 @@ export type BusinessCardDraft = {
   selectedLogoId: string;
   templateId?: string;
   layout?: BusinessCardTemplateLayout;
+  completedMockupSignature?: string;
+  completedMockup?: AiBusinessCardMockup;
+  completedMockupAt?: string;
   member: Member;
   createdAt: string;
 };
 
-export type BusinessCardUserElementId = "logo" | "brandName" | "category" | "name" | "role" | "phone" | "mainPhone" | "fax" | "email" | "website" | "address" | "account" | "titleLine1" | "titleLine2" | "adLine1" | "adLine2" | "instagram" | "instagramIcon" | "qrCode";
+export type BusinessCardUserElementId = "logo" | "brandName" | "category" | "name" | "role" | "phone" | "mainPhone" | "fax" | "email" | "website" | "address" | "account" | "instagram" | "instagramIcon" | "qrCode" | `headline-${number}` | `body-${number}`;
 export type BusinessCardColorPaletteId = "black" | "white" | "green" | "yellow" | "blue" | "red";
 export type BusinessCardProductionOptions = {
   frontElements: BusinessCardUserElementId[];
   backElements: BusinessCardUserElementId[];
   color: BusinessCardColorPaletteId;
+  sizeId?: string;
+  widthMm?: number;
+  heightMm?: number;
   layout?: BusinessCardTemplateLayout;
 };
 
@@ -233,6 +236,7 @@ export type AiBusinessCardMockup = {
   imageUrl: string;
   cleanImageUrl?: string;
   title: string;
+  layout?: BusinessCardTemplateLayout;
 };
 
 export type AiBusinessCardMockupStatus = "idle" | "generating" | "ready" | "failed";
@@ -309,12 +313,91 @@ export type QuickProductionItem = {
 };
 
 export type PrintProduct = QuickProductionItem & {
-  productType: "business-card" | "flyer" | "banner" | "poster" | "sticker";
+  productType: "business-card" | "flyer" | "banner" | "signage" | "poster" | "sticker";
+};
+
+export type PrintProductProductionType = "banner" | "signage" | "flyer";
+
+export type PrintProductProductionFieldId = string;
+
+export type PrintProductProductionBox = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+export type PrintProductProductionField = {
+  id: PrintProductProductionFieldId;
+  label: string;
+  value: string;
+  visible: boolean;
+  box: PrintProductProductionBox;
+  fontFamily?: BusinessCardTemplateFontFamily;
+  fontSize: number;
+  color: string;
+  fontWeight: "regular" | "bold";
+  italic?: boolean;
+  align: "left" | "center" | "right";
+};
+
+export type PrintProductProductionLogo = {
+  visible: boolean;
+  box: PrintProductProductionBox;
+  assetType?: "png" | "svg";
+};
+
+export type PrintProductPromptShape = {
+  id: string;
+  label: string;
+  prompt: string;
+  visible: boolean;
+  box: PrintProductProductionBox;
+  fillColor: string;
+  strokeColor: string;
+  textColor: string;
+  glyph: string;
+};
+
+export type PrintProductProductionLayout = {
+  productType: PrintProductProductionType;
+  sizeId: string;
+  widthMm: number;
+  heightMm: number;
+  backgroundColor: string;
+  fields: PrintProductProductionField[];
+  logo: PrintProductProductionLogo;
+  promptShapes?: PrintProductPromptShape[];
+};
+
+export type PrintProductMockup = {
+  id: string;
+  imageUrl: string;
+  cleanImageUrl?: string;
+  title: string;
+  createdAt: string;
+};
+
+export type PrintProductDraft = {
+  id: string;
+  brandId: string;
+  productType: PrintProductProductionType;
+  title: string;
+  request: string;
+  layout: PrintProductProductionLayout;
+  mockups: PrintProductMockup[];
+  selectedMockupId?: string;
+  completedMockupId?: string;
+  completedAt?: string;
+  pdfUrl?: string;
+  pdfFileName?: string;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type BusinessCardTemplateSideId = "front" | "back";
 
-export type BusinessCardTemplateTextFieldId = "role" | "name" | "phone" | "email" | "website" | "address" | "mainPhone" | "fax" | "account" | "titleLine1" | "titleLine2" | "adLine1" | "adLine2" | "instagram" | "qrCode";
+export type BusinessCardTemplateTextFieldId = "role" | "name" | "phone" | "email" | "website" | "address" | "mainPhone" | "fax" | "account" | "instagram" | "qrCode" | `headline-${number}` | `body-${number}`;
 
 export type BusinessCardTemplateFontFamily = "sans" | "serif" | "rounded" | "mono" | "display" | "handwriting";
 
@@ -322,7 +405,7 @@ export type BusinessCardTemplateTextWeight = "regular" | "bold";
 
 export type BusinessCardTemplateTextAlign = "left" | "center" | "right";
 
-export type BusinessCardTemplateIconId = "name" | "role" | "mobile" | "phone" | "email" | "location" | "address" | "fax" | "building" | "company" | "web" | "account" | "instagram";
+export type BusinessCardTemplateIconId = "name" | "role" | "mobile" | "phone" | "email" | "location" | "address" | "fax" | "building" | "company" | "web" | "account" | "instagram" | "projector" | "screen" | "speaker" | "led";
 
 export type BusinessCardTemplateBox = {
   x: number;
@@ -343,6 +426,7 @@ export type BusinessCardTemplateCanvas = {
 export type BusinessCardTemplateLogoElement = {
   visible: boolean;
   box: BusinessCardTemplateBox;
+  assetType?: "png" | "svg";
 };
 
 export type BusinessCardTemplateTextElement = {

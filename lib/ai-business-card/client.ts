@@ -36,7 +36,10 @@ function createShortStringFingerprint(value: string) {
 }
 
 export function createAiBusinessCardMockupSignature(input: AiBusinessCardClientInput) {
+  const layoutJson = JSON.stringify(input.productionOptions?.layout ?? null);
+
   return JSON.stringify({
+    version: 2,
     brandName: input.brandName.trim(),
     category: input.category.trim(),
     mood: input.mood?.trim() ?? "",
@@ -53,14 +56,14 @@ export function createAiBusinessCardMockupSignature(input: AiBusinessCardClientI
       website: input.member.website?.trim() ?? "",
       address: input.member.address.trim(),
       account: input.member.account?.trim() ?? "",
-      titleLine1: input.member.titleLine1?.trim() ?? "",
-      titleLine2: input.member.titleLine2?.trim() ?? "",
-      adLine1: input.member.adLine1?.trim() ?? "",
-      adLine2: input.member.adLine2?.trim() ?? "",
       instagram: input.member.instagram?.trim() ?? "",
       qrCodeImageFingerprint: createShortStringFingerprint(input.member.qrCodeImageUrl?.trim() ?? ""),
     },
-    productionOptions: input.productionOptions,
-    layout: input.productionOptions?.layout,
+    productionOptions: {
+      frontElements: input.productionOptions?.frontElements ?? [],
+      backElements: input.productionOptions?.backElements ?? [],
+      color: input.productionOptions?.color ?? "blue",
+      layoutFingerprint: createShortStringFingerprint(layoutJson),
+    },
   });
 }

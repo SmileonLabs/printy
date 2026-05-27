@@ -11,7 +11,7 @@ import type { PrintyState } from "@/store/printy-store-types";
 type PrintyStoreSet = Parameters<StateCreator<PrintyState, [], [], PrintyState>>[0];
 type PrintyStoreGet = Parameters<StateCreator<PrintyState, [], [], PrintyState>>[1];
 
-type PrintyOnboardingActions = Pick<PrintyState, "setStep" | "saveBrandShell" | "ensureBusinessCardDraft" | "beginAiBusinessCardMockupGeneration" | "setActiveAiBusinessCardMockupJob" | "syncAiBusinessCardMockups" | "finishAiBusinessCardMockupGeneration" | "failAiBusinessCardMockupGeneration" | "dismissAiBusinessCardMockupNotice" | "selectAiBusinessCardMockup" | "deleteAiBusinessCardMockup" | "beginAiBusinessCardPdfGeneration" | "finishAiBusinessCardPdfGeneration" | "failAiBusinessCardPdfGeneration" | "dismissAiBusinessCardPdfNotice" | "completeCheckout" | "startNewBrand">;
+type PrintyOnboardingActions = Pick<PrintyState, "setStep" | "saveBrandShell" | "ensureBusinessCardDraft" | "deleteBusinessCardDraft" | "beginAiBusinessCardMockupGeneration" | "setActiveAiBusinessCardMockupJob" | "syncAiBusinessCardMockups" | "finishAiBusinessCardMockupGeneration" | "completeAiBusinessCardDesign" | "failAiBusinessCardMockupGeneration" | "dismissAiBusinessCardMockupNotice" | "selectAiBusinessCardMockup" | "deleteAiBusinessCardMockup" | "beginAiBusinessCardPdfGeneration" | "finishAiBusinessCardPdfGeneration" | "failAiBusinessCardPdfGeneration" | "dismissAiBusinessCardPdfNotice" | "completeCheckout" | "startNewBrand">;
 
 export function createPrintyOnboardingActions(set: PrintyStoreSet, get: PrintyStoreGet): PrintyOnboardingActions {
   return {
@@ -65,10 +65,11 @@ export function createPrintyOnboardingActions(set: PrintyStoreSet, get: PrintySt
         brandWorkspaceOwnerUserId: current.isAuthenticated ? current.brandWorkspaceOwnerUserId : undefined,
       }));
     },
-    ensureBusinessCardDraft: () => {
+    ensureBusinessCardDraft: (layout) => {
       const state = get();
-      const existingDraft = state.activeBusinessCardDraftId ? state.businessCardDrafts.find((draft) => draft.id === state.activeBusinessCardDraftId) : undefined;
+      const existingDraft = state.activeBusinessCardDraftId ? state.businessCardDrafts.find((draft) => draft.id === state.activeBusinessCardDraftId && (!draft.completedMockupSignature || state.businessCardEditorMode === "edit")) : undefined;
       const nextDraft: BusinessCardDraft = {
+        ...existingDraft,
         id: existingDraft?.id ?? makeId("card", state.businessCardDrafts.length),
         brandId: existingDraft?.brandId ?? state.selectedBrandId,
         brandName: state.brandDraft.name,
@@ -76,7 +77,7 @@ export function createPrintyOnboardingActions(set: PrintyStoreSet, get: PrintySt
         designRequest: state.brandDraft.designRequest.trim(),
         selectedLogoId: state.selectedLogoId,
         templateId: state.selectedTemplateId,
-        layout: state.businessCardProductionOptions.layout,
+        layout: layout ?? state.businessCardProductionOptions.layout,
         member: { ...state.memberDraft },
         createdAt: existingDraft?.createdAt ?? getCreatedDate(),
       };
@@ -84,12 +85,28 @@ export function createPrintyOnboardingActions(set: PrintyStoreSet, get: PrintySt
       set((current) => ({
         activeBusinessCardDraftId: nextDraft.id,
         businessCardDrafts: [nextDraft, ...current.businessCardDrafts.filter((draft) => draft.id !== nextDraft.id)],
+        deletedBusinessCardDraftIds: current.deletedBusinessCardDraftIds.filter((id) => id !== nextDraft.id),
         brandWorkspaceHasPendingLocalChanges: true,
         brandWorkspaceOwnerUserId: current.isAuthenticated ? current.brandWorkspaceOwnerUserId : undefined,
       }));
 
       return nextDraft;
     },
+    deleteBusinessCardDraft: (draftId) => set((state) => {
+      const draft = state.businessCardDrafts.find((item) => item.id === draftId);
+
+      if (!draft) {
+        return {};
+      }
+
+      return {
+        businessCardDrafts: state.businessCardDrafts.filter((item) => item.id !== draftId),
+        deletedBusinessCardDraftIds: Array.from(new Set([...state.deletedBusinessCardDraftIds, draftId])),
+        activeBusinessCardDraftId: state.activeBusinessCardDraftId === draftId ? undefined : state.activeBusinessCardDraftId,
+        brandWorkspaceHasPendingLocalChanges: true,
+        brandWorkspaceOwnerUserId: state.isAuthenticated ? state.brandWorkspaceOwnerUserId : undefined,
+      };
+    }),
     beginAiBusinessCardMockupGeneration: (signature, message = "명함 목업 디자인을 만들고 있어요. 다른 페이지로 이동해도 완료되면 알림으로 알려드릴게요.") =>
       set((state) => ({
         aiBusinessCardMockupStatus: "generating",
@@ -113,13 +130,15 @@ export function createPrintyOnboardingActions(set: PrintyStoreSet, get: PrintySt
           }
         }
 
+        const selectedMockup = nextMockups.find((mockup) => mockup.imageUrl === state.selectedAiBusinessCardMockupUrl);
+
         return {
           aiBusinessCardMockupStatus: "ready",
           aiBusinessCardMockupMessage: state.aiBusinessCardMockupSignature === signature ? state.aiBusinessCardMockupMessage : undefined,
           aiBusinessCardMockupSignature: signature,
           activeAiBusinessCardMockupJobId: undefined,
           aiBusinessCardMockups: nextMockups,
-          selectedAiBusinessCardMockupUrl: state.selectedAiBusinessCardMockupUrl ?? nextMockups[0]?.imageUrl,
+          selectedAiBusinessCardMockupUrl: selectedMockup?.imageUrl ?? nextMockups[0]?.imageUrl,
         };
       }),
     finishAiBusinessCardMockupGeneration: (signature, mockups) =>
@@ -138,12 +157,35 @@ export function createPrintyOnboardingActions(set: PrintyStoreSet, get: PrintySt
 
         return {
           aiBusinessCardMockupStatus: "ready",
-          aiBusinessCardMockupMessage: mockups.length > 0 ? "명함 목업 디자인이 준비됐어요." : "생성된 명함 목업 디자인이 없어요.",
+          aiBusinessCardMockupMessage: mockups.length > 0 ? "명함 시안이 준비됐어요. 마음에 드는 시안을 선택한 뒤 디자인 저장하기를 눌러 주세요." : "생성된 명함 시안이 없어요.",
           aiBusinessCardMockups: nextMockups,
           activeAiBusinessCardMockupJobId: undefined,
           selectedAiBusinessCardMockupUrl: mockups[0]?.imageUrl ?? state.selectedAiBusinessCardMockupUrl,
         };
       }),
+    completeAiBusinessCardDesign: (signature, mockups, layout) => {
+      if (mockups.length === 0) {
+        return undefined;
+      }
+
+      const draft = get().ensureBusinessCardDraft(layout);
+
+      set((state) => ({
+        activeBusinessCardDraftId: draft.id,
+        businessCardDrafts: state.businessCardDrafts.map((item) => (item.id === draft.id ? { ...item, layout, completedMockupSignature: signature, completedMockup: mockups[0], completedMockupAt: new Date().toISOString() } : item)),
+        aiBusinessCardMockupStatus: "ready",
+        aiBusinessCardMockupMessage: "선택한 명함 디자인을 저장했어요.",
+        aiBusinessCardMockupSignature: signature,
+        aiBusinessCardMockups: mockups,
+        selectedAiBusinessCardMockupUrl: mockups[0]?.imageUrl,
+        activeAiBusinessCardMockupJobId: undefined,
+        businessCardEditorMode: "edit",
+        brandWorkspaceHasPendingLocalChanges: true,
+        brandWorkspaceOwnerUserId: state.isAuthenticated ? state.brandWorkspaceOwnerUserId : undefined,
+      }));
+
+      return draft;
+    },
     failAiBusinessCardMockupGeneration: (signature, message) =>
       set((state) => {
         if (state.aiBusinessCardMockupSignature !== signature) {

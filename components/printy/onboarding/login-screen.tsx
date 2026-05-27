@@ -32,6 +32,7 @@ function readCurrentWorkspace(): BrandWorkspace {
     brandAssets: state.brandAssets,
     savedGeneratedLogoOptions: state.savedGeneratedLogoOptions,
     businessCardDrafts: state.businessCardDrafts,
+    printProductDrafts: state.printProductDrafts,
     orders: state.orders,
   };
 }

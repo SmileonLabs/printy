@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isGeneratedLogoPublicUrl, readGeneratedLogoBytesByPublicUrl } from "@/lib/server/storage";
+import { isGeneratedLogoPublicUrl, readGeneratedLogoBytesByPublicUrl, saveGeneratedLogoSvg } from "@/lib/server/storage";
 import { vectorizeGeneratedLogo } from "@/lib/server/logo-vectorizer";
 
 export const runtime = "nodejs";
@@ -30,13 +30,9 @@ export async function POST(request: Request) {
 
   try {
     const svg = await vectorizeGeneratedLogo(bytes);
+    const stored = await saveGeneratedLogoSvg(svg);
 
-    return new Response(svg, {
-      headers: {
-        "Content-Type": "image/svg+xml; charset=utf-8",
-        "Cache-Control": "no-store",
-      },
-    });
+    return NextResponse.json({ vectorSvgUrl: stored.publicUrl }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.warn("Logo SVG vectorization failed", { errorName: error instanceof Error ? error.name : "UnknownError", errorMessage: error instanceof Error ? error.message : undefined });
     return NextResponse.json({ reason: "SVG 변환에 실패했어요." }, { status: 422 });

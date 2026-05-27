@@ -1,12 +1,12 @@
 import type { BusinessCardProductionOptions, Member, ResolvedLogoOption } from "@/lib/types";
 
 export type AiBusinessCardSideId = "front" | "back";
-export type AiBusinessCardTextField = "brandName" | "category" | "name" | "role" | "phone" | "mainPhone" | "fax" | "email" | "website" | "address" | "account" | "titleLine1" | "titleLine2" | "adLine1" | "adLine2" | "instagram" | "qrCode";
+export type AiBusinessCardTextField = "brandName" | "category" | "name" | "role" | "phone" | "mainPhone" | "fax" | "email" | "website" | "address" | "account" | "instagram" | "qrCode" | `headline-${number}` | `body-${number}`;
 export type AiBusinessCardFontFamily = "Pretendard" | "Noto Sans KR" | "Noto Serif KR" | "Gowun Dodum";
 export type AiBusinessCardFontWeight = "regular" | "medium" | "bold";
 export type AiBusinessCardTextAlign = "left" | "center" | "right";
 export type AiBusinessCardShapeKind = "rect" | "roundRect" | "circle";
-export type AiBusinessCardIconKind = "name" | "role" | "mobile" | "phone" | "email" | "location" | "address" | "company" | "web" | "fax" | "account" | "instagram";
+export type AiBusinessCardIconKind = "name" | "role" | "mobile" | "phone" | "email" | "location" | "address" | "company" | "web" | "fax" | "account" | "instagram" | "projector" | "screen" | "speaker" | "led";
 
 export type AiBusinessCardCanvas = {
   widthMm: 92;
@@ -137,12 +137,12 @@ export type AiBusinessCardInput = {
   productionOptions?: BusinessCardProductionOptions;
 };
 
-const textFields = new Set<AiBusinessCardTextField>(["brandName", "category", "name", "role", "phone", "mainPhone", "fax", "email", "website", "address", "account", "titleLine1", "titleLine2", "adLine1", "adLine2", "instagram", "qrCode"]);
+const textFields = new Set<AiBusinessCardTextField>(["brandName", "category", "name", "role", "phone", "mainPhone", "fax", "email", "website", "address", "account", "instagram", "qrCode"]);
 const fontFamilies = new Set<AiBusinessCardFontFamily>(["Pretendard", "Noto Sans KR", "Noto Serif KR", "Gowun Dodum"]);
 const fontWeights = new Set<AiBusinessCardFontWeight>(["regular", "medium", "bold"]);
 const textAligns = new Set<AiBusinessCardTextAlign>(["left", "center", "right"]);
 const shapeKinds = new Set<AiBusinessCardShapeKind>(["rect", "roundRect", "circle"]);
-const iconKinds = new Set<AiBusinessCardIconKind>(["name", "role", "mobile", "phone", "email", "location", "address", "company", "web", "fax", "account", "instagram"]);
+const iconKinds = new Set<AiBusinessCardIconKind>(["name", "role", "mobile", "phone", "email", "location", "address", "company", "web", "fax", "account", "instagram", "projector", "screen", "speaker", "led"]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -201,7 +201,7 @@ function readTextElement(value: Record<string, unknown>): AiBusinessCardTextElem
   const align = readString(value, "align") as AiBusinessCardTextAlign;
   const fontSizePt = readOptionalNumber(value, "fontSizePt", 1, 32);
 
-  if (!box || !textFields.has(field) || !fontFamilies.has(fontFamily) || !fontWeights.has(fontWeight) || !textAligns.has(align) || fontSizePt === undefined) {
+  if (!box || (!textFields.has(field) && !/^headline-\d+$/.test(field) && !/^body-\d+$/.test(field)) || !fontFamilies.has(fontFamily) || !fontWeights.has(fontWeight) || !textAligns.has(align) || fontSizePt === undefined) {
     return undefined;
   }
 

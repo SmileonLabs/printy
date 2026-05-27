@@ -34,7 +34,8 @@ function fieldTextValue(input: AiBusinessCardInput, field: AiBusinessCardTextFie
     return input.member.qrCodeImageUrl?.trim() ?? "";
   }
 
-  return input.member[field]?.trim() ?? "";
+  if (field.startsWith("headline-") || field.startsWith("body-")) return "";
+  return input.member[field as keyof Pick<AiBusinessCardInput["member"], "name" | "role" | "phone" | "mainPhone" | "fax" | "email" | "website" | "address" | "account" | "instagram">]?.trim() ?? "";
 }
 
 function shouldUseInstagramIcon(input: AiBusinessCardInput, sideId: BusinessCardTemplateSideId) {
@@ -56,6 +57,16 @@ function selectedElementsForSide(input: AiBusinessCardInput, sideId: BusinessCar
   return sideId === "front" ? input.productionOptions?.frontElements : input.productionOptions?.backElements;
 }
 
+function selectedLogoUrl(input: AiBusinessCardInput, assetType: "png" | "svg" | undefined) {
+  const logo = input.logo;
+
+  if (!logo || !("imageUrl" in logo)) {
+    return undefined;
+  }
+
+  return assetType === "svg" && logo.vectorSvgUrl ? logo.vectorSvgUrl : logo.imageUrl;
+}
+
 function shouldUseTemplateField(input: AiBusinessCardInput, sideId: BusinessCardTemplateSideId, field: AiBusinessCardTextElement["field"] | AiBusinessCardTextField) {
   const selectedElements = selectedElementsForSide(input, sideId);
 
@@ -67,7 +78,7 @@ function sideHasIconForField(input: AiBusinessCardInput, sideId: BusinessCardTem
 }
 
 function textElementFromTemplateField(input: AiBusinessCardInput, sideId: BusinessCardTemplateSideId, icons: BusinessCardTemplateIconElement[], field: BusinessCardTemplateTextElement, layer: number): AiBusinessCardElement | undefined {
-  const value = fieldTextValue(input, field.id);
+  const value = field.customValue?.trim() || fieldTextValue(input, field.id);
 
   if (!field.visible || !value || !shouldUseTemplateField(input, sideId, field.id)) {
     return undefined;
@@ -158,6 +169,12 @@ export function createAiBusinessCardDesignFromTemplate(input: AiBusinessCardInpu
 
   for (const sideId of sideIds) {
     const side = layout.sides[sideId];
+    const logoUrl = selectedLogoUrl(input, side.logo.assetType);
+
+    if (side.logo.visible && logoUrl) {
+      sides[sideId].elements.push({ type: "image", src: logoUrl, ...templateBoxToMm(side.logo.box), fit: "contain", layer });
+      layer += 1;
+    }
 
     for (const icon of side.icons) {
       const element = iconElementFromTemplateIcon(input, sideId, icon, layer);

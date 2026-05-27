@@ -2,7 +2,7 @@ import { isGeneratedLogoOption } from "@/lib/logo/logoValidation";
 import { normalizeBusinessCardTemplateLayout } from "@/lib/business-card-templates";
 import { normalizeMemberContact } from "@/lib/member-contact";
 import { logoOptions } from "@/lib/mock-data";
-import type { Brand, BrandAsset, BusinessCardDraft, GeneratedLogoOption, Member } from "@/lib/types";
+import type { AiBusinessCardMockup, Brand, BrandAsset, BusinessCardDraft, GeneratedLogoOption, Member } from "@/lib/types";
 import { defaultBrandDraft, defaultMember, type BrandDraft } from "@/store/printy-store-defaults";
 import { getCreatedDate, makeId } from "@/store/printy-store-id-date";
 
@@ -97,10 +97,6 @@ export function normalizeMember(member: Partial<Member> | Record<string, unknown
     website: normalizeOptionalString(record.website, fallback.website ?? ""),
     address: normalizeOptionalString(record.address, fallback.address),
     account: normalizeOptionalString(record.account, fallback.account ?? ""),
-    titleLine1: normalizeOptionalString(record.titleLine1, fallback.titleLine1 ?? ""),
-    titleLine2: normalizeOptionalString(record.titleLine2, fallback.titleLine2 ?? ""),
-    adLine1: normalizeOptionalString(record.adLine1, fallback.adLine1 ?? ""),
-    adLine2: normalizeOptionalString(record.adLine2, fallback.adLine2 ?? ""),
     instagram: normalizeOptionalString(record.instagram, fallback.instagram ?? ""),
     qrCodeImageUrl: normalizeOptionalString(record.qrCodeImageUrl, fallback.qrCodeImageUrl ?? ""),
   });
@@ -129,8 +125,27 @@ export function normalizeBrand(brand: Brand | Record<string, unknown>): Brand {
   return normalizeBrandWithSelectableLogos(brand, []);
 }
 
+function normalizeBusinessCardDraftMockup(value: unknown): AiBusinessCardMockup | undefined {
+  if (typeof value !== "object" || value === null) {
+    return undefined;
+  }
+
+  const record = value as Record<string, unknown>;
+  const id = normalizeString(record.id);
+  const imageUrl = normalizeString(record.imageUrl);
+  const cleanImageUrl = normalizeString(record.cleanImageUrl);
+  const title = normalizeString(record.title);
+
+  if (!id || !imageUrl || !cleanImageUrl || !title) {
+    return undefined;
+  }
+
+  return { id, imageUrl, cleanImageUrl, title, layout: normalizeBusinessCardTemplateLayout(record.layout) };
+}
+
 export function normalizeBusinessCardDraftWithSelectableLogos(draft: BusinessCardDraft | Record<string, unknown>, savedGeneratedLogoOptions: GeneratedLogoOption[]): BusinessCardDraft {
   const record = draft as Record<string, unknown>;
+  const completedMockup = normalizeBusinessCardDraftMockup(record.completedMockup);
 
   return {
     id: normalizeOptionalString(record.id, makeId("card", 0)),
@@ -141,6 +156,9 @@ export function normalizeBusinessCardDraftWithSelectableLogos(draft: BusinessCar
     selectedLogoId: normalizeSelectableLogoId(record.selectedLogoId, savedGeneratedLogoOptions),
     templateId: typeof record.templateId === "string" ? record.templateId : undefined,
     layout: normalizeBusinessCardTemplateLayout(record.layout),
+    completedMockupSignature: typeof record.completedMockupSignature === "string" && completedMockup ? record.completedMockupSignature : undefined,
+    completedMockup,
+    completedMockupAt: typeof record.completedMockupAt === "string" && completedMockup ? record.completedMockupAt : undefined,
     member: normalizeMember(typeof record.member === "object" && record.member !== null ? (record.member as Record<string, unknown>) : undefined),
     createdAt: normalizeOptionalString(record.createdAt, getCreatedDate()),
   };

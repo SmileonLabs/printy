@@ -12,6 +12,7 @@ function readLocalWorkspace(): BrandWorkspace {
     brandAssets: state.brandAssets,
     savedGeneratedLogoOptions: state.savedGeneratedLogoOptions,
     businessCardDrafts: state.businessCardDrafts,
+    printProductDrafts: state.printProductDrafts,
     orders: state.orders,
   };
 }
@@ -63,8 +64,11 @@ export function BrandWorkspaceSyncController() {
   const brandAssets = usePrintyStore((state) => state.brandAssets);
   const savedGeneratedLogoOptions = usePrintyStore((state) => state.savedGeneratedLogoOptions);
   const businessCardDrafts = usePrintyStore((state) => state.businessCardDrafts);
+  const deletedBusinessCardDraftIds = usePrintyStore((state) => state.deletedBusinessCardDraftIds);
+  const printProductDrafts = usePrintyStore((state) => state.printProductDrafts);
   const orders = usePrintyStore((state) => state.orders);
   const brandWorkspaceOwnerUserId = usePrintyStore((state) => state.brandWorkspaceOwnerUserId);
+  const brandWorkspaceHasPendingLocalChanges = usePrintyStore((state) => state.brandWorkspaceHasPendingLocalChanges);
   const syncBrandWorkspace = usePrintyStore((state) => state.syncBrandWorkspace);
   const acknowledgeBrandWorkspaceSave = usePrintyStore((state) => state.acknowledgeBrandWorkspaceSave);
   const syncedUserIdsRef = useRef<Set<string>>(new Set());
@@ -89,11 +93,13 @@ export function BrandWorkspaceSyncController() {
           return;
         }
 
+        const deletedDraftIds = new Set(deletedBusinessCardDraftIds);
+        const filteredServerWorkspace = { ...serverWorkspace, businessCardDrafts: serverWorkspace.businessCardDrafts.filter((draft) => !deletedDraftIds.has(draft.id)) };
         const localWorkspace = readLocalWorkspace();
         const localWorkspaceHasData = hasBrandWorkspaceData(localWorkspace);
-        const localWorkspaceBelongsToUser = brandWorkspaceOwnerUserId === syncedUserId;
+        const localWorkspaceBelongsToUser = brandWorkspaceOwnerUserId === undefined || brandWorkspaceOwnerUserId === syncedUserId;
         const canUploadLocalWorkspace = localWorkspaceBelongsToUser;
-        const canonicalWorkspace = canUploadLocalWorkspace && localWorkspaceHasData ? await saveBrandWorkspace(mergeBrandWorkspaces(localWorkspace, serverWorkspace)) : serverWorkspace;
+        const canonicalWorkspace = canUploadLocalWorkspace && localWorkspaceHasData ? await saveBrandWorkspace(mergeBrandWorkspaces(localWorkspace, filteredServerWorkspace)) : filteredServerWorkspace;
 
         if (isActive) {
           lastSavedSignaturesRef.current.set(syncedUserId, createBrandWorkspaceSignature(canonicalWorkspace));
@@ -114,14 +120,14 @@ export function BrandWorkspaceSyncController() {
     return () => {
       isActive = false;
     };
-  }, [isAuthenticated, userId, brandWorkspaceOwnerUserId, syncBrandWorkspace]);
+  }, [isAuthenticated, userId, brandWorkspaceOwnerUserId, deletedBusinessCardDraftIds, syncBrandWorkspace]);
 
   useEffect(() => {
-    if (!isAuthenticated || !userId || !initialSyncedUserIdsRef.current.has(userId) || savingUserIdsRef.current.has(userId)) {
+    if (!isAuthenticated || !userId || !brandWorkspaceHasPendingLocalChanges || !initialSyncedUserIdsRef.current.has(userId) || savingUserIdsRef.current.has(userId)) {
       return;
     }
 
-    const initialWorkspace = { brands, brandAssets, savedGeneratedLogoOptions, businessCardDrafts, orders };
+    const initialWorkspace = { brands, brandAssets, savedGeneratedLogoOptions, businessCardDrafts, printProductDrafts, orders };
     const initialSignature = createBrandWorkspaceSignature(initialWorkspace);
 
     if (lastSavedSignaturesRef.current.get(userId) === initialSignature) {
@@ -159,7 +165,7 @@ export function BrandWorkspaceSyncController() {
     void autosaveWorkspaceChanges().finally(() => {
       savingUserIdsRef.current.delete(autosaveUserId);
     });
-  }, [isAuthenticated, userId, brands, brandAssets, savedGeneratedLogoOptions, businessCardDrafts, orders, acknowledgeBrandWorkspaceSave]);
+  }, [isAuthenticated, userId, brandWorkspaceHasPendingLocalChanges, brands, brandAssets, savedGeneratedLogoOptions, businessCardDrafts, printProductDrafts, orders, acknowledgeBrandWorkspaceSave]);
 
   return null;
 }

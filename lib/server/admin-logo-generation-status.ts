@@ -1,7 +1,19 @@
 import "server-only";
 
-import type { LogoGenerationJobStatus } from "@/lib/types";
+import type { GeneratedLogoOption, LogoGenerationJobStatus } from "@/lib/types";
+import { isGeneratedLogoOption } from "@/lib/logo/logoValidation";
 import { withDbClient } from "@/lib/server/db";
+import { readGeneratedLogoBytesByPublicUrl, saveGeneratedLogoSvg } from "@/lib/server/storage";
+import { vectorizeGeneratedLogo, vectorizeGeneratedLogoHighQuality } from "@/lib/server/logo-vectorizer";
+
+export type AdminLogoGenerationLogoSummary = {
+  id: string;
+  name: string;
+  imageUrl: string;
+  vectorSvgUrl: string;
+  updatedAt: string;
+  isSelected: boolean;
+};
 
 export type AdminLogoGenerationBrandStatus = {
   brandId: string | null;
@@ -15,6 +27,7 @@ export type AdminLogoGenerationBrandStatus = {
   latestJobUpdatedAt: string;
   latestFailureKind: string;
   latestFailureReason: string;
+  logos: AdminLogoGenerationLogoSummary[];
 };
 
 export type AdminLogoGenerationAccountStatus = {
@@ -48,6 +61,13 @@ type LogoGenerationStatusRow = {
   latest_job_updated_at: Date | null;
   latest_failure_kind: string | null;
   latest_failure_reason: string | null;
+};
+
+type GeneratedLogoStatusRow = {
+  user_id: string;
+  brand_id: string | null;
+  payload: unknown;
+  updated_at: Date | string | null;
 };
 
 const emptyJobCounts: Record<LogoGenerationJobStatus, number> & { total: number } = {
@@ -103,6 +123,36 @@ function createBrandStatus(row: LogoGenerationStatusRow): AdminLogoGenerationBra
     latestJobUpdatedAt: row.latest_job_updated_at?.toISOString() ?? "",
     latestFailureKind: row.latest_failure_kind ?? "",
     latestFailureReason: row.latest_failure_reason ?? "",
+    logos: [],
+  };
+}
+
+function brandKey(userId: string, brandId: string | null, brandName = "") {
+  return `${userId}:${brandId ?? `unmatched:${brandName}`}`;
+}
+
+function normalizeGeneratedLogoPublicUrl(value: string) {
+  if (value.startsWith("/uploads/")) {
+    return value;
+  }
+
+  try {
+    const url = new URL(value);
+
+    return url.pathname.startsWith("/uploads/") ? url.pathname : value;
+  } catch {
+    return value;
+  }
+}
+
+function toLogoSummary(logo: GeneratedLogoOption, updatedAt: Date | string | null, selectedLogoId: string): AdminLogoGenerationLogoSummary {
+  return {
+    id: logo.id,
+    name: logo.name,
+    imageUrl: normalizeGeneratedLogoPublicUrl(logo.imageUrl),
+    vectorSvgUrl: logo.vectorSvgUrl ? normalizeGeneratedLogoPublicUrl(logo.vectorSvgUrl) : "",
+    updatedAt: updatedAt ? new Date(updatedAt).toISOString() : "",
+    isSelected: logo.id === selectedLogoId,
   };
 }
 
@@ -268,11 +318,38 @@ export async function listAdminLogoGenerationStatus(): Promise<AdminLogoGenerati
       `,
     );
 
+    const logoRows = await client.query<GeneratedLogoStatusRow>(
+      `
+        select user_id::text, brand_id, payload, updated_at
+        from generated_logos
+        order by updated_at desc, created_at desc
+        limit 1000
+      `,
+    );
+
     const accounts = new Map<string, AdminLogoGenerationAccountStatus>();
+    const brandsByKey = new Map<string, AdminLogoGenerationBrandStatus>();
 
     for (const row of [...brandRows.rows, ...unmatchedRows.rows]) {
       const account = ensureAccount(accounts, row);
-      account.brands.push(createBrandStatus(row));
+      const brand = createBrandStatus(row);
+      account.brands.push(brand);
+      brandsByKey.set(brandKey(row.user_id, row.brand_id, row.brand_name), brand);
+      if (row.brand_id) {
+        brandsByKey.set(brandKey(row.user_id, row.brand_id), brand);
+      }
+    }
+
+    for (const row of logoRows.rows) {
+      if (!isGeneratedLogoOption(row.payload)) {
+        continue;
+      }
+
+      const brand = brandsByKey.get(brandKey(row.user_id, row.brand_id));
+
+      if (brand) {
+        brand.logos.push(toLogoSummary(row.payload, row.updated_at, brand.selectedLogoId));
+      }
     }
 
     return Array.from(accounts.values()).map((account) => ({
@@ -285,6 +362,115 @@ export async function listAdminLogoGenerationStatus(): Promise<AdminLogoGenerati
       }),
     }));
   });
+}
+
+function assertAdminSvg(svg: string) {
+  const trimmed = svg.trim();
+
+  if (trimmed.length === 0 || trimmed.length > 1024 * 1024 || !/<svg\b/i.test(trimmed) || !/<path\b/i.test(trimmed)) {
+    throw new Error("유효한 SVG 벡터 파일이 아니에요.");
+  }
+
+  if (/<script\b|<foreignObject\b|<iframe\b|<object\b|<embed\b|<image\b|javascript:/i.test(trimmed)) {
+    throw new Error("SVG에는 path 기반 벡터만 사용할 수 있어요.");
+  }
+}
+
+async function updateGeneratedLogoVectorUrl(userId: string, logoId: string, vectorSvgUrl: string) {
+  return withDbClient(async (client) => {
+    const result = await client.query<{ payload: unknown }>(
+      `
+        update generated_logos
+        set payload = payload || jsonb_build_object('vectorSvgUrl', $3::text), updated_at = now()
+        where user_id = $1 and payload->>'id' = $2
+        returning payload
+      `,
+      [userId, logoId, vectorSvgUrl],
+    );
+    const payload = result.rows[0]?.payload;
+
+    if (!isGeneratedLogoOption(payload)) {
+      throw new Error("로고 정보를 업데이트하지 못했어요.");
+    }
+
+    return payload;
+  });
+}
+
+function readDataImageBytes(imageUrl: string) {
+  const match = /^data:image\/[a-zA-Z0-9.+-]+;base64,(.+)$/.exec(imageUrl);
+
+  return match?.[1] ? new Uint8Array(Buffer.from(match[1], "base64")) : undefined;
+}
+
+async function fetchLogoImageBytes(imageUrl: string) {
+  const response = await fetch(imageUrl, { signal: AbortSignal.timeout(15_000) });
+
+  if (!response.ok) {
+    return undefined;
+  }
+
+  const contentType = response.headers.get("content-type") ?? "";
+  const contentLength = Number(response.headers.get("content-length") ?? 0);
+
+  if ((contentType && !contentType.startsWith("image/")) || contentLength > 10 * 1024 * 1024) {
+    return undefined;
+  }
+
+  const buffer = await response.arrayBuffer();
+
+  if (buffer.byteLength === 0 || buffer.byteLength > 10 * 1024 * 1024) {
+    return undefined;
+  }
+
+  return new Uint8Array(buffer);
+}
+
+async function readLogoImageBytesForVectorization(imageUrl: string) {
+  const storedBytes = await readGeneratedLogoBytesByPublicUrl(imageUrl);
+
+  if (storedBytes) {
+    return storedBytes;
+  }
+
+  const dataBytes = readDataImageBytes(imageUrl);
+
+  if (dataBytes) {
+    return dataBytes;
+  }
+
+  return /^https?:\/\//i.test(imageUrl) ? fetchLogoImageBytes(imageUrl) : undefined;
+}
+
+export async function vectorizeAdminGeneratedLogo(userId: string, logoId: string, quality: "fast" | "high" = "fast") {
+  const logo = await withDbClient(async (client) => {
+    const result = await client.query<{ payload: unknown }>("select payload from generated_logos where user_id = $1 and payload->>'id' = $2 limit 1", [userId, logoId]);
+    const payload = result.rows[0]?.payload;
+
+    return isGeneratedLogoOption(payload) ? payload : undefined;
+  });
+
+  if (!logo) {
+    throw new Error("벡터화할 로고를 찾지 못했어요.");
+  }
+
+  const bytes = await readLogoImageBytesForVectorization(logo.imageUrl);
+
+  if (!bytes) {
+    throw new Error("로고 PNG 파일을 읽지 못했어요.");
+  }
+
+  const svg = quality === "high" ? await vectorizeGeneratedLogoHighQuality(bytes) : await vectorizeGeneratedLogo(bytes);
+  const stored = await saveGeneratedLogoSvg(svg);
+
+  return updateGeneratedLogoVectorUrl(userId, logoId, stored.publicUrl);
+}
+
+export async function uploadAdminGeneratedLogoVector(userId: string, logoId: string, svg: string) {
+  assertAdminSvg(svg);
+  const stored = await saveGeneratedLogoSvg(svg.trim());
+
+  return updateGeneratedLogoVectorUrl(userId, logoId, stored.publicUrl);
 }
 
 export { emptyJobCounts };

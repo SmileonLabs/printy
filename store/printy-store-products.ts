@@ -7,7 +7,7 @@ export function getProductForSection(sectionId: BrandDetailSectionId) {
     cards: "business-card",
     promotions: "flyer",
     banners: "banner",
-    signage: "poster",
+    signage: "signage",
     files: "sticker",
   };
 

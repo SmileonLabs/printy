@@ -9,6 +9,7 @@ import type {
   BrandView,
   BusinessCardDraft,
   BusinessCardProductionOptions,
+  BusinessCardTemplateLayout,
   GeneratedLogoOption,
   LocalAuthInput,
   LocalAuthSession,
@@ -25,6 +26,10 @@ import type {
   ShippingInfo,
   PaymentMethod,
   PrintProduct,
+  PrintProductDraft,
+  PrintProductMockup,
+  PrintProductProductionLayout,
+  PrintProductProductionType,
   PrintTemplate,
 } from "@/lib/types";
 import type { BrandWorkspace } from "@/lib/brand-workspace";
@@ -67,9 +72,13 @@ export type PrintyState = {
   authSession?: LocalAuthSession;
   selectedBrandId?: string;
   activeBusinessCardDraftId?: string;
+  businessCardEditorMode: "create" | "edit";
   lastOrderId?: string;
   brands: Brand[];
   businessCardDrafts: BusinessCardDraft[];
+  deletedBusinessCardDraftIds: string[];
+  printProductDrafts: PrintProductDraft[];
+  activePrintProductDraftId?: string;
   aiBusinessCardMockups: AiBusinessCardMockup[];
   aiBusinessCardMockupStatus: AiBusinessCardMockupStatus;
   aiBusinessCardMockupMessage?: string;
@@ -90,6 +99,7 @@ export type PrintyState = {
   selectedProductId?: string;
   selectedTemplateId?: string;
   selectedBusinessCardMemberIds: string[];
+  pendingBusinessCardLayoutPrompt: string;
   businessCardProductionOptions: BusinessCardProductionOptions;
   loginRedirectTarget?: LoginRedirectTarget;
   loginBackStep?: OnboardingStep;
@@ -129,11 +139,13 @@ export type PrintyState = {
   login: (input: LocalAuthInput, redirectTarget?: LoginRedirectTarget) => void;
   logout: () => void;
   saveBrandShell: () => void;
-  ensureBusinessCardDraft: () => BusinessCardDraft;
+  ensureBusinessCardDraft: (layout?: BusinessCardTemplateLayout) => BusinessCardDraft;
+  deleteBusinessCardDraft: (draftId: string) => void;
   beginAiBusinessCardMockupGeneration: (signature: string, message?: string) => void;
   setActiveAiBusinessCardMockupJob: (jobId?: string) => void;
   syncAiBusinessCardMockups: (signature: string, mockups: AiBusinessCardMockup[]) => void;
   finishAiBusinessCardMockupGeneration: (signature: string, mockups: AiBusinessCardMockup[]) => void;
+  completeAiBusinessCardDesign: (signature: string, mockups: AiBusinessCardMockup[], layout: BusinessCardTemplateLayout) => BusinessCardDraft | undefined;
   failAiBusinessCardMockupGeneration: (signature: string, message: string) => void;
   dismissAiBusinessCardMockupNotice: () => void;
   selectAiBusinessCardMockup: (imageUrl?: string) => void;
@@ -161,6 +173,15 @@ export type PrintyState = {
   syncBrandWorkspace: (workspace: BrandWorkspace, ownerUserId?: string) => void;
   acknowledgeBrandWorkspaceSave: (savedSignature: string, ownerUserId: string) => void;
   startCardEdit: () => void;
-  startBrandSectionProduction: (brandId: string, sectionId: BrandDetailSectionId, memberIds?: string[], templateId?: string) => void;
+  startBrandSectionProduction: (brandId: string, sectionId: BrandDetailSectionId, memberIds?: string[], templateId?: string, mode?: "new" | "draft" | "edit", editMember?: Member, editMockups?: { draftId?: string; signature?: string; mockups: AiBusinessCardMockup[]; selectedImageUrl?: string }, initialLayoutPrompt?: string) => void;
   updateBusinessCardProductionOptions: (options: BusinessCardProductionOptions) => void;
+  upsertPrintProductDraft: (draft: PrintProductDraft) => void;
+  createPrintProductDraft: (brandId: string, productType: PrintProductProductionType, layout: PrintProductProductionLayout) => PrintProductDraft;
+  updatePrintProductDraftLayout: (draftId: string, layout: PrintProductProductionLayout) => void;
+  addPrintProductMockup: (draftId: string, mockup: PrintProductMockup) => void;
+  deletePrintProductDraft: (draftId: string) => void;
+  deletePrintProductMockup: (draftId: string, mockupId: string) => void;
+  selectPrintProductMockup: (draftId: string, mockupId?: string) => void;
+  completePrintProductDesign: (draftId: string, mockupId: string) => void;
+  savePrintProductPdf: (draftId: string, url: string, fileName: string) => void;
 };

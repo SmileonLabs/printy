@@ -1,9 +1,9 @@
 import "server-only";
 
 import type { PoolClient } from "pg";
-import type { Brand, BrandAsset, BusinessCardDraft, GeneratedLogoOption, OrderRecord } from "@/lib/types";
+import type { Brand, BrandAsset, BusinessCardDraft, GeneratedLogoOption, OrderRecord, PrintProductDraft } from "@/lib/types";
 import { logoOptions } from "@/lib/mock-data";
-import { hasBrandWorkspaceData, isBrand, isBrandAsset, isBusinessCardDraft, isOrderRecord, readBrandWorkspace, type BrandWorkspace } from "@/lib/brand-workspace";
+import { hasBrandWorkspaceData, isBrand, isBrandAsset, isBusinessCardDraft, isOrderRecord, isPrintProductDraft, readBrandWorkspace, type BrandWorkspace } from "@/lib/brand-workspace";
 import { isGeneratedLogoOption } from "@/lib/logo/logoValidation";
 import { withDbClient } from "@/lib/server/db";
 import { assertGeneratedLogoStorageAvailableForPublicUrls, cleanupUnreferencedGeneratedLogoFiles, isGeneratedLogoPublicUrl } from "@/lib/server/storage";
@@ -31,6 +31,30 @@ type ImageUrlRow = {
   image_url: string | null;
 };
 
+let printProductDraftStorageReady = false;
+
+async function ensurePrintProductDraftStorage(client: PoolClient) {
+  if (printProductDraftStorageReady) {
+    return;
+  }
+
+  await client.query(`
+    create table if not exists print_product_drafts (
+      user_id text not null,
+      id text not null,
+      brand_id text,
+      product_type text not null,
+      payload jsonb not null,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now(),
+      primary key (user_id, id)
+    )
+  `);
+  await client.query("create index if not exists print_product_drafts_user_brand_id_idx on print_product_drafts (user_id, brand_id)");
+  await client.query("create index if not exists print_product_drafts_user_updated_at_idx on print_product_drafts (user_id, updated_at desc)");
+  printProductDraftStorageReady = true;
+}
+
 function toBrand(row: BrandRow, logoIds: string[]): Brand | undefined {
   const brand = {
     id: row.id,
@@ -57,6 +81,10 @@ function toBusinessCardDraft(row: PayloadRow): BusinessCardDraft | undefined {
 
 function toOrder(row: PayloadRow): OrderRecord | undefined {
   return isOrderRecord(row.payload) ? row.payload : undefined;
+}
+
+function toPrintProductDraft(row: PayloadRow): PrintProductDraft | undefined {
+  return isPrintProductDraft(row.payload) ? row.payload : undefined;
 }
 
 function toBrandAsset(row: PayloadRow): BrandAsset | undefined {
@@ -90,12 +118,51 @@ function reconcileSelectedLogoIds(workspace: BrandWorkspace): BrandWorkspace {
   };
 }
 
+function recoverBrandsFromBusinessCardDrafts(workspace: BrandWorkspace): BrandWorkspace {
+  if (workspace.brands.length > 0 || workspace.businessCardDrafts.length === 0) {
+    return workspace;
+  }
+
+  const brandsById = new Map<string, Brand>();
+
+  for (const draft of workspace.businessCardDrafts) {
+    const brandId = draft.brandId ?? `recovered-brand-${draft.id}`;
+    const existingBrand = brandsById.get(brandId);
+    const memberExists = existingBrand?.members.some((member) => member.id === draft.member.id) ?? false;
+
+    if (existingBrand) {
+      brandsById.set(brandId, {
+        ...existingBrand,
+        logoIds: Array.from(new Set([...existingBrand.logoIds, draft.selectedLogoId])),
+        members: memberExists ? existingBrand.members : [...existingBrand.members, draft.member],
+      });
+      continue;
+    }
+
+    brandsById.set(brandId, {
+      id: brandId,
+      name: draft.brandName,
+      category: draft.category,
+      designRequest: draft.designRequest,
+      selectedLogoId: draft.selectedLogoId,
+      logoIds: [draft.selectedLogoId],
+      members: [draft.member],
+      createdAt: draft.createdAt,
+      assets: 4,
+    });
+  }
+
+  return { ...workspace, brands: Array.from(brandsById.values()) };
+}
+
 function getBrandIdForLogo(logo: GeneratedLogoOption, brands: Brand[]) {
   return brands.find((brand) => brand.selectedLogoId === logo.id || (Array.isArray(brand.logoIds) && brand.logoIds.includes(logo.id)))?.id;
 }
 
 async function loadBrandWorkspaceWithClient(client: PoolClient, userId: string): Promise<BrandWorkspace> {
-  const [brandResult, logoResult, draftResult, orderResult, assetResult] = await Promise.all([
+  await ensurePrintProductDraftStorage(client);
+
+  const [brandResult, logoResult, draftResult, printProductDraftResult, orderResult, assetResult] = await Promise.all([
     client.query<BrandRow>(
       `
         select id, name, category, design_request, selected_logo_id, members, assets, created_label
@@ -118,6 +185,15 @@ async function loadBrandWorkspaceWithClient(client: PoolClient, userId: string):
       `
         select payload
         from business_card_drafts
+        where user_id = $1
+        order by updated_at desc, created_at desc
+      `,
+      [userId],
+    ),
+    client.query<PayloadRow>(
+      `
+        select payload
+        from print_product_drafts
         where user_id = $1
         order by updated_at desc, created_at desc
       `,
@@ -160,15 +236,67 @@ async function loadBrandWorkspaceWithClient(client: PoolClient, userId: string):
     brands: brandResult.rows.map((row) => toBrand(row, logoIdsByBrandId.get(row.id) ?? [])).filter((brand): brand is Brand => brand !== undefined),
     savedGeneratedLogoOptions,
     businessCardDrafts: draftResult.rows.map(toBusinessCardDraft).filter((draft): draft is BusinessCardDraft => draft !== undefined),
+    printProductDrafts: printProductDraftResult.rows.map(toPrintProductDraft).filter((draft): draft is PrintProductDraft => draft !== undefined),
     orders: orderResult.rows.map(toOrder).filter((order): order is OrderRecord => order !== undefined),
     brandAssets: assetResult.rows.map(toBrandAsset).filter((asset): asset is BrandAsset => asset !== undefined),
   };
 
-  return reconcileSelectedLogoIds(workspace);
+  return reconcileSelectedLogoIds(recoverBrandsFromBusinessCardDrafts(workspace));
 }
 
 export async function loadBrandWorkspace(userId: string) {
   return withDbClient((client) => loadBrandWorkspaceWithClient(client, userId));
+}
+
+export async function savePrintProductDraftPatch(userId: string, draft: PrintProductDraft, assets: BrandAsset[] = []) {
+  if (!isPrintProductDraft(draft) || assets.some((asset) => !isBrandAsset(asset) || asset.brandId !== draft.brandId)) {
+    throw new Error("Invalid print product draft patch payload.");
+  }
+
+  return withDbClient(async (client) => {
+    await ensurePrintProductDraftStorage(client);
+    await client.query("begin");
+
+    try {
+      await client.query(
+        `
+          insert into print_product_drafts (user_id, id, brand_id, product_type, payload)
+          values ($1, $2, $3, $4, $5::jsonb)
+          on conflict (user_id, id)
+          do update set
+            brand_id = excluded.brand_id,
+            product_type = excluded.product_type,
+            payload = excluded.payload,
+            updated_at = now()
+        `,
+        [userId, draft.id, draft.brandId, draft.productType, JSON.stringify(draft)],
+      );
+
+      for (const asset of assets) {
+        await client.query(
+          `
+            insert into brand_assets (user_id, id, brand_id, section_id, product_id, payload)
+            values ($1, $2, $3, $4, $5, $6::jsonb)
+            on conflict (user_id, id)
+            do update set
+              brand_id = excluded.brand_id,
+              section_id = excluded.section_id,
+              product_id = excluded.product_id,
+              payload = excluded.payload,
+              updated_at = now()
+          `,
+          [userId, asset.id, asset.brandId, asset.sectionId, asset.productId, JSON.stringify(asset)],
+        );
+      }
+
+      await client.query("commit");
+
+      return { draft, assets };
+    } catch (error) {
+      await client.query("rollback");
+      throw error;
+    }
+  });
 }
 
 export async function saveBrandWorkspace(userId: string, workspace: BrandWorkspace) {
@@ -179,9 +307,14 @@ export async function saveBrandWorkspace(userId: string, workspace: BrandWorkspa
   }
 
   return withDbClient(async (client) => {
+    await ensurePrintProductDraftStorage(client);
     const currentWorkspace = await loadBrandWorkspaceWithClient(client, userId);
 
     if (!hasBrandWorkspaceData(validWorkspace) && hasBrandWorkspaceData(currentWorkspace)) {
+      return currentWorkspace;
+    }
+
+    if (validWorkspace.brands.length === 0 && currentWorkspace.brands.length > 0) {
       return currentWorkspace;
     }
 
@@ -219,6 +352,7 @@ export async function saveBrandWorkspace(userId: string, workspace: BrandWorkspa
       await client.query("delete from brands where user_id = $1 and not (id = any($2::text[]))", [userId, brandIds]);
       await client.query("delete from generated_logos where user_id = $1 and not (id = any($2::text[]))", [userId, logoIds]);
       await client.query("delete from business_card_drafts where user_id = $1 and not (id = any($2::text[]))", [userId, draftIds]);
+      await client.query("delete from print_product_drafts where user_id = $1 and not (id = any($2::text[]))", [userId, validWorkspace.printProductDrafts.map((draft) => draft.id)]);
       await client.query("delete from orders where user_id = $1 and not (id = any($2::text[]))", [userId, orderIds]);
       await client.query("delete from brand_assets where user_id = $1 and not (id = any($2::text[]))", [userId, assetIds]);
 
@@ -250,7 +384,11 @@ export async function saveBrandWorkspace(userId: string, workspace: BrandWorkspa
             on conflict (user_id, id)
             do update set
               brand_id = excluded.brand_id,
-              payload = excluded.payload,
+              payload = case
+                when generated_logos.payload ? 'vectorSvgUrl' and not (excluded.payload ? 'vectorSvgUrl')
+                  then excluded.payload || jsonb_build_object('vectorSvgUrl', generated_logos.payload->>'vectorSvgUrl')
+                else excluded.payload
+              end,
               updated_at = now()
           `,
           [userId, logo.id, getBrandIdForLogo(logo, validWorkspace.brands) ?? null, JSON.stringify(logo)],
@@ -269,6 +407,22 @@ export async function saveBrandWorkspace(userId: string, workspace: BrandWorkspa
               updated_at = now()
           `,
           [userId, draft.id, draft.brandId ?? null, JSON.stringify(draft)],
+        );
+      }
+
+      for (const draft of validWorkspace.printProductDrafts) {
+        await client.query(
+          `
+            insert into print_product_drafts (user_id, id, brand_id, product_type, payload)
+            values ($1, $2, $3, $4, $5::jsonb)
+            on conflict (user_id, id)
+            do update set
+              brand_id = excluded.brand_id,
+              product_type = excluded.product_type,
+              payload = excluded.payload,
+              updated_at = now()
+          `,
+          [userId, draft.id, draft.brandId, draft.productType, JSON.stringify(draft)],
         );
       }
 

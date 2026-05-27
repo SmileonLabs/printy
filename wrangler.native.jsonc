@@ -23,6 +23,10 @@
       "zone_name": "smileon.app"
     },
     {
+      "pattern": "printy.smileon.app/api/print-products*",
+      "zone_name": "smileon.app"
+    },
+    {
       "pattern": "printy.smileon.app/api/admin/*",
       "zone_name": "smileon.app"
     },

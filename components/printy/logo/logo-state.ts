@@ -3,7 +3,9 @@ import { findGeneratedLogoInState, type GeneratedLogoStateLike } from "@/lib/log
 import type { GeneratedLogoOption, LogoRevisionSourceLogo, ResolvedLogoOption } from "@/lib/types";
 
 export function resolveLogoFromState(state: GeneratedLogoStateLike, logoId: string): ResolvedLogoOption {
-  return getLogo(logoId, [...state.generatedLogoOptions, ...state.savedGeneratedLogoOptions]);
+  const generatedLogo = findGeneratedLogoInState(state, logoId);
+
+  return generatedLogo ?? getLogo(logoId);
 }
 
 export function findGeneratedLogoFromState(state: GeneratedLogoStateLike, logoId: string): GeneratedLogoOption | undefined {

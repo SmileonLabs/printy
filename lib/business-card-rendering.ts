@@ -10,7 +10,7 @@ export const businessCardContactItemGapPx = 2.5;
 export const businessCardInfoBlockIconVisualWidthRatio = 1;
 export const businessCardInfoBlockIconSvgPreserveAspectRatio = "xMidYMid meet";
 
-export const sampleBusinessCardFieldValues: Record<BusinessCardTemplateTextFieldId, string> = {
+const fixedSampleBusinessCardFieldValues = {
   role: "대표",
   name: "홍길동",
   phone: "010-1234-5678",
@@ -20,16 +20,18 @@ export const sampleBusinessCardFieldValues: Record<BusinessCardTemplateTextField
   website: "www.prity.com",
   address: "서울특별시 강남구 서초동 12-3 456동",
   account: "국민 123456-04-123456",
-  titleLine1: "한줄 제목 1",
-  titleLine2: "한줄 제목 2",
-  adLine1: "프리미엄 맞춤 제작",
-  adLine2: "빠르고 정확한 상담",
   instagram: "@printy.official",
   qrCode: "QR 코드",
-};
+} satisfies Record<Exclude<BusinessCardTemplateTextFieldId, `headline-${number}` | `body-${number}`>, string>;
+
+export function sampleBusinessCardFieldValue(fieldId: BusinessCardTemplateTextFieldId) {
+  if (fieldId.startsWith("headline-")) return "문구";
+  if (fieldId.startsWith("body-")) return "상세 안내";
+  return fixedSampleBusinessCardFieldValues[fieldId as keyof typeof fixedSampleBusinessCardFieldValues];
+}
 
 const contactFieldIds = new Set<BusinessCardTemplateTextFieldId>(["phone", "mainPhone", "fax", "email", "website", "address", "account"]);
-const multilineTextFieldIds = new Set<BusinessCardTemplateTextFieldId>(["adLine1", "adLine2"]);
+const multilineTextFieldIds = new Set<BusinessCardTemplateTextFieldId>();
 
 export type BusinessCardInfoBlockId = "phone" | "mainPhone" | "fax" | "email" | "website" | "address" | "account";
 
@@ -76,7 +78,7 @@ export function isBusinessCardContactFieldId(fieldId: BusinessCardTemplateTextFi
 }
 
 export function isMultilineBusinessCardTextFieldId(fieldId: BusinessCardTemplateTextFieldId) {
-  return multilineTextFieldIds.has(fieldId);
+  return multilineTextFieldIds.has(fieldId) || fieldId.startsWith("body-");
 }
 
 function unionBoxes(boxes: BusinessCardTemplateBox[]) {

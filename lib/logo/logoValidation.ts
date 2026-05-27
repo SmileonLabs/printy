@@ -9,17 +9,39 @@ function isLegacyDataPngUrl(value: string) {
 }
 
 function isGeneratedLogoPublicUrl(value: string) {
-  if (!value.startsWith("/uploads/generated-logos/")) {
+  const path = value.startsWith("/uploads/generated-logos/") ? value : publicUploadPathFromUrl(value);
+
+  if (!path) {
     return false;
   }
 
-  const objectKey = value.slice("/uploads/generated-logos/".length);
+  const objectKey = path.slice("/uploads/generated-logos/".length);
 
-  return /^[A-Za-z0-9_-]+\.png$/.test(objectKey) && !objectKey.includes("..");
+  return /^[A-Za-z0-9_-]+\.(png|svg)$/.test(objectKey) && !objectKey.includes("..");
+}
+
+function publicUploadPathFromUrl(value: string) {
+  try {
+    const url = new URL(value);
+
+    return url.pathname.startsWith("/uploads/generated-logos/") ? url.pathname : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function isHttpImageUrl(value: string) {
+  try {
+    const url = new URL(value);
+
+    return url.protocol === "https:" || url.protocol === "http:";
+  } catch {
+    return false;
+  }
 }
 
 function isGeneratedLogoImageUrl(value: unknown) {
-  return typeof value === "string" && (isLegacyDataPngUrl(value) || isGeneratedLogoPublicUrl(value));
+  return typeof value === "string" && (isLegacyDataPngUrl(value) || isGeneratedLogoPublicUrl(value) || isHttpImageUrl(value));
 }
 
 export function isGeneratedLogoOption(value: unknown): value is GeneratedLogoOption {
@@ -33,6 +55,7 @@ export function isGeneratedLogoOption(value: unknown): value is GeneratedLogoOpt
     typeof value.label === "string" &&
     typeof value.description === "string" &&
     isGeneratedLogoImageUrl(value.imageUrl) &&
+    (value.vectorSvgUrl === undefined || (typeof value.vectorSvgUrl === "string" && isGeneratedLogoPublicUrl(value.vectorSvgUrl))) &&
     value.source === "openai"
   );
 }

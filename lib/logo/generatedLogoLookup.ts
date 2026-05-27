@@ -6,5 +6,12 @@ export type GeneratedLogoStateLike = {
 };
 
 export function findGeneratedLogoInState(state: GeneratedLogoStateLike, logoId: string): GeneratedLogoOption | undefined {
-  return state.generatedLogoOptions.find((logo) => logo.id === logoId) ?? state.savedGeneratedLogoOptions.find((logo) => logo.id === logoId);
+  const generatedLogo = state.generatedLogoOptions.find((logo) => logo.id === logoId);
+  const savedLogo = state.savedGeneratedLogoOptions.find((logo) => logo.id === logoId);
+
+  if (generatedLogo && savedLogo?.vectorSvgUrl && !generatedLogo.vectorSvgUrl) {
+    return { ...generatedLogo, vectorSvgUrl: savedLogo.vectorSvgUrl };
+  }
+
+  return generatedLogo ?? savedLogo;
 }

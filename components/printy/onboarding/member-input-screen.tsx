@@ -4,20 +4,14 @@ import { useState } from "react";
 import { QrCodeImageField } from "@/components/printy/member-qr-code-image-field";
 import { HomeExitAction } from "@/components/printy/onboarding/home-exit-action";
 import { onboardingTotalSteps, stepNumbers } from "@/components/printy/shared/onboarding-progress";
-import { AppButton, ProgressHeader, Screen, TextAreaField, TextField } from "@/components/ui";
+import { AppButton, ProgressHeader, Screen, TextField } from "@/components/ui";
 import { readQrImageFile } from "@/lib/member-qr-image";
 import type { Member } from "@/lib/types";
 import { usePrintyStore } from "@/store/use-printy-store";
 
 type MemberOptionalTextField = {
   label: string;
-  field: keyof Pick<Member, "role" | "mainPhone" | "fax" | "email" | "address" | "website" | "account" | "titleLine1" | "titleLine2" | "instagram">;
-  placeholder: string;
-};
-
-type MemberOptionalMultilineField = {
-  label: string;
-  field: keyof Pick<Member, "adLine1" | "adLine2">;
+  field: keyof Pick<Member, "role" | "mainPhone" | "fax" | "email" | "address" | "website" | "account" | "instagram">;
   placeholder: string;
 };
 
@@ -36,13 +30,7 @@ export function MemberInputScreen() {
     { label: "주소", field: "address", placeholder: "서울시 성동구 프린티로 12, 3층" },
     { label: "웹도메인", field: "website", placeholder: "www.brand.kr" },
     { label: "계좌번호", field: "account", placeholder: "국민 123456-04-123456" },
-    { label: "제목 1", field: "titleLine1", placeholder: "믿고 맡기는 프린팅" },
-    { label: "제목 2", field: "titleLine2", placeholder: "브랜드를 더 선명하게" },
     { label: "인스타그램", field: "instagram", placeholder: "@brand.official" },
-  ];
-  const optionalMultilineFields: MemberOptionalMultilineField[] = [
-    { label: "광고 내용 1", field: "adLine1", placeholder: "프리미엄 맞춤 제작\n빠르고 정확한 상담" },
-    { label: "광고 내용 2", field: "adLine2", placeholder: "브랜드를 더 선명하게\n문의는 언제든 환영해요" },
   ];
   const canContinue = memberDraft.name.trim().length > 0 && memberDraft.phone.trim().length > 0;
   const updateQrCodeImage = async (file: File | undefined) => {
@@ -81,9 +69,6 @@ export function MemberInputScreen() {
           </div>
           {optionalFields.map((field) => (
             <TextField key={field.field} label={field.label} placeholder={field.placeholder} value={memberDraft[field.field] ?? ""} onChange={(value) => updateMemberDraft(field.field, value)} />
-          ))}
-          {optionalMultilineFields.map((field) => (
-            <TextAreaField key={field.field} label={field.label} placeholder={field.placeholder} value={memberDraft[field.field] ?? ""} onChange={(value) => updateMemberDraft(field.field, value)} />
           ))}
           <QrCodeImageField value={memberDraft.qrCodeImageUrl ?? ""} onChange={updateQrCodeImage} onClear={() => updateMemberDraft("qrCodeImageUrl", "")} />
           {qrCodeError ? <p className="rounded-md bg-danger/10 px-4 py-3 text-xs font-bold leading-5 text-danger">{qrCodeError}</p> : null}

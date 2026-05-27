@@ -2,7 +2,6 @@ import { businessCardTemplateFieldIds, defaultBusinessCardTemplateLayout } from 
 import type { BusinessCardProductionOptions, BusinessCardTemplateBox, BusinessCardTemplateLayout, BusinessCardTemplateSideId, BusinessCardTemplateTextFieldId, BusinessCardUserElementId } from "@/lib/types";
 
 const contactFields: BusinessCardTemplateTextFieldId[] = ["name", "role", "phone", "mainPhone", "fax", "email", "website", "address", "account", "instagram"];
-const marketingFields: BusinessCardTemplateTextFieldId[] = ["titleLine1", "titleLine2", "adLine1", "adLine2"];
 
 const fieldIconMap: Partial<Record<BusinessCardTemplateTextFieldId, "mobile" | "phone" | "fax" | "email" | "web" | "address" | "account" | "instagram">> = {
   phone: "mobile",
@@ -66,7 +65,7 @@ function fieldBox(fieldId: BusinessCardTemplateTextFieldId, index: number, total
     return containBox(sideId === "front" ? { x: 78, y: 66, width: 14, height: 24 } : { x: 76, y: 58, width: 16, height: 28 });
   }
 
-  if (marketingFields.includes(fieldId)) {
+  if (fieldId.startsWith("headline-") || fieldId.startsWith("body-")) {
     return containBox({ x: 10, y: 12 + index * 11, width: 80, height: 9 });
   }
 
@@ -76,7 +75,7 @@ function fieldBox(fieldId: BusinessCardTemplateTextFieldId, index: number, total
 }
 
 function selectedTextFields(elements: BusinessCardUserElementId[]): BusinessCardTemplateTextFieldId[] {
-  return businessCardTemplateFieldIds.filter((fieldId) => elements.includes(fieldId));
+  return [...businessCardTemplateFieldIds.filter((fieldId) => elements.includes(fieldId)), ...elements.filter((elementId): elementId is BusinessCardTemplateTextFieldId => elementId.startsWith("headline-") || elementId.startsWith("body-"))];
 }
 
 function applySide(layout: BusinessCardTemplateLayout, sideId: BusinessCardTemplateSideId, elements: BusinessCardUserElementId[]) {

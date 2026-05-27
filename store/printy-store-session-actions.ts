@@ -81,7 +81,7 @@ export function createPrintySessionActions(set: PrintyStoreSet, get: PrintyStore
           },
         };
         const isSwitchingUser = state.authSession?.userId !== undefined && state.authSession.userId !== nextUser.id;
-        const hasCurrentWorkspaceData = state.brands.length > 0 || state.brandAssets.length > 0 || state.savedGeneratedLogoOptions.length > 0 || state.businessCardDrafts.length > 0 || state.orders.length > 0;
+        const hasCurrentWorkspaceData = state.brands.length > 0 || state.brandAssets.length > 0 || state.savedGeneratedLogoOptions.length > 0 || state.businessCardDrafts.length > 0 || state.printProductDrafts.length > 0 || state.orders.length > 0;
         const canClaimCurrentGuestWorkspace = !state.authSession && hasCurrentWorkspaceData && (!state.brandWorkspaceOwnerUserId || state.brandWorkspaceOwnerUserId === nextUser.id);
         const isSavingCurrentGuestWork = state.loginBackStep === "logoSave" || state.loginRedirectTarget === "checkout" || canClaimCurrentGuestWorkspace;
         const workspaceState = isSwitchingUser || !isSavingCurrentGuestWork
@@ -90,11 +90,13 @@ export function createPrintySessionActions(set: PrintyStoreSet, get: PrintyStore
               brandAssets: [],
               savedGeneratedLogoOptions: [],
               businessCardDrafts: [],
+              printProductDrafts: [],
               orders: [],
               generatedLogoOptions: [],
               selectedLogoId: logoOptions[0].id,
               selectedBrandId: undefined,
               activeBusinessCardDraftId: undefined,
+              activePrintProductDraftId: undefined,
               lastOrderId: undefined,
               activeBrandMockupJob: undefined,
               ...createClearedAiBusinessCardState(),
@@ -146,10 +148,12 @@ export function createPrintySessionActions(set: PrintyStoreSet, get: PrintyStore
         savedGeneratedLogoOptions: [],
         generatedLogoOptions: [],
         businessCardDrafts: [],
+        printProductDrafts: [],
         orders: [],
         selectedLogoId: logoOptions[0].id,
         selectedBrandId: undefined,
         activeBusinessCardDraftId: undefined,
+        activePrintProductDraftId: undefined,
         lastOrderId: undefined,
         activeBrandMockupJob: undefined,
         ...createClearedAiBusinessCardState(),

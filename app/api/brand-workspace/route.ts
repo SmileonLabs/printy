@@ -10,6 +10,10 @@ const unauthorizedResponse = { reason: "로그인이 필요해요." };
 const malformedWorkspaceResponse = { reason: "브랜드 작업 공간 형식이 올바르지 않아요." };
 const unavailableResponse = { reason: "브랜드 작업 공간을 사용할 수 없어요. 잠시 후 다시 시도해 주세요." };
 
+function logBrandWorkspaceError(method: "GET" | "PUT", error: unknown) {
+  console.error("Brand workspace request failed", { method, errorName: error instanceof Error ? error.name : "UnknownError", errorMessage: error instanceof Error ? error.message : "Unknown error" });
+}
+
 export async function GET() {
   try {
     const session = await getCurrentDbSession();
@@ -19,7 +23,8 @@ export async function GET() {
     }
 
     return NextResponse.json(await loadBrandWorkspace(session.user.id));
-  } catch {
+  } catch (error) {
+    logBrandWorkspaceError("GET", error);
     return NextResponse.json(unavailableResponse, { status: 503 });
   }
 }
@@ -40,7 +45,8 @@ export async function PUT(request: Request) {
     }
 
     return NextResponse.json(await saveBrandWorkspace(session.user.id, workspace));
-  } catch {
+  } catch (error) {
+    logBrandWorkspaceError("PUT", error);
     return NextResponse.json(unavailableResponse, { status: 503 });
   }
 }

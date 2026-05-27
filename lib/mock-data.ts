@@ -71,7 +71,7 @@ export const seedPrintProducts: PrintProduct[] = [
   { id: "business-card", productType: "business-card", title: "명함", helper: "첫 인상 제작" },
   { id: "flyer", productType: "flyer", title: "전단지", helper: "행사 홍보" },
   { id: "banner", productType: "banner", title: "배너 / 현수막", helper: "매장 앞 주목" },
-  { id: "poster", productType: "poster", title: "포스터", helper: "공간 장식" },
+  { id: "signage", productType: "signage", title: "간판", helper: "외부 사인 적용" },
   { id: "sticker", productType: "sticker", title: "스티커", helper: "패키지 포인트" },
 ];
 

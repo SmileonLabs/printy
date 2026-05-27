@@ -43,7 +43,7 @@ type WritableBusinessCardBackgroundContentType = "image/png" | "image/jpeg";
 export type GeneratedLogoStoredFile = {
   id: string;
   publicUrl: string;
-  contentType: "image/png";
+  contentType: "image/png" | "image/svg+xml";
   size: number;
 };
 
@@ -101,7 +101,7 @@ function isBusinessCardBackgroundObjectKey(objectKey: string) {
 }
 
 function isGeneratedLogoObjectKey(objectKey: string) {
-  return /^[A-Za-z0-9_-]+\.png$/.test(objectKey) && !objectKey.includes("..");
+  return /^[A-Za-z0-9_-]+\.(png|svg)$/.test(objectKey) && !objectKey.includes("..");
 }
 
 function isUserArchiveObjectKey(objectKey: string) {
@@ -127,13 +127,25 @@ function generatedLogoPublicUrlFromObjectKey(objectKey: string) {
 }
 
 function generatedLogoObjectKeyFromPublicUrl(publicUrl: string) {
-  if (!publicUrl.startsWith(generatedLogoPublicPathPrefix)) {
+  const normalizedPublicUrl = publicUrl.startsWith(generatedLogoPublicPathPrefix) ? publicUrl : normalizePublicUploadPath(publicUrl, generatedLogoPublicPathPrefix);
+
+  if (!normalizedPublicUrl) {
     return undefined;
   }
 
-  const objectKey = publicUrl.slice(generatedLogoPublicPathPrefix.length);
+  const objectKey = normalizedPublicUrl.slice(generatedLogoPublicPathPrefix.length);
 
   return isGeneratedLogoObjectKey(objectKey) ? objectKey : undefined;
+}
+
+function normalizePublicUploadPath(publicUrl: string, pathPrefix: string) {
+  try {
+    const url = new URL(publicUrl);
+
+    return url.pathname.startsWith(pathPrefix) ? url.pathname : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function logoReferencePublicUrlFromObjectKey(objectKey: string) {
@@ -808,6 +820,48 @@ export async function saveGeneratedLogoBytes(bytes: Uint8Array): Promise<Generat
         publicUrl,
         contentType: "image/png",
         size: logoBytes.byteLength,
+      };
+    }
+
+    throw error;
+  }
+}
+
+export async function saveGeneratedLogoSvg(svg: string): Promise<GeneratedLogoStoredFile> {
+  const svgBytes = Buffer.from(svg, "utf8");
+  const id = `uploaded-file-${randomUUID()}`;
+  const objectKey = `${randomUUID()}.svg`;
+  const publicUrl = generatedLogoPublicUrlFromObjectKey(objectKey);
+  const filePath = path.join(generatedLogoUploadDirectory, objectKey);
+
+  try {
+    const result = await queryDb<UploadedFileRow>(
+      `
+        insert into uploaded_files (id, bucket, object_key, public_url, content_type, size, purpose)
+        values ($1, $2, $3, $4, $5, $6, $7)
+        returning id, object_key, public_url, content_type, size
+      `,
+      [id, generatedLogoBucket, objectKey, publicUrl, "image/svg+xml", svgBytes.byteLength, generatedLogoPurpose],
+    );
+    const row = result.rows[0];
+    await writeUploadedFileBlob(row.id, svgBytes);
+    await writeFileCacheBestEffort(generatedLogoUploadDirectory, filePath, svgBytes, "Generated logo SVG");
+
+    return {
+      id: row.id,
+      publicUrl: row.public_url,
+      contentType: "image/svg+xml",
+      size: toNumber(row.size),
+    };
+  } catch (error) {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("Generated logo SVG metadata registration skipped", { errorName: error instanceof Error ? error.name : "UnknownError" });
+
+      return {
+        id,
+        publicUrl,
+        contentType: "image/svg+xml",
+        size: svgBytes.byteLength,
       };
     }
 

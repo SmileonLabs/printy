@@ -3,10 +3,10 @@ import type { BusinessCardTemplateBackground, BusinessCardTemplateBox, BusinessC
 export const businessCardProductId = "business-card";
 export const businessCardTemplateStatuses = ["draft", "published"] as const;
 export const businessCardTemplatePreviewVariants = ["clean", "band", "editorial", "frame", "signal"] as const;
-export const businessCardTemplateFieldIds = ["role", "name", "phone", "email", "website", "address", "mainPhone", "fax", "account", "titleLine1", "titleLine2", "adLine1", "adLine2", "instagram", "qrCode"] as const;
+export const businessCardTemplateFieldIds = ["role", "name", "phone", "email", "website", "address", "mainPhone", "fax", "account", "instagram", "qrCode"] as const;
 export const businessCardTemplateFontFamilies = ["sans", "serif", "rounded", "mono", "display", "handwriting"] as const;
 export const businessCardTemplateTextWeights = ["regular", "bold"] as const;
-export const businessCardTemplateIconIds = ["name", "role", "mobile", "phone", "email", "location", "address", "fax", "building", "company", "web", "account", "instagram"] as const;
+export const businessCardTemplateIconIds = ["name", "role", "mobile", "phone", "email", "location", "address", "fax", "building", "company", "web", "account", "instagram", "projector", "screen", "speaker", "led"] as const;
 
 export type BusinessCardTemplateIconArtwork = {
   viewBox: string;
@@ -27,6 +27,10 @@ export const businessCardTemplateIconArtwork: Record<BusinessCardTemplateIconId,
   web: { viewBox: "0 0 24 24", path: "M12 3.8a8.2 8.2 0 1 0 0 16.4 8.2 8.2 0 0 0 0-16.4Zm5.6 7.1h-3.1a12.5 12.5 0 0 0-1-4 5.9 5.9 0 0 1 4.1 4Zm-5.6-4.6c.4.7.8 2.2 1 4.6h-2c.2-2.4.6-3.9 1-4.6Zm-1.5.6a12.5 12.5 0 0 0-1 4H6.4a5.9 5.9 0 0 1 4.1-4Zm-4.1 6.2h3.1c.1 1.5.4 2.9 1 4a5.9 5.9 0 0 1-4.1-4Zm5.6 4.6c-.4-.7-.8-2.2-1-4.6h2c-.2 2.4-.6 3.9-1 4.6Zm1.5-.6c.6-1.1.9-2.5 1-4h3.1a5.9 5.9 0 0 1-4.1 4Z" },
   account: { viewBox: "0 0 24 24", path: "M4 7.2c0-.9.7-1.6 1.6-1.6h12.8c.9 0 1.6.7 1.6 1.6v9.6c0 .9-.7 1.6-1.6 1.6H5.6c-.9 0-1.6-.7-1.6-1.6V7.2Zm2.1 1v2h11.8v-2H6.1Zm0 4.2v3.9h11.8v-3.9H6.1Zm1.3 1.2h5.3v1.4H7.4v-1.4Z" },
   instagram: { viewBox: "0 0 24 24", path: "M7.2 3.8h9.6c1.9 0 3.4 1.5 3.4 3.4v9.6c0 1.9-1.5 3.4-3.4 3.4H7.2c-1.9 0-3.4-1.5-3.4-3.4V7.2c0-1.9 1.5-3.4 3.4-3.4Zm0 2.2C6.5 6 6 6.5 6 7.2v9.6c0 .7.5 1.2 1.2 1.2h9.6c.7 0 1.2-.5 1.2-1.2V7.2c0-.7-.5-1.2-1.2-1.2H7.2Zm4.8 2.5a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7Zm0 2a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Zm4.2-2.5a1 1 0 1 1 0 2 1 1 0 0 1 0-2Z" },
+  projector: { viewBox: "0 0 24 24", path: "M4.2 8.2c0-.9.7-1.6 1.6-1.6h8.9c.9 0 1.6.7 1.6 1.6v7.6c0 .9-.7 1.6-1.6 1.6H5.8c-.9 0-1.6-.7-1.6-1.6V8.2Zm2.2.6v6.4h7.7V8.8H6.4Zm12.6.8 2.1-1.3c.5-.3 1.1.1 1.1.7v6c0 .6-.6 1-1.1.7L19 14.4V9.6Zm-1.6.6h1.2v3.6h-1.2v-3.6Zm-9.9 1.8a1.5 1.5 0 1 0 3 0 1.5 1.5 0 0 0-3 0Z" },
+  screen: { viewBox: "0 0 24 24", path: "M4.4 4.8h15.2c.8 0 1.4.6 1.4 1.4v9.6c0 .8-.6 1.4-1.4 1.4h-6.4l2.7 2.7-1.4 1.3-2.5-2.5-2.5 2.5-1.4-1.3 2.7-2.7H4.4c-.8 0-1.4-.6-1.4-1.4V6.2c0-.8.6-1.4 1.4-1.4Zm.8 2v8.2h13.6V6.8H5.2Z" },
+  speaker: { viewBox: "0 0 24 24", path: "M5.4 5.2h6.8c.8 0 1.4.6 1.4 1.4v10.8c0 .8-.6 1.4-1.4 1.4H5.4c-.8 0-1.4-.6-1.4-1.4V6.6c0-.8.6-1.4 1.4-1.4Zm1 2v9.6h5.2V7.2H6.4Zm2.6.9a1.3 1.3 0 1 1 0 2.6 1.3 1.3 0 0 1 0-2.6Zm0 4.2a2.4 2.4 0 1 1 0 4.8 2.4 2.4 0 0 1 0-4.8Zm7.5-4.5c2.1 1.8 3.3 4 3.3 6.2s-1.2 4.4-3.3 6.2l-1.4-1.5c1.6-1.3 2.5-3 2.5-4.7s-.9-3.4-2.5-4.7l1.4-1.5Zm2.5-2.4c2.7 2.3 4.2 5.4 4.2 8.6s-1.5 6.3-4.2 8.6l-1.3-1.5c2.2-1.9 3.3-4.4 3.3-7.1s-1.1-5.2-3.3-7.1L19 5.4Z" },
+  led: { viewBox: "0 0 24 24", path: "M5.4 4.8h13.2c.9 0 1.6.7 1.6 1.6v11.2c0 .9-.7 1.6-1.6 1.6H5.4c-.9 0-1.6-.7-1.6-1.6V6.4c0-.9.7-1.6 1.6-1.6Zm.6 2.1v10.2h12V6.9H6Zm1.8 1.6h2.1v2.1H7.8V8.5Zm3.2 0h2.1v2.1H11V8.5Zm3.2 0h2.1v2.1h-2.1V8.5Zm-6.4 3.2h2.1v2.1H7.8v-2.1Zm3.2 0h2.1v2.1H11v-2.1Zm3.2 0h2.1v2.1h-2.1v-2.1Z" },
 };
 
 export type BusinessCardTemplateStatus = (typeof businessCardTemplateStatuses)[number];
@@ -76,10 +80,6 @@ const defaultBusinessCardTextElements: BusinessCardTemplateTextElement[] = busin
     { x: 58, y: 44, width: 32, height: 8 },
     { x: 58, y: 88, width: 32, height: 8 },
     { x: 58, y: 88, width: 32, height: 8 },
-    { x: 12, y: 8, width: 76, height: 8 },
-    { x: 12, y: 18, width: 76, height: 8 },
-    { x: 12, y: 28, width: 76, height: 8 },
-    { x: 12, y: 38, width: 76, height: 8 },
     { x: 58, y: 88, width: 32, height: 8 },
     { x: 78, y: 68, width: 14, height: 24 },
   ][index],
@@ -142,7 +142,7 @@ function isFiniteNumber(value: unknown): value is number {
 }
 
 function isBusinessCardTemplateTextFieldId(value: string): value is BusinessCardTemplateTextFieldId {
-  return businessCardTemplateFieldIds.includes(value as BusinessCardTemplateTextFieldId);
+  return businessCardTemplateFieldIds.includes(value as (typeof businessCardTemplateFieldIds)[number]) || /^headline-\d+$/.test(value) || /^body-\d+$/.test(value);
 }
 
 function isBusinessCardTemplateFontFamily(value: string): value is BusinessCardTemplateFontFamily {
@@ -249,7 +249,9 @@ function readLogo(value: unknown) {
 
   const box = readBox(value.box);
 
-  return box ? { visible: value.visible, box } : undefined;
+  const assetType: "png" | "svg" | undefined = value.assetType === "svg" ? "svg" : value.assetType === "png" ? "png" : undefined;
+
+  return box ? { visible: value.visible, box, assetType } : undefined;
 }
 
 function readSafeColor(value: unknown, fallback: string) {
@@ -262,6 +264,16 @@ function readSafeColor(value: unknown, fallback: string) {
   return /^#[0-9a-fA-F]{3,8}$/.test(color) ? color : fallback;
 }
 
+function readSafeTextColor(value: unknown, fallback: string) {
+  if (typeof value !== "string") {
+    return fallback;
+  }
+
+  const color = value.trim();
+
+  return color === "gradient:gold" || color === "gradient:silver" ? color : readSafeColor(color, fallback);
+}
+
 function readTextField(value: unknown): BusinessCardTemplateTextElement | undefined {
   if (!isRecord(value) || typeof value.id !== "string" || typeof value.visible !== "boolean" || typeof value.fontFamily !== "string" || !isFiniteNumber(value.fontSize)) {
     return undefined;
@@ -271,13 +283,13 @@ function readTextField(value: unknown): BusinessCardTemplateTextElement | undefi
   const fontWeight = typeof value.fontWeight === "string" && isBusinessCardTemplateTextWeight(value.fontWeight) ? value.fontWeight : "bold";
   const italic = typeof value.italic === "boolean" ? value.italic : false;
   const align = typeof value.align === "string" && isBusinessCardTemplateTextAlign(value.align) ? value.align : "left";
-  const customValue = typeof value.customValue === "string" && value.customValue.trim().length > 0 && value.customValue.length <= 240 ? value.customValue.trim() : undefined;
+  const customValue = typeof value.customValue === "string" && value.customValue.trim().length > 0 && value.customValue.length <= 500 ? value.customValue.trim() : undefined;
 
   if (!box || !isBusinessCardTemplateTextFieldId(value.id) || !isBusinessCardTemplateFontFamily(value.fontFamily) || value.fontSize < minFontSize || value.fontSize > maxFontSize) {
     return undefined;
   }
 
-  return customValue ? { id: value.id, visible: value.visible, box, fontFamily: value.fontFamily, fontSize: value.fontSize, color: readSafeColor(value.color, defaultTextColor), fontWeight, italic, align, customValue } : { id: value.id, visible: value.visible, box, fontFamily: value.fontFamily, fontSize: value.fontSize, color: readSafeColor(value.color, defaultTextColor), fontWeight, italic, align };
+  return customValue ? { id: value.id, visible: value.visible, box, fontFamily: value.fontFamily, fontSize: value.fontSize, color: readSafeTextColor(value.color, defaultTextColor), fontWeight, italic, align, customValue } : { id: value.id, visible: value.visible, box, fontFamily: value.fontFamily, fontSize: value.fontSize, color: readSafeTextColor(value.color, defaultTextColor), fontWeight, italic, align };
 }
 
 function readFields(value: unknown, sideId: BusinessCardTemplateSideId) {
@@ -285,13 +297,7 @@ function readFields(value: unknown, sideId: BusinessCardTemplateSideId) {
     return undefined;
   }
 
-  const fields = value.map(readTextField);
-
-  if (fields.some((field) => field === undefined)) {
-    return undefined;
-  }
-
-  const normalizedFields = fields.filter((field): field is BusinessCardTemplateTextElement => field !== undefined);
+  const normalizedFields = value.map(readTextField).filter((field): field is BusinessCardTemplateTextElement => field !== undefined);
   const fieldsById = new Map<BusinessCardTemplateTextFieldId, BusinessCardTemplateTextElement>();
 
   for (const field of normalizedFields) {
@@ -304,7 +310,7 @@ function readFields(value: unknown, sideId: BusinessCardTemplateSideId) {
 
   const defaultFields = sideId === "back" ? defaultBusinessCardBackTextElements : defaultBusinessCardTextElements;
 
-  return defaultFields.map((defaultField) => fieldsById.get(defaultField.id) ?? defaultField);
+  return [...defaultFields.map((defaultField) => fieldsById.get(defaultField.id) ?? defaultField), ...normalizedFields.filter((field) => /^headline-\d+$/.test(field.id) || /^body-\d+$/.test(field.id))];
 }
 
 function readIconElement(value: unknown): BusinessCardTemplateIconElement | undefined {

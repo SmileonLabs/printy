@@ -25,7 +25,7 @@ export async function GET(request: Request, context: GeneratedLogoRouteContext) 
 
   return new Response(body, {
     headers: {
-      "Content-Type": "image/png",
+      "Content-Type": fileName.endsWith(".svg") ? "image/svg+xml; charset=utf-8" : "image/png",
       "Content-Length": body.byteLength.toString(),
       "Cache-Control": "public, max-age=31536000, immutable",
     },

@@ -1,10 +1,11 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useMemo, type CSSProperties } from "react";
 import { BusinessCardInfoBlockRenderer } from "@/components/business-card-info-block-renderer";
 import { businessCardTemplateIconArtwork } from "@/lib/business-card-templates";
 import { backgroundColor, boxStyle, businessCardIconChromeStyle, businessCardLogoShapeBorderColor, businessCardTrimWidthScale, cssPxPerMm, displayBusinessCardFieldValue, fittedBusinessCardFontSizePx, fontFamilies, formatPercent, getBusinessCardTrimMetrics, isMultilineBusinessCardTextFieldId, readSafeColor, resolveBusinessCardContactLayout } from "@/lib/business-card-rendering";
+import { textColorStyle } from "@/lib/text-color-effects";
 import type { BusinessCardTemplateBackground, BusinessCardTemplateBox, BusinessCardTemplateIconElement, BusinessCardTemplateLayout, BusinessCardTemplateLineElement, BusinessCardTemplateSideId, BusinessCardTemplateTextElement, BusinessCardTemplateTextFieldId, Member, ResolvedLogoOption } from "@/lib/types";
 
 type BusinessCardTemplateRendererProps = {
@@ -28,7 +29,7 @@ function readBackgroundImageUrl(background: BusinessCardTemplateBackground) {
 }
 
 function fieldValue(fieldId: BusinessCardTemplateTextFieldId, brandName: string, category: string, member: Member) {
-  const values: Record<BusinessCardTemplateTextFieldId, string> = {
+  const values: Record<Exclude<BusinessCardTemplateTextFieldId, `headline-${number}` | `body-${number}`>, string> = {
     role: member.role || category,
     name: member.name || brandName,
     phone: member.phone,
@@ -38,15 +39,12 @@ function fieldValue(fieldId: BusinessCardTemplateTextFieldId, brandName: string,
     website: member.website ?? "",
     address: member.address,
     account: member.account ?? "",
-    titleLine1: member.titleLine1 ?? "",
-    titleLine2: member.titleLine2 ?? "",
-    adLine1: member.adLine1 ?? "",
-    adLine2: member.adLine2 ?? "",
     instagram: member.instagram ?? "",
     qrCode: member.qrCodeImageUrl ?? "",
   };
 
-  return values[fieldId];
+  if (fieldId.startsWith("headline-") || fieldId.startsWith("body-")) return "";
+  return values[fieldId as keyof typeof values];
 }
 
 function logoShapeStyle(logo: Exclude<ResolvedLogoOption, { imageUrl: string }>): CSSProperties {
@@ -94,26 +92,27 @@ function GuideBox({ box, tone }: { box: BusinessCardTemplateBox; tone: "edit" | 
 
 function TextElement({ field, brandName, category, member, cssPixelScale, trimWidthScale }: { field: BusinessCardTemplateTextElement; brandName: string; category: string; member: Member; cssPixelScale: number; trimWidthScale: number }) {
   const rawValue = field.customValue ?? fieldValue(field.id, brandName, category, member);
-  const value = displayBusinessCardFieldValue(field.id, rawValue);
 
-  if (!field.visible || value.length === 0) {
+  if (!field.visible || rawValue.length === 0) {
     return null;
   }
 
   if (field.id === "qrCode") {
     return (
       <div className="absolute z-[2] overflow-hidden" style={boxStyle(field.box)}>
-        <Image src={value} alt="QR 코드" fill sizes="120px" className="object-contain" draggable={false} unoptimized />
+        <Image src={rawValue} alt="QR 코드" fill sizes="120px" className="object-contain" draggable={false} unoptimized />
       </div>
     );
   }
+
+  const value = displayBusinessCardFieldValue(field.id, rawValue);
 
   return (
     <div
       className="absolute z-[2] flex items-center overflow-hidden"
       style={{
         ...boxStyle(field.box),
-        color: readSafeColor(field.color, "#111827"),
+        ...textColorStyle(field.color),
         fontFamily: fontFamilies[field.fontFamily],
         fontSize: `${fittedBusinessCardFontSizePx(field, value, cssPixelScale, field.box.width, 16 * cssPixelScale, trimWidthScale)}px`,
         fontStyle: field.italic || field.fontFamily === "handwriting" ? "italic" : "normal",
@@ -123,7 +122,7 @@ function TextElement({ field, brandName, category, member, cssPixelScale, trimWi
         textAlign: field.align,
       }}
     >
-      <span className={`block w-full overflow-hidden ${isMultilineBusinessCardTextFieldId(field.id) ? "whitespace-pre-line" : "whitespace-nowrap"}`}>{value}</span>
+        <span className={`block w-full overflow-hidden ${isMultilineBusinessCardTextFieldId(field.id) ? "whitespace-pre-line" : "whitespace-nowrap"}`} style={textColorStyle(field.color)}>{value}</span>
     </div>
   );
 }
@@ -154,47 +153,20 @@ function IconElement({ icon, cssPixelScale }: { icon: BusinessCardTemplateIconEl
 }
 
 function BusinessCardTrimImage({ brandName, category, member, logo, layout, side, showGuides, className = "" }: Omit<BusinessCardTemplateRendererProps, "chrome"> & { side: BusinessCardTemplateSideId }) {
-  const frameRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(1);
   const sideLayout = layout.sides[side];
   const backgroundImageUrl = readBackgroundImageUrl(sideLayout.background);
   const metrics = useMemo(() => getBusinessCardTrimMetrics(layout.canvas.trim), [layout.canvas.trim]);
   const trimWidthScale = useMemo(() => businessCardTrimWidthScale(layout.canvas.trim), [layout.canvas.trim]);
   const contactLayout = useMemo(() => resolveBusinessCardContactLayout(sideLayout.fields, sideLayout.icons, (field) => field.customValue ?? fieldValue(field.id, brandName, category, member)), [brandName, category, member, sideLayout.fields, sideLayout.icons]);
 
-  useEffect(() => {
-    const frame = frameRef.current;
-
-    if (!frame) {
-      return;
-    }
-
-    const updateScale = () => {
-      setScale(frame.clientWidth > 0 ? frame.clientWidth / metrics.trimWidthCssPx : 1);
-    };
-
-    updateScale();
-
-    if (typeof ResizeObserver === "undefined") {
-      return;
-    }
-
-    const observer = new ResizeObserver(updateScale);
-    observer.observe(frame);
-
-    return () => observer.disconnect();
-  }, [metrics.trimWidthCssPx]);
-
   return (
-    <div ref={frameRef} className={`relative mx-auto w-full max-w-md overflow-hidden bg-white ${className}`} style={{ aspectRatio: `${metrics.trimWidthMm} / ${metrics.trimHeightMm}` }}>
+    <div className={`relative mx-auto overflow-auto bg-white ${className}`} style={{ width: `${metrics.trimWidthCssPx}px`, height: `${metrics.trimHeightCssPx}px` }}>
       <div
-        className="absolute left-0 top-0 overflow-hidden"
+        className="relative overflow-hidden"
         style={{
           width: `${formatPercent(metrics.trimWidthCssPx, 340.157)}px`,
           height: `${formatPercent(metrics.trimHeightCssPx, 188.976)}px`,
           backgroundColor: backgroundColor(sideLayout.background),
-          transform: `scale(${scale})`,
-          transformOrigin: "left top",
           printColorAdjust: "exact",
           WebkitPrintColorAdjust: "exact",
         }}

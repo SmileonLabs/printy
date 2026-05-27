@@ -21,6 +21,7 @@ import { LogoDirectionScreen } from "@/components/printy/onboarding/logo-directi
 import { MemberInputScreen } from "@/components/printy/onboarding/member-input-screen";
 import { OrderOptionsScreen } from "@/components/printy/onboarding/order-options-screen";
 import { ShellBackButton } from "@/components/printy/shared/shell-back-button";
+import { ToastNotice, ToastNoticeViewport } from "@/components/printy/shared/toast-notice";
 import { SuccessScreen } from "@/components/printy/onboarding/success-screen";
 import { SessionSyncController } from "@/components/printy/session-sync-controller";
 import type { OnboardingStep } from "@/lib/types";
@@ -65,10 +66,12 @@ export function PrintyApp() {
         }
         onLogoClick={handleLogoClick}
       >
-        <GlobalLogoGenerationNotice />
-        <GlobalBrandMockupNotice />
-        <GlobalAiBusinessCardMockupNotice />
-        <GlobalAiBusinessCardPdfNotice />
+        <ToastNoticeViewport>
+          <GlobalLogoGenerationNotice />
+          <GlobalBrandMockupNotice />
+          <GlobalAiBusinessCardMockupNotice />
+          <GlobalAiBusinessCardPdfNotice />
+        </ToastNoticeViewport>
         {onboardingComplete && isAuthenticated ? <MainApp /> : <OnboardingFlow step={currentStep} />}
       </PhoneShell>
     </>
@@ -98,34 +101,7 @@ function GlobalLogoGenerationNotice() {
     }, 0);
   };
 
-  return (
-    <div className="shrink-0 px-5 pb-2">
-      <div className="rounded-lg border border-primary-soft bg-surface-blue px-4 py-3 shadow-card">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-[11px] font-black text-primary-strong">로고 생성</p>
-            <p className="mt-1 text-xs font-black leading-5 text-ink">{notice.message}</p>
-          </div>
-          {notice.status === "generating" ? <span className="mt-1 h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-primary" /> : null}
-        </div>
-        {notice.status === "ready" ? (
-          <button className="mt-2 rounded-md bg-primary px-3 py-2 text-xs font-black text-white shadow-soft" type="button" onClick={openGeneratedLogos}>
-            완성 로고 확인하기
-          </button>
-        ) : null}
-        {notice.status === "failed" ? (
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            <button className="rounded-md bg-primary px-3 py-2 text-xs font-black text-white shadow-soft" type="button" onClick={handleRetry}>
-              다시 시도하기
-            </button>
-            <button className="rounded-md bg-surface px-3 py-2 text-xs font-black text-primary-strong shadow-soft" type="button" onClick={dismissBackgroundLogoGenerationNotice}>
-              취소하기
-            </button>
-          </div>
-        ) : null}
-      </div>
-    </div>
-  );
+  return <ToastNotice eyebrow="로고 생성" message={notice.message} tone={notice.status === "failed" ? "danger" : notice.status === "ready" ? "success" : "info"} loading={notice.status === "generating"} onDismiss={dismissBackgroundLogoGenerationNotice} action={notice.status === "ready" ? <button className="rounded-md bg-primary px-3 py-2 text-xs font-black text-white shadow-soft" type="button" onClick={openGeneratedLogos}>완성 로고 확인하기</button> : notice.status === "failed" ? <div className="grid grid-cols-2 gap-2"><button className="rounded-md bg-primary px-3 py-2 text-xs font-black text-white shadow-soft" type="button" onClick={handleRetry}>다시 시도하기</button><button className="rounded-md bg-surface px-3 py-2 text-xs font-black text-primary-strong shadow-soft" type="button" onClick={dismissBackgroundLogoGenerationNotice}>취소하기</button></div> : null} />;
 }
 
 function GlobalAiBusinessCardPdfNotice() {
@@ -147,29 +123,7 @@ function GlobalAiBusinessCardPdfNotice() {
     dismiss();
   };
 
-  return (
-    <div className="shrink-0 px-5 pb-2">
-      <div className={`rounded-lg border px-4 py-3 shadow-card ${status === "failed" ? "border-danger bg-red-50" : "border-primary-soft bg-surface-blue"}`}>
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className={`text-[11px] font-black ${status === "failed" ? "text-danger" : "text-primary-strong"}`}>명함 PDF</p>
-            <p className="mt-1 text-xs font-black leading-5 text-ink">{message}</p>
-          </div>
-          {isGenerating ? <span className="mt-1 h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-primary" /> : null}
-        </div>
-        {isReady ? (
-          <button className="mt-2 rounded-md bg-primary px-3 py-2 text-xs font-black text-white shadow-soft" type="button" onClick={handleOpen}>
-            PDF 다운로드하러 가기
-          </button>
-        ) : null}
-        {status === "failed" ? (
-          <button className="mt-2 rounded-md bg-danger px-3 py-2 text-xs font-black text-white shadow-soft" type="button" onClick={dismiss}>
-            닫기
-          </button>
-        ) : null}
-      </div>
-    </div>
-  );
+  return <ToastNotice eyebrow="명함 PDF" message={message} tone={status === "failed" ? "danger" : isReady ? "success" : "info"} loading={isGenerating} onDismiss={dismiss} action={isReady ? <button className="rounded-md bg-primary px-3 py-2 text-xs font-black text-white shadow-soft" type="button" onClick={handleOpen}>PDF 다운로드하러 가기</button> : status === "failed" ? <button className="rounded-md bg-danger px-3 py-2 text-xs font-black text-white shadow-soft" type="button" onClick={dismiss}>닫기</button> : null} />;
 }
 
 function GlobalAiBusinessCardMockupNotice() {
@@ -185,6 +139,7 @@ function GlobalAiBusinessCardMockupNotice() {
 
   const isGenerating = status === "generating";
   const isReady = status === "ready";
+  const isSaved = isReady && message.includes("저장");
   const handleOpen = () => {
     startCardEdit();
     window.setTimeout(() => setStep("businessCardPreview"), 0);
@@ -194,24 +149,7 @@ function GlobalAiBusinessCardMockupNotice() {
     }
   };
 
-  return (
-    <div className="shrink-0 px-5 pb-2">
-      <div className={`rounded-lg border px-4 py-3 shadow-card ${status === "failed" ? "border-danger bg-red-50" : "border-primary-soft bg-surface-blue"}`}>
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className={`text-[11px] font-black ${status === "failed" ? "text-danger" : "text-primary-strong"}`}>명함 목업</p>
-            <p className="mt-1 text-xs font-black leading-5 text-ink">{message}</p>
-          </div>
-          {isGenerating ? <span className="mt-1 h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-primary" /> : null}
-        </div>
-        {isReady || status === "failed" ? (
-          <button className={`mt-2 rounded-md px-3 py-2 text-xs font-black shadow-soft ${isReady ? "bg-primary text-white" : "bg-danger text-white"}`} type="button" onClick={handleOpen}>
-            {isReady ? "완성 목업 보기" : "목업 상태 확인하기"}
-          </button>
-        ) : null}
-      </div>
-    </div>
-  );
+  return <ToastNotice eyebrow={isSaved ? "명함 저장" : "명함 목업"} message={message} tone={status === "failed" ? "danger" : isReady ? "success" : "info"} loading={isGenerating} onDismiss={isGenerating ? undefined : dismissAiBusinessCardMockupNotice} action={!isSaved && (isReady || status === "failed") ? <button className={`rounded-md px-3 py-2 text-xs font-black shadow-soft ${isReady ? "bg-primary text-white" : "bg-danger text-white"}`} type="button" onClick={handleOpen}>{isReady ? "완성 목업 보기" : "목업 상태 확인하기"}</button> : null} />;
 }
 
 function GlobalBrandMockupNotice() {
@@ -219,6 +157,7 @@ function GlobalBrandMockupNotice() {
   const brand = usePrintyStore((state) => state.brands.find((item) => item.id === state.activeBrandMockupJob?.brandId));
   const enterDashboard = usePrintyStore((state) => state.enterDashboard);
   const openBrandDetail = usePrintyStore((state) => state.openBrandDetail);
+  const setActiveBrandMockupJob = usePrintyStore((state) => state.setActiveBrandMockupJob);
 
   if (!job) {
     return null;
@@ -227,24 +166,7 @@ function GlobalBrandMockupNotice() {
   const isGenerating = job.status === "generating";
   const isReady = job.status === "ready";
 
-  return (
-    <div className="shrink-0 px-5 pb-2">
-      <div className={`rounded-lg border px-4 py-3 shadow-card ${isGenerating || isReady ? "border-primary-soft bg-surface-blue" : "border-danger bg-red-50"}`}>
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className={`text-[11px] font-black ${isGenerating || isReady ? "text-primary-strong" : "text-danger"}`}>목업 생성</p>
-            <p className="mt-1 text-xs font-black leading-5 text-ink">{brand?.name ? `${brand.name} · ${job.message}` : job.message}</p>
-          </div>
-          {isGenerating ? <span className="mt-1 h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-primary" /> : null}
-        </div>
-        {isReady || job.status === "failed" ? (
-          <button className={`mt-2 rounded-md px-3 py-2 text-xs font-black shadow-soft ${isReady ? "bg-primary text-white" : "bg-danger text-white"}`} type="button" onClick={() => { enterDashboard(); openBrandDetail(job.brandId); }}>
-            {isReady ? "완성 목업 보기" : "목업 상태 확인하기"}
-          </button>
-        ) : null}
-      </div>
-    </div>
-  );
+  return <ToastNotice eyebrow="목업 생성" message={brand?.name ? `${brand.name} · ${job.message}` : job.message} tone={job.status === "failed" ? "danger" : isReady ? "success" : "info"} loading={isGenerating} onDismiss={isGenerating ? undefined : () => setActiveBrandMockupJob(undefined)} action={isReady || job.status === "failed" ? <button className={`rounded-md px-3 py-2 text-xs font-black shadow-soft ${isReady ? "bg-primary text-white" : "bg-danger text-white"}`} type="button" onClick={() => { enterDashboard(); openBrandDetail(job.brandId); }}>{isReady ? "완성 목업 보기" : "목업 상태 확인하기"}</button> : null} />;
 }
 
 function OnboardingFlow({ step }: { step: OnboardingStep }) {

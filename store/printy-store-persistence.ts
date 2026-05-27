@@ -1,13 +1,15 @@
 import { createJSONStorage, type PersistOptions } from "zustand/middleware";
+import { businessCardProductionSizeFields, resolveBusinessCardSize } from "@/lib/design-session";
 import { normalizeBusinessCardTemplateLayout } from "@/lib/business-card-templates";
 import { isSelectableLogoId, normalizeBrandAsset, normalizeBrandWithSelectableLogos, normalizeBusinessCardDraftWithSelectableLogos, normalizeGeneratedLogos, normalizeSelectableLogoId } from "@/store/printy-store-normalizers";
-import type { BusinessCardColorPaletteId, BusinessCardProductionOptions, BusinessCardUserElementId, MainTab } from "@/lib/types";
+import { normalizePrintProductLayout } from "@/lib/print-products/adapters";
+import type { BusinessCardColorPaletteId, BusinessCardProductionOptions, BusinessCardUserElementId, MainTab, PrintProductDraft } from "@/lib/types";
 import type { PrintyState } from "@/store/printy-store-types";
 
 export const PRINTY_STORE_STORAGE_KEY = "printy-store";
 
-const defaultBusinessCardProductionOptions: BusinessCardProductionOptions = { frontElements: [], backElements: [], color: "black" };
-const businessCardUserElementIds: readonly BusinessCardUserElementId[] = ["brandName", "category", "name", "role", "phone", "mainPhone", "fax", "email", "website", "address", "account", "titleLine1", "titleLine2", "adLine1", "adLine2", "instagram", "instagramIcon", "qrCode"];
+const defaultBusinessCardProductionOptions: BusinessCardProductionOptions = { frontElements: [], backElements: [], color: "black", sizeId: "business-card-90x50", widthMm: 90, heightMm: 50 };
+const businessCardUserElementIds: readonly BusinessCardUserElementId[] = ["brandName", "category", "name", "role", "phone", "mainPhone", "fax", "email", "website", "address", "account", "instagram", "instagramIcon", "qrCode"];
 const businessCardColorPaletteIds: readonly BusinessCardColorPaletteId[] = ["black", "white", "green", "yellow", "blue", "red"];
 
 export function isPersistedPrintyState(value: unknown): value is Partial<PrintyState> {
@@ -18,9 +20,11 @@ export function hasSavedLocalWork(state: Partial<PrintyState>) {
   return Boolean(
     state.selectedBrandId ||
       state.activeBusinessCardDraftId ||
+      state.activePrintProductDraftId ||
       state.lastOrderId ||
       (state.brands?.length ?? 0) > 0 ||
       (state.businessCardDrafts?.length ?? 0) > 0 ||
+      (state.printProductDrafts?.length ?? 0) > 0 ||
       (state.aiBusinessCardMockups?.length ?? 0) > 0 ||
       (state.orders?.length ?? 0) > 0,
   );
@@ -52,15 +56,18 @@ function normalizeBusinessCardProductionOptions(value: unknown, fallback: Busine
     return fallback;
   }
 
-  const record = value as { frontElements?: unknown; backElements?: unknown; color?: unknown; layout?: unknown };
+  const record = value as { frontElements?: unknown; backElements?: unknown; color?: unknown; sizeId?: unknown; layout?: unknown };
   const frontElements = Array.isArray(record.frontElements) ? record.frontElements.filter(isBusinessCardUserElementId) : fallback.frontElements;
   const backElements = Array.isArray(record.backElements) ? record.backElements.filter(isBusinessCardUserElementId) : fallback.backElements;
+  const layout = normalizeBusinessCardTemplateLayout(record.layout);
+  const size = resolveBusinessCardSize(typeof record.sizeId === "string" ? record.sizeId : fallback.sizeId, layout);
 
   return {
     frontElements,
     backElements,
     color: isBusinessCardColorPaletteId(record.color) ? record.color : fallback.color,
-    layout: normalizeBusinessCardTemplateLayout(record.layout),
+    ...businessCardProductionSizeFields(size.id, layout),
+    layout,
   } satisfies BusinessCardProductionOptions;
 }
 
@@ -68,10 +75,40 @@ function hasSavedBrandWorkspaceArrays(state: Partial<PrintyState>) {
   return Boolean(
       (state.brands?.length ?? 0) > 0 ||
       (state.businessCardDrafts?.length ?? 0) > 0 ||
+      (state.printProductDrafts?.length ?? 0) > 0 ||
       (state.orders?.length ?? 0) > 0 ||
       (state.brandAssets?.length ?? 0) > 0 ||
       (state.savedGeneratedLogoOptions?.length ?? 0) > 0,
   );
+}
+
+function normalizePrintProductDraft(value: unknown, brandIds: Set<string>): PrintProductDraft | undefined {
+  if (typeof value !== "object" || value === null) {
+    return undefined;
+  }
+
+  const draft = value as PrintProductDraft;
+
+  if (typeof draft.id !== "string" || typeof draft.brandId !== "string" || !brandIds.has(draft.brandId) || (draft.productType !== "banner" && draft.productType !== "signage" && draft.productType !== "flyer") || typeof draft.layout !== "object" || draft.layout === null) {
+    return undefined;
+  }
+
+  return {
+    id: draft.id,
+    brandId: draft.brandId,
+    productType: draft.productType,
+    title: typeof draft.title === "string" ? draft.title : "제작 시안",
+    request: typeof draft.request === "string" ? draft.request : "",
+    layout: normalizePrintProductLayout(draft.layout),
+    mockups: Array.isArray(draft.mockups) ? draft.mockups.filter((mockup) => typeof mockup === "object" && mockup !== null && typeof mockup.id === "string" && typeof mockup.imageUrl === "string" && typeof mockup.title === "string" && typeof mockup.createdAt === "string") : [],
+    selectedMockupId: typeof draft.selectedMockupId === "string" ? draft.selectedMockupId : undefined,
+    completedMockupId: typeof draft.completedMockupId === "string" ? draft.completedMockupId : undefined,
+    completedAt: typeof draft.completedAt === "string" ? draft.completedAt : undefined,
+    pdfUrl: typeof draft.pdfUrl === "string" ? draft.pdfUrl : undefined,
+    pdfFileName: typeof draft.pdfFileName === "string" ? draft.pdfFileName : undefined,
+    createdAt: typeof draft.createdAt === "string" ? draft.createdAt : new Date().toISOString(),
+    updatedAt: typeof draft.updatedAt === "string" ? draft.updatedAt : new Date().toISOString(),
+  };
 }
 
 function isPersistedMockupAsset(value: unknown) {
@@ -116,15 +153,37 @@ function shouldPersistMemberDraftForStep(step: unknown) {
 
 export const printyStorePersistOptions = {
   name: PRINTY_STORE_STORAGE_KEY,
-  version: 6,
+  version: 8,
   storage: createJSONStorage<Partial<PrintyState>>(() => localStorage),
   migrate: (persistedState, version) => {
     if (!isPersistedPrintyState(persistedState)) {
       return {};
     }
 
-    if (version >= 6) {
+    if (version >= 8) {
       return persistedState;
+    }
+
+    if (version >= 6) {
+      return {
+        ...persistedState,
+        businessCardDrafts: [],
+        deletedBusinessCardDraftIds: [],
+        printProductDrafts: [],
+        orders: [],
+        activeBusinessCardDraftId: undefined,
+        activePrintProductDraftId: undefined,
+        lastOrderId: undefined,
+        selectedBusinessCardMemberIds: [],
+        aiBusinessCardMockups: [],
+        aiBusinessCardMockupStatus: "idle",
+        aiBusinessCardMockupMessage: undefined,
+        aiBusinessCardMockupSignature: undefined,
+        activeAiBusinessCardMockupJobId: undefined,
+        selectedAiBusinessCardMockupUrl: undefined,
+        businessCardProductionOptions: defaultBusinessCardProductionOptions,
+        brandWorkspaceHasPendingLocalChanges: true,
+      } satisfies Partial<PrintyState>;
     }
 
     if (version >= 4) {
@@ -135,7 +194,8 @@ export const printyStorePersistOptions = {
           brandAssets: [],
           savedGeneratedLogoOptions: [],
           generatedLogoOptions: [],
-          businessCardDrafts: [],
+            businessCardDrafts: [],
+            printProductDrafts: [],
           orders: [],
           selectedBrandId: undefined,
           activeBusinessCardDraftId: undefined,
@@ -218,6 +278,8 @@ export const printyStorePersistOptions = {
             brands: state.brands,
             brandAssets: state.brandAssets,
             businessCardDrafts: state.businessCardDrafts,
+            deletedBusinessCardDraftIds: state.deletedBusinessCardDraftIds,
+            printProductDrafts: state.printProductDrafts,
             orders: state.orders,
           }
         : {}),
@@ -229,6 +291,7 @@ export const printyStorePersistOptions = {
       authSession: state.authSession,
       selectedBrandId: state.selectedBrandId,
       activeBusinessCardDraftId: state.activeBusinessCardDraftId,
+      activePrintProductDraftId: state.activePrintProductDraftId,
       lastOrderId: state.lastOrderId,
       selectedTemplateId: state.selectedTemplateId,
       selectedBusinessCardMemberIds: state.selectedBusinessCardMemberIds,
@@ -267,9 +330,13 @@ export const printyStorePersistOptions = {
           ? persistedState.aiBusinessCardMockupMessage
           : undefined
       : currentState.aiBusinessCardMockupMessage;
-    const businessCardDrafts = (persistedWorkspaceState.businessCardDrafts ?? currentState.businessCardDrafts).map((draft) => normalizeBusinessCardDraftWithSelectableLogos(draft, savedGeneratedLogoOptions));
+    const deletedBusinessCardDraftIds = Array.isArray(persistedState.deletedBusinessCardDraftIds) ? persistedState.deletedBusinessCardDraftIds.filter((id) => typeof id === "string") : currentState.deletedBusinessCardDraftIds;
+    const deletedBusinessCardDraftIdSet = new Set(deletedBusinessCardDraftIds);
+    const businessCardDrafts = (persistedWorkspaceState.businessCardDrafts ?? currentState.businessCardDrafts).map((draft) => normalizeBusinessCardDraftWithSelectableLogos(draft, savedGeneratedLogoOptions)).filter((draft) => !deletedBusinessCardDraftIdSet.has(draft.id));
+    const printProductDrafts = ((persistedWorkspaceState.printProductDrafts ?? currentState.printProductDrafts) as unknown[]).map((draft) => normalizePrintProductDraft(draft, brandIds)).filter((draft): draft is PrintProductDraft => draft !== undefined);
     const selectedBrandId = brands.some((brand) => brand.id === persistedState.selectedBrandId) ? persistedState.selectedBrandId : undefined;
     const activeBusinessCardDraftId = businessCardDrafts.some((draft) => draft.id === persistedState.activeBusinessCardDraftId) ? persistedState.activeBusinessCardDraftId : undefined;
+    const activePrintProductDraftId = printProductDrafts.some((draft) => draft.id === persistedState.activePrintProductDraftId) ? persistedState.activePrintProductDraftId : undefined;
     const selectedBrandLogoId = brands.find((brand) => brand.id === selectedBrandId)?.selectedLogoId;
     const activeDraftLogoId = businessCardDrafts.find((draft) => draft.id === activeBusinessCardDraftId)?.selectedLogoId;
     const currentStateLogoId = isSelectableLogoId(currentState.selectedLogoId, savedGeneratedLogoOptions) ? currentState.selectedLogoId : undefined;
@@ -321,6 +388,7 @@ export const printyStorePersistOptions = {
       authSession: persistedState.authSession ?? currentState.authSession,
       selectedBrandId,
       activeBusinessCardDraftId,
+      activePrintProductDraftId,
       lastOrderId: persistedState.lastOrderId ?? currentState.lastOrderId,
       brands,
       brandAssets,
@@ -332,6 +400,8 @@ export const printyStorePersistOptions = {
       activeAiBusinessCardMockupJobId: shouldRestoreAiBusinessCardMockups && typeof persistedState.activeAiBusinessCardMockupJobId === "string" ? persistedState.activeAiBusinessCardMockupJobId : currentState.activeAiBusinessCardMockupJobId,
       selectedAiBusinessCardMockupUrl: shouldRestoreAiBusinessCardMockups && typeof persistedState.selectedAiBusinessCardMockupUrl === "string" ? persistedState.selectedAiBusinessCardMockupUrl : currentState.selectedAiBusinessCardMockupUrl,
       businessCardDrafts,
+      deletedBusinessCardDraftIds,
+      printProductDrafts,
       orders: shouldRestoreWorkspaceArrays ? persistedState.orders ?? currentState.orders : currentState.orders,
       selectedTemplateId: persistedState.selectedTemplateId ?? currentState.selectedTemplateId,
       selectedBusinessCardMemberIds: Array.isArray(persistedState.selectedBusinessCardMemberIds) ? persistedState.selectedBusinessCardMemberIds.filter((id) => typeof id === "string") : currentState.selectedBusinessCardMemberIds,

@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import { businessCardTemplateIconArtwork } from "@/lib/business-card-templates";
 import { adminCanvasReferenceWidthPx, businessCardIconChromeStyle, businessCardInfoBlockIconSvgPreserveAspectRatio, businessCardInfoBlockIconTextGapStylePx, estimatedBusinessCardTextWidthEm, fittedBusinessCardFontSizePx, fontFamilies, formatPercent, getBusinessCardInfoBlockRenderMetrics, getBusinessCardInfoBlockRowRenderMetrics, readSafeColor, type BusinessCardContactRow, type BusinessCardInfoBlock } from "@/lib/business-card-rendering";
+import { textColorStyle } from "@/lib/text-color-effects";
 import type { BusinessCardTemplateTextAlign, BusinessCardTemplateTextElement } from "@/lib/types";
 
 function justifyContentForTextAlign(align: BusinessCardTemplateTextAlign): CSSProperties["justifyContent"] {
@@ -17,7 +18,7 @@ function justifyContentForTextAlign(align: BusinessCardTemplateTextAlign): CSSPr
 
 function textStyle(field: BusinessCardTemplateTextElement, cssPixelScale: number, value?: string, availableWidthPercent = field.box.width, trimWidthScale = 1, paddingPx = 0): CSSProperties {
   return {
-    color: readSafeColor(field.color, "#111827"),
+    ...textColorStyle(field.color),
     fontFamily: fontFamilies[field.fontFamily],
     fontSize: `${value === undefined ? formatPercent(field.fontSize * cssPixelScale, 8) : fittedBusinessCardFontSizePx(field, value, cssPixelScale, availableWidthPercent, paddingPx, trimWidthScale)}px`,
     fontStyle: field.italic || field.fontFamily === "handwriting" ? "italic" : "normal",

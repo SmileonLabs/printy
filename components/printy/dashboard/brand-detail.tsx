@@ -2,18 +2,23 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
+import { CompletedBusinessCardList, type CompletedBusinessCardEntry, SavedBusinessCardLayoutList } from "@/components/printy/dashboard/business-card-design-lists";
 import { EmptyBrands } from "@/components/printy/dashboard/brands-tab";
+import { useSavedBusinessCardMockups } from "@/components/printy/dashboard/use-saved-business-card-mockups";
 import { resolveLogoFromState } from "@/components/printy/logo/logo-state";
 import { QrCodeImageField } from "@/components/printy/member-qr-code-image-field";
+import { ProductProductionSection } from "@/components/printy/print-products/product-production-section";
+import { ToastNotice, ToastNoticeViewport } from "@/components/printy/shared/toast-notice";
 import { BusinessCardPreview } from "@/components/printy/templates/business-card-preview";
 import { AppButton, SoftCard, TextAreaField, TextField } from "@/components/ui";
 import { getLogo, LogoMark } from "@/components/ui/logo";
 import { createAiBusinessCardMockupSignature, createAiBusinessCardRequestBody } from "@/lib/ai-business-card/client";
 import type { AiBusinessCardDesign } from "@/lib/ai-business-card/schema";
-import { createBusinessCardLayoutFromSelection, getBusinessCardLayoutOrientation } from "@/lib/business-card-layout-generator";
+import { normalizeBusinessCardTemplateLayout } from "@/lib/business-card-templates";
+import { businessCardProductionSizeFields, createSizedBusinessCardLayout, resolveBusinessCardSize } from "@/lib/design-session";
 import { brandDetailSections } from "@/lib/mock-data";
 import { readQrImageFile } from "@/lib/member-qr-image";
-import type { ActiveBrandMockupJob, Brand, BrandAsset, BrandDetailSectionId, BusinessCardDraft, BusinessCardTemplateLayout, BusinessCardUserElementId, Member, OrderRecord, PrintTemplate, ResolvedLogoOption } from "@/lib/types";
+import type { ActiveBrandMockupJob, AiBusinessCardMockup, Brand, BrandAsset, BrandDetailSectionId, BusinessCardDraft, BusinessCardTemplateLayout, BusinessCardUserElementId, Member, OrderRecord, PrintTemplate, ResolvedLogoOption } from "@/lib/types";
 import { usePrintyStore } from "@/store/use-printy-store";
 
 type LogoWithImage = Extract<ResolvedLogoOption, { imageUrl: string }>;
@@ -26,7 +31,7 @@ type UserArchiveFile = {
   size: number;
   createdAt: string;
 };
-type MemberFormValues = Pick<Member, "name" | "role" | "phone" | "mainPhone" | "fax" | "email" | "website" | "address" | "account" | "titleLine1" | "titleLine2" | "adLine1" | "adLine2" | "instagram" | "qrCodeImageUrl">;
+type MemberFormValues = Pick<Member, "name" | "role" | "phone" | "mainPhone" | "fax" | "email" | "website" | "address" | "account" | "instagram" | "qrCodeImageUrl">;
 const emptyMemberFormValues: MemberFormValues = {
   name: "",
   role: "",
@@ -37,10 +42,6 @@ const emptyMemberFormValues: MemberFormValues = {
   website: "",
   address: "",
   account: "",
-  titleLine1: "",
-  titleLine2: "",
-  adLine1: "",
-  adLine2: "",
   instagram: "",
   qrCodeImageUrl: "",
 };
@@ -55,10 +56,6 @@ const memberFormFields: Array<{ label: string; field: keyof MemberFormValues; pl
   { label: "웹도메인", field: "website", placeholder: "www.brand.kr" },
   { label: "주소", field: "address", placeholder: "서울시 성동구 프린티로 12" },
   { label: "계좌번호", field: "account", placeholder: "국민 123456-04-123456" },
-  { label: "한줄 제목 1", field: "titleLine1", placeholder: "믿고 맡기는 프린팅" },
-  { label: "한줄 제목 2", field: "titleLine2", placeholder: "브랜드를 더 선명하게" },
-  { label: "광고 내용 1", field: "adLine1", placeholder: "프리미엄 맞춤 제작\n빠르고 정확한 상담", multiline: true },
-  { label: "광고 내용 2", field: "adLine2", placeholder: "브랜드를 더 선명하게\n문의는 언제든 환영해요", multiline: true },
   { label: "인스타그램", field: "instagram", placeholder: "@brand.official" },
 ];
 
@@ -72,10 +69,6 @@ const businessCardUserElements: Array<{ id: BusinessCardUserElementId; label: st
   { id: "website", label: "웹도메인" },
   { id: "address", label: "주소" },
   { id: "account", label: "계좌번호" },
-  { id: "titleLine1", label: "한줄 제목 1" },
-  { id: "titleLine2", label: "한줄 제목 2" },
-  { id: "adLine1", label: "광고 문구 1" },
-  { id: "adLine2", label: "광고 문구 2" },
   { id: "instagram", label: "인스타그램" },
   { id: "qrCode", label: "QR 코드" },
 ];
@@ -162,8 +155,47 @@ function memberFromSavedAiBusinessCardMockupSignature(value: string | undefined,
 
     const memberName = typeof parsed.member.name === "string" ? parsed.member.name.trim() : "";
     const memberPhone = typeof parsed.member.phone === "string" ? parsed.member.phone.trim() : "";
+    const matchedMember = members.find((member) => member.name.trim() === memberName && member.phone.trim() === memberPhone);
 
-    return members.find((member) => member.name.trim() === memberName && member.phone.trim() === memberPhone);
+    if (matchedMember) {
+      return matchedMember;
+    }
+
+    return {
+      id: "completed-mockup-member",
+      name: memberName,
+      role: typeof parsed.member.role === "string" ? parsed.member.role.trim() : "",
+      phone: memberPhone,
+      mainPhone: typeof parsed.member.mainPhone === "string" ? parsed.member.mainPhone.trim() : "",
+      fax: typeof parsed.member.fax === "string" ? parsed.member.fax.trim() : "",
+      email: typeof parsed.member.email === "string" ? parsed.member.email.trim() : "",
+      website: typeof parsed.member.website === "string" ? parsed.member.website.trim() : "",
+      address: typeof parsed.member.address === "string" ? parsed.member.address.trim() : "",
+      account: typeof parsed.member.account === "string" ? parsed.member.account.trim() : "",
+      instagram: typeof parsed.member.instagram === "string" ? parsed.member.instagram.trim() : "",
+      qrCodeImageUrl: typeof parsed.member.qrCodeImageUrl === "string" ? parsed.member.qrCodeImageUrl.trim() : "",
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+function layoutFromSavedAiBusinessCardMockupSignature(value: string | undefined) {
+  if (!value) {
+    return undefined;
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(value);
+
+    if (!isRecord(parsed)) {
+      return undefined;
+    }
+
+    const productionOptions = isRecord(parsed.productionOptions) ? parsed.productionOptions : undefined;
+    const layout = productionOptions?.layout ?? parsed.layout;
+
+    return normalizeBusinessCardTemplateLayout(layout);
   } catch {
     return undefined;
   }
@@ -324,11 +356,13 @@ export function BrandDetail() {
         ))}
       </div>
       <SectionPanel sectionId={section.id} title={section.label} summary={section.summary} brand={brand} cardDraft={cardDraft} businessCardDrafts={businessCardDrafts} orders={brandOrders} assets={brandAssets.filter((asset) => asset.brandId === brand.id)} templates={templates} />
-      <SoftCard className="mt-5 border border-danger/20 bg-danger/5">
-        <p className="text-sm font-black text-danger">브랜드 삭제</p>
-        <p className="mt-2 text-xs font-bold leading-5 text-muted">브랜드, 저장된 명함 초안, 주문 기록을 함께 삭제해요.</p>
-        <AppButton className="mt-4 py-3 text-sm text-danger" variant="ghost" onClick={handleDeleteBrand}>브랜드 삭제</AppButton>
-      </SoftCard>
+      {activeBrandSection === "style" ? (
+        <SoftCard className="mt-5 border border-danger/20 bg-danger/5">
+          <p className="text-sm font-black text-danger">브랜드 삭제</p>
+          <p className="mt-2 text-xs font-bold leading-5 text-muted">브랜드, 저장된 명함 초안, 주문 기록을 함께 삭제해요.</p>
+          <AppButton className="mt-4 py-3 text-sm text-danger" variant="ghost" onClick={handleDeleteBrand}>브랜드 삭제</AppButton>
+        </SoftCard>
+      ) : null}
     </div>
   );
 }
@@ -462,14 +496,14 @@ export function SectionPanel({ sectionId, title, summary, brand, cardDraft, busi
     }
   };
 
-  const handleStartCardsProduction = (memberIds?: string[], templateId?: string) => {
-    if (brand.members.length === 0) {
+  const handleStartCardsProduction = (memberIds?: string[], templateId?: string, mode?: "new" | "draft" | "edit", editMember?: Member, editMockups?: { draftId?: string; signature?: string; mockups: AiBusinessCardMockup[]; selectedImageUrl?: string }, initialLayoutPrompt?: string) => {
+    if (brand.members.length === 0 && !(mode === "edit" && editMember) && !(mode === "draft" && editMockups?.draftId)) {
       setTeamNotice("팀원 1명 이상을 추가해 주세요.");
       setBrandSection("team");
       return;
     }
 
-    startBrandSectionProduction(brand.id, "cards", memberIds, templateId);
+    startBrandSectionProduction(brand.id, "cards", memberIds, templateId, mode, editMember, editMockups, initialLayoutPrompt);
   };
 
   const content = (() => {
@@ -489,8 +523,16 @@ export function SectionPanel({ sectionId, title, summary, brand, cardDraft, busi
       return <CardsSection brand={brand} logo={brandLogo} businessCardDrafts={businessCardDrafts} orders={orders} templates={templates} onStartProduction={handleStartCardsProduction} onAddMember={(member) => { addBrandMember(brand.id, member); setTeamNotice(""); }} onUpdateMember={(memberId, member) => { updateBrandMember(brand.id, memberId, member); setTeamNotice(""); }} onDeleteMember={(memberId) => deleteBrandMember(brand.id, memberId)} />;
     }
 
-    if (sectionId === "promotions" || sectionId === "banners" || sectionId === "signage") {
-      return <ComingSoonSection />;
+    if (sectionId === "banners") {
+      return <ProductProductionSection brand={brand} productType="banner" logo={brandLogo} />;
+    }
+
+    if (sectionId === "signage") {
+      return <ProductProductionSection brand={brand} productType="signage" logo={brandLogo} />;
+    }
+
+    if (sectionId === "promotions") {
+      return <ProductProductionSection brand={brand} productType="flyer" logo={brandLogo} />;
     }
 
     return <FilesSection cardDraft={cardDraft} orders={orders} assets={sectionAssets} />;
@@ -734,10 +776,6 @@ function createMemberFromForm(values: MemberFormValues): Member {
     website: values.website?.trim() ?? "",
     address: values.address.trim(),
     account: values.account?.trim() ?? "",
-    titleLine1: values.titleLine1?.trim() ?? "",
-    titleLine2: values.titleLine2?.trim() ?? "",
-    adLine1: values.adLine1?.trim() ?? "",
-    adLine2: values.adLine2?.trim() ?? "",
     instagram: values.instagram?.trim() ?? "",
     qrCodeImageUrl: values.qrCodeImageUrl?.trim() ?? "",
   };
@@ -754,10 +792,6 @@ function memberFormValuesFromMember(member: Member): MemberFormValues {
     website: member.website ?? "",
     address: member.address,
     account: member.account ?? "",
-    titleLine1: member.titleLine1 ?? "",
-    titleLine2: member.titleLine2 ?? "",
-    adLine1: member.adLine1 ?? "",
-    adLine2: member.adLine2 ?? "",
     instagram: member.instagram ?? "",
     qrCodeImageUrl: member.qrCodeImageUrl ?? "",
   };
@@ -898,10 +932,6 @@ function createBusinessCardPreviewMember(brand: Brand): Member {
     email: "hello@printy.kr",
     address: "서울시 성동구 프린티로 12",
     account: "국민 123456-04-123456",
-    titleLine1: "믿고 맡기는 프린팅",
-    titleLine2: "브랜드를 더 선명하게",
-    adLine1: "프리미엄 맞춤 제작",
-    adLine2: "빠르고 정확한 상담",
     instagram: "@printy.official",
     qrCodeImageUrl: "",
   };
@@ -932,7 +962,8 @@ function businessCardElementHasInputValue(elementId: BusinessCardUserElementId, 
     return members.some((member) => (member.qrCodeImageUrl ?? "").trim().length > 0);
   }
 
-  const memberField = elementId as keyof Pick<Member, "name" | "role" | "phone" | "mainPhone" | "fax" | "email" | "website" | "address" | "account" | "titleLine1" | "titleLine2" | "adLine1" | "adLine2" | "instagram">;
+  if (elementId.startsWith("headline-") || elementId.startsWith("body-")) return true;
+  const memberField = elementId as keyof Pick<Member, "name" | "role" | "phone" | "mainPhone" | "fax" | "email" | "website" | "address" | "account" | "instagram">;
 
   return members.some((member) => typeof member[memberField] === "string" && member[memberField].trim().length > 0);
 }
@@ -946,33 +977,44 @@ function selectableBusinessCardElements(elements: BusinessCardUserElementId[]) {
 }
 
 function visibleBusinessCardElements(layout: BusinessCardTemplateLayout, sideId: "front" | "back"): BusinessCardUserElementId[] {
-  return layout.sides[sideId].fields.filter((field) => field.visible).map((field) => field.id);
+  const side = layout.sides[sideId];
+
+  return [...(side.logo.visible ? ["logo" as const] : []), ...side.fields.filter((field) => field.visible).map((field) => field.id)];
 }
 
 type OrderedBusinessCard = {
   order: OrderRecord;
   draft: BusinessCardDraft;
-  template: PrintTemplate;
+  template: PrintTemplate | undefined;
   member: Member;
   logo: ResolvedLogoOption;
 };
 
-function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onStartProduction, onAddMember, onUpdateMember, onDeleteMember }: { brand: Brand; logo: ResolvedLogoOption; businessCardDrafts: BusinessCardDraft[]; orders: OrderRecord[]; templates: PrintTemplate[]; onStartProduction: (memberIds?: string[], templateId?: string) => void; onAddMember: (member: Member) => void; onUpdateMember: (memberId: string, member: Member) => void; onDeleteMember: (memberId: string) => void }) {
+function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onStartProduction, onAddMember, onUpdateMember, onDeleteMember }: { brand: Brand; logo: ResolvedLogoOption; businessCardDrafts: BusinessCardDraft[]; orders: OrderRecord[]; templates: PrintTemplate[]; onStartProduction: (memberIds?: string[], templateId?: string, mode?: "new" | "draft" | "edit", editMember?: Member, editMockups?: { draftId?: string; signature?: string; mockups: AiBusinessCardMockup[]; selectedImageUrl?: string }, initialLayoutPrompt?: string) => void; onAddMember: (member: Member) => void; onUpdateMember: (memberId: string, member: Member) => void; onDeleteMember: (memberId: string) => void }) {
   const printyState = usePrintyStore();
   const productionOptions = usePrintyStore((state) => state.businessCardProductionOptions);
   const selectedTemplateId = usePrintyStore((state) => state.selectedTemplateId);
+  const activeBusinessCardDraftId = usePrintyStore((state) => state.activeBusinessCardDraftId);
   const aiBusinessCardMockups = usePrintyStore((state) => state.aiBusinessCardMockups);
   const aiBusinessCardMockupSignature = usePrintyStore((state) => state.aiBusinessCardMockupSignature);
+  const syncAiBusinessCardMockups = usePrintyStore((state) => state.syncAiBusinessCardMockups);
+  const selectAiBusinessCardMockup = usePrintyStore((state) => state.selectAiBusinessCardMockup);
   const updateBusinessCardProductionOptions = usePrintyStore((state) => state.updateBusinessCardProductionOptions);
+  const deleteBusinessCardDraft = usePrintyStore((state) => state.deleteBusinessCardDraft);
+  const isAuthenticated = usePrintyStore((state) => state.isAuthenticated);
+  const authUserId = usePrintyStore((state) => state.authSession?.userId);
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>(brand.members.map((member) => member.id));
   const [frontElements, setFrontElements] = useState<BusinessCardUserElementId[]>(productionOptions.frontElements.length > 0 ? selectableBusinessCardElements(productionOptions.frontElements) : defaultFrontBusinessCardElements);
   const [backElements, setBackElements] = useState<BusinessCardUserElementId[]>(productionOptions.backElements.length > 0 ? selectableBusinessCardElements(productionOptions.backElements) : defaultBackBusinessCardElements);
   const selectedColor = productionOptions.color;
+  const selectedBusinessCardSize = useMemo(() => resolveBusinessCardSize(productionOptions.sizeId, productionOptions.layout), [productionOptions.layout, productionOptions.sizeId]);
+  const selectedBusinessCardSizeFields = useMemo(() => businessCardProductionSizeFields(selectedBusinessCardSize.id, productionOptions.layout), [productionOptions.layout, selectedBusinessCardSize.id]);
   const [isMemberFormOpen, setIsMemberFormOpen] = useState(false);
   const [memberForm, setMemberForm] = useState<MemberFormValues>(emptyMemberFormValues);
   const [editingMemberId, setEditingMemberId] = useState<string>();
   const [memberFormError, setMemberFormError] = useState("");
   const [productionNotice, setProductionNotice] = useState("");
+  const [businessCardLayoutPrompt, setBusinessCardLayoutPrompt] = useState("");
   const [hasAppliedSuggestedElements, setHasAppliedSuggestedElements] = useState(false);
   const [runningMockupPdfId, setRunningMockupPdfId] = useState<string>();
   const [mockupPdfErrors, setMockupPdfErrors] = useState<Record<string, string>>({});
@@ -981,7 +1023,44 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
   const previewMember = createBusinessCardPreviewMember(brand);
   const selectedMembers = useMemo(() => brand.members.filter((member) => selectedMemberIds.includes(member.id)), [brand.members, selectedMemberIds]);
   const suggestedBusinessCardElements = useMemo(() => businessCardElementsWithInputValues(brand, selectedMembers.length > 0 ? selectedMembers : brand.members), [brand, selectedMembers]);
-  const savedLayoutDrafts = useMemo(() => businessCardDrafts.filter((draft) => draft.brandId === brand.id && Boolean(draft.layout)), [brand.id, businessCardDrafts]);
+  const currentBrandMockupSignatureEntries = useMemo(() => {
+    const entries = brand.members.map((member) => ({ member, logoId: logo.id, signature: createAiBusinessCardMockupSignature({ brandName: brand.name, category: brand.category, mood: brand.designRequest, member, logo, templateId: selectedTemplateId, productionOptions }), draftId: undefined as string | undefined }));
+
+    for (const draft of businessCardDrafts.filter((item) => item.brandId === brand.id && item.layout)) {
+      const draftLogo = draft.selectedLogoId ? resolveLogoFromState(printyState, draft.selectedLogoId) : logo;
+      const draftProductionOptions = { ...productionOptions, layout: draft.layout };
+      const signature = createAiBusinessCardMockupSignature({ brandName: brand.name, category: brand.category, mood: brand.designRequest, member: draft.member, logo: draftLogo, templateId: draft.templateId ?? selectedTemplateId, productionOptions: draftProductionOptions });
+
+      if (!entries.some((entry) => entry.signature === signature)) {
+        entries.push({ member: draft.member, logoId: draftLogo.id, signature, draftId: draft.id });
+      }
+    }
+
+    return entries;
+  }, [brand.id, brand.name, brand.category, brand.designRequest, brand.members, businessCardDrafts, logo, printyState, productionOptions, selectedTemplateId]);
+  const hasExactMockupSignature = aiBusinessCardMockupSignature ? currentBrandMockupSignatureEntries.some((entry) => entry.signature === aiBusinessCardMockupSignature) : false;
+  const hasRelaxedMockupSignature = savedAiBusinessCardMockupSignatureMatches(aiBusinessCardMockupSignature, { brandName: brand.name, logoId: logo.id, members: brand.members });
+  const localCompletedAiBusinessCardMockups = aiBusinessCardMockups.filter((mockup) => mockup.imageUrl && mockup.cleanImageUrl);
+  const hasCompletedMockupDraft = Boolean(businessCardDrafts.find((draft) => draft.brandId === brand.id && draft.completedMockupSignature && draft.completedMockupSignature === aiBusinessCardMockupSignature));
+  const storeVisibleAiBusinessCardMockups = hasCompletedMockupDraft && (hasExactMockupSignature || hasRelaxedMockupSignature) ? localCompletedAiBusinessCardMockups : [];
+  const serverLoadedMockups = useSavedBusinessCardMockups({ isAuthenticated, authUserId, brandId: brand.id, brandName: brand.name, entries: currentBrandMockupSignatureEntries });
+  const visibleAiBusinessCardMockups = storeVisibleAiBusinessCardMockups.length > 0 ? storeVisibleAiBusinessCardMockups : serverLoadedMockups?.mockups ?? [];
+  const visibleAiBusinessCardMockupSignature = storeVisibleAiBusinessCardMockups.length > 0 ? aiBusinessCardMockupSignature : serverLoadedMockups?.signature;
+  const completedBusinessCardEntries = businessCardDrafts
+    .flatMap((draft) => {
+      if (draft.brandId !== brand.id || !draft.completedMockupSignature || !draft.completedMockup?.imageUrl || !draft.completedMockup.cleanImageUrl) {
+        return [];
+      }
+
+      return [{ draft, mockup: draft.completedMockup, signature: draft.completedMockupSignature }];
+    })
+    .sort((left, right) => (right.draft.completedMockupAt ?? right.draft.createdAt).localeCompare(left.draft.completedMockupAt ?? left.draft.createdAt));
+  const visibleBusinessCardEntries: CompletedBusinessCardEntry[] = completedBusinessCardEntries.length > 0
+    ? completedBusinessCardEntries
+    : visibleAiBusinessCardMockups.map((mockup) => ({ draft: undefined, mockup, signature: visibleAiBusinessCardMockupSignature }));
+  const completedMockupDraftId = currentBrandMockupSignatureEntries.find((entry) => entry.signature === visibleAiBusinessCardMockupSignature)?.draftId ?? businessCardDrafts.find((draft) => draft.brandId === brand.id && draft.completedMockupSignature && draft.completedMockupSignature === visibleAiBusinessCardMockupSignature)?.id ?? (storeVisibleAiBusinessCardMockups.length > 0 ? activeBusinessCardDraftId : undefined);
+  const orderedBusinessCardDraftIds = useMemo(() => new Set(orders.map((order) => order.cardDraftId)), [orders]);
+  const savedLayoutDrafts = useMemo(() => businessCardDrafts.filter((draft) => draft.brandId === brand.id && Boolean(draft.layout) && !draft.completedMockupSignature && !orderedBusinessCardDraftIds.has(draft.id) && draft.id !== completedMockupDraftId), [brand.id, businessCardDrafts, completedMockupDraftId, orderedBusinessCardDraftIds]);
   const selectedSavedLayoutDraft = savedLayoutDrafts.find((draft) => draft.id === selectedSavedLayoutDraftId) ?? savedLayoutDrafts[0];
 
   useEffect(() => {
@@ -1000,9 +1079,9 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
 
     setFrontElements(suggestedBusinessCardElements);
     setBackElements(suggestedBusinessCardElements);
-    updateBusinessCardProductionOptions({ frontElements: suggestedBusinessCardElements, backElements: suggestedBusinessCardElements, color: selectedColor });
+    updateBusinessCardProductionOptions({ frontElements: suggestedBusinessCardElements, backElements: suggestedBusinessCardElements, color: selectedColor, ...selectedBusinessCardSizeFields });
     setHasAppliedSuggestedElements(true);
-  }, [backElements.length, frontElements.length, hasAppliedSuggestedElements, selectedColor, suggestedBusinessCardElements, updateBusinessCardProductionOptions]);
+  }, [backElements.length, frontElements.length, hasAppliedSuggestedElements, selectedBusinessCardSizeFields, selectedColor, suggestedBusinessCardElements, updateBusinessCardProductionOptions]);
 
   useEffect(() => {
     const nextFrontElements = selectableBusinessCardElements(frontElements);
@@ -1014,8 +1093,9 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
 
     setFrontElements(nextFrontElements);
     setBackElements(nextBackElements);
-    updateBusinessCardProductionOptions({ frontElements: nextFrontElements, backElements: nextBackElements, color: selectedColor });
-  }, [backElements, frontElements, selectedColor, updateBusinessCardProductionOptions]);
+    updateBusinessCardProductionOptions({ frontElements: nextFrontElements, backElements: nextBackElements, color: selectedColor, ...selectedBusinessCardSizeFields });
+  }, [backElements, frontElements, selectedBusinessCardSizeFields, selectedColor, updateBusinessCardProductionOptions]);
+
 
   const toggleMember = (memberId: string) => {
     setSelectedMemberIds((current) => (current.includes(memberId) ? current.filter((id) => id !== memberId) : [...current, memberId]));
@@ -1080,16 +1160,19 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
     setProductionNotice("");
     const nextFrontElements = frontElements.length > 0 ? frontElements : suggestedBusinessCardElements;
     const nextBackElements = backElements.length > 0 ? backElements : suggestedBusinessCardElements;
-    const nextLayout = createBusinessCardLayoutFromSelection({ frontElements: nextFrontElements, backElements: nextBackElements });
+    const nextLayout = createSizedBusinessCardLayout({ frontElements: nextFrontElements, backElements: nextBackElements, sizeId: selectedBusinessCardSize.id });
+    const nextMemberIds = selectedMemberIds.length > 0 ? selectedMemberIds : brand.members.map((member) => member.id);
 
-    updateBusinessCardProductionOptions({ frontElements: nextFrontElements, backElements: nextBackElements, color: selectedColor, layout: nextLayout });
-    onStartProduction(selectedMemberIds.length > 0 ? selectedMemberIds : brand.members.map((member) => member.id));
+    setSelectedSavedLayoutDraftId("");
+    selectAiBusinessCardMockup(undefined);
+    updateBusinessCardProductionOptions({ frontElements: nextFrontElements, backElements: nextBackElements, color: selectedColor, ...businessCardProductionSizeFields(selectedBusinessCardSize.id, nextLayout), layout: nextLayout });
+    onStartProduction(nextMemberIds, undefined, "new", undefined, undefined, businessCardLayoutPrompt);
   };
   const handleEditOrderedCardLayout = (draft: BusinessCardDraft, template: PrintTemplate) => {
-    const nextLayout = draft.layout ?? template.layout ?? createBusinessCardLayoutFromSelection({ frontElements, backElements });
+    const nextLayout = draft.layout ?? template.layout ?? createSizedBusinessCardLayout({ frontElements, backElements, sizeId: selectedBusinessCardSize.id });
 
-    updateBusinessCardProductionOptions({ frontElements, backElements, color: selectedColor, layout: nextLayout });
-    onStartProduction([draft.member.id], template.id);
+    updateBusinessCardProductionOptions({ frontElements, backElements, color: selectedColor, ...businessCardProductionSizeFields(undefined, nextLayout), layout: nextLayout });
+    onStartProduction([draft.member.id], template.id, "draft");
   };
   const handleLoadSavedLayout = (draft: BusinessCardDraft) => {
     if (!draft.layout) {
@@ -1104,10 +1187,55 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
     setBackElements(nextBackElements);
     setSelectedMemberIds([draft.member.id]);
     setSelectedSavedLayoutDraftId(draft.id);
-    updateBusinessCardProductionOptions({ frontElements: nextFrontElements, backElements: nextBackElements, color: selectedColor, layout: draft.layout });
-    onStartProduction([draft.member.id], draft.templateId);
+    updateBusinessCardProductionOptions({ frontElements: nextFrontElements, backElements: nextBackElements, color: selectedColor, ...businessCardProductionSizeFields(undefined, draft.layout), layout: draft.layout });
+    onStartProduction([draft.member.id], draft.templateId, "draft", undefined, { draftId: draft.id, mockups: [] });
   };
-  const handleDownloadMockupPdf = async (mockup: { id: string; imageUrl: string; cleanImageUrl?: string }) => {
+  const handleDeleteSavedLayout = (draft: BusinessCardDraft) => {
+    if (!window.confirm("이 임시 저장 레이아웃만 삭제할까요? 완료된 목업 데이터는 유지됩니다.")) {
+      return;
+    }
+
+    deleteBusinessCardDraft(draft.id);
+    setSelectedSavedLayoutDraftId("");
+    setProductionNotice("임시 저장 레이아웃을 삭제했어요. 완료 목업은 유지됩니다.");
+  };
+  const handleDeleteCompletedMockup = (entry: CompletedBusinessCardEntry) => {
+    if (!entry.draft) {
+      setProductionNotice("서버에서 불러온 이전 완료 시안은 이 화면에서 삭제할 수 없어요. 새로 저장한 완료 명함만 삭제할 수 있어요.");
+      return;
+    }
+
+    if (!window.confirm("이 완료 명함 디자인을 삭제할까요?")) {
+      return;
+    }
+
+    deleteBusinessCardDraft(entry.draft.id);
+    setProductionNotice("완료 명함 디자인을 삭제했어요.");
+  };
+  const handleEditCompletedMockupLayout = (mockup: AiBusinessCardMockup, member: Member | undefined, completedLayout: BusinessCardTemplateLayout | undefined, signature = visibleAiBusinessCardMockupSignature, mockups = visibleAiBusinessCardMockups, draftId?: string) => {
+    if (!completedLayout || !member) {
+      setProductionNotice("이 완료 목업에는 저장된 레이아웃 정보가 없어 수정할 수 없어요. 새 명함 제작으로 다시 시작해 주세요.");
+      return;
+    }
+
+    if (!signature) {
+      setProductionNotice("완료 목업 저장 정보를 찾지 못했어요. 새 명함 제작으로 다시 시작해 주세요.");
+      return;
+    }
+
+    const nextFrontElements = visibleBusinessCardElements(completedLayout, "front");
+    const nextBackElements = visibleBusinessCardElements(completedLayout, "back");
+
+    setProductionNotice("");
+    setFrontElements(nextFrontElements);
+    setBackElements(nextBackElements);
+    setSelectedMemberIds([member.id]);
+    syncAiBusinessCardMockups(signature, mockups.length > 0 ? mockups : [mockup]);
+    selectAiBusinessCardMockup(mockup.imageUrl);
+    updateBusinessCardProductionOptions({ frontElements: nextFrontElements, backElements: nextBackElements, color: selectedColor, ...businessCardProductionSizeFields(undefined, completedLayout), layout: completedLayout });
+    onStartProduction([member.id], selectedTemplateId, "edit", member, { draftId, signature, mockups: mockups.length > 0 ? mockups : [mockup], selectedImageUrl: mockup.imageUrl });
+  };
+  const handleDownloadMockupPdf = async (mockup: AiBusinessCardMockup, signature = visibleAiBusinessCardMockupSignature, memberOverride?: Member, layoutOverride?: BusinessCardTemplateLayout) => {
     const pdfRecordKey = `${mockup.id}:${aiBusinessCardPdfRendererVersion}`;
     const existingRecord = mockupPdfRecords[pdfRecordKey];
 
@@ -1121,14 +1249,20 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
       return;
     }
 
-    const matchedMember = currentBrandMockupSignatureEntries.find((entry) => entry.signature === aiBusinessCardMockupSignature)?.member ?? memberFromSavedAiBusinessCardMockupSignature(aiBusinessCardMockupSignature, brand.members);
+    const matchedMember = memberOverride ?? currentBrandMockupSignatureEntries.find((entry) => entry.signature === signature)?.member ?? memberFromSavedAiBusinessCardMockupSignature(signature, brand.members);
+    const completedLayout = layoutOverride ?? mockup.layout ?? layoutFromSavedAiBusinessCardMockupSignature(signature);
 
     if (!matchedMember) {
       setMockupPdfErrors((current) => ({ ...current, [pdfRecordKey]: "현재 브랜드/구성원 정보와 맞는 목업을 찾지 못했어요. 목업을 다시 생성해 주세요." }));
       return;
     }
 
-    const input = { brandName: brand.name, category: brand.category, mood: brand.designRequest, member: matchedMember, logo, templateId: selectedTemplateId, productionOptions };
+    if (!completedLayout) {
+      setMockupPdfErrors((current) => ({ ...current, [pdfRecordKey]: "이 완료 목업에는 저장된 레이아웃 정보가 없어 PDF를 만들 수 없어요." }));
+      return;
+    }
+
+    const input = { brandName: brand.name, category: brand.category, mood: brand.designRequest, member: matchedMember, logo, templateId: selectedTemplateId, productionOptions: { ...productionOptions, layout: completedLayout } };
     const body = createAiBusinessCardRequestBody(input);
 
     setRunningMockupPdfId(mockup.id);
@@ -1228,7 +1362,7 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
     </div>
   );
   const orderedBusinessCards = orders
-    .filter((order) => order.status === "paid" || order.status === "preparing")
+    .filter((order) => order.status !== "cancelled")
     .map((order) => {
       const draft = businessCardDrafts.find((item) => item.id === order.cardDraftId);
 
@@ -1239,10 +1373,6 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
       const templateId = order.templateId ?? draft.templateId;
       const template = templates.find((item) => item.id === templateId && item.productId === "business-card");
 
-      if (!template) {
-        return null;
-      }
-
       return {
         order,
         draft,
@@ -1252,86 +1382,58 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
       };
     })
     .filter((card): card is OrderedBusinessCard => card !== null);
-  const currentBrandMockupSignatureEntries = brand.members.map((member) => ({ member, signature: createAiBusinessCardMockupSignature({ brandName: brand.name, category: brand.category, mood: brand.designRequest, member, logo, templateId: selectedTemplateId, productionOptions }) }));
-  const hasExactMockupSignature = aiBusinessCardMockupSignature ? currentBrandMockupSignatureEntries.some((entry) => entry.signature === aiBusinessCardMockupSignature) : false;
-  const hasRelaxedMockupSignature = savedAiBusinessCardMockupSignatureMatches(aiBusinessCardMockupSignature, { brandName: brand.name, logoId: logo.id, members: brand.members });
-  const visibleAiBusinessCardMockups = hasExactMockupSignature || hasRelaxedMockupSignature ? aiBusinessCardMockups.filter((mockup) => mockup.imageUrl && mockup.cleanImageUrl) : [];
-
   return (
     <div className="grid gap-5">
       {memberSelector}
-      {productionNotice ? <p className="rounded-md bg-danger/10 px-4 py-3 text-xs font-bold leading-5 text-danger">{productionNotice}</p> : null}
-      <AppButton variant="primary" onClick={handleStartProduction} disabled={brand.members.length > 0 && selectedMemberIds.length === 0} className="py-4 text-base font-black shadow-floating disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0">
-        명함 제작하기
-      </AppButton>
-      {savedLayoutDrafts.length > 0 ? (
-        <div className="grid gap-2 rounded-lg border border-line bg-surface p-3 shadow-soft">
-          <div>
-            <p className="text-xs font-black text-ink">임시 저장된 레이아웃 불러오기</p>
-            <p className="mt-1 text-[11px] font-bold leading-5 text-muted">이미지 생성 전에 저장해둔 좌표를 선택해서 이어서 편집할 수 있어요.</p>
-          </div>
-          <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
-            <select className="min-h-10 rounded-md border border-line bg-white px-3 text-xs font-bold text-ink outline-none transition focus:border-primary focus:ring-4 focus:ring-primary-soft" value={selectedSavedLayoutDraft?.id ?? ""} onChange={(event) => setSelectedSavedLayoutDraftId(event.target.value)}>
-              {savedLayoutDrafts.map((draft) => {
-                const orientation = draft.layout ? getBusinessCardLayoutOrientation(draft.layout) : "horizontal";
-
-                return (
-                  <option key={draft.id} value={draft.id}>
-                    {draft.member.name || "이름 미입력"} · {orientation === "vertical" ? "세로형" : "가로형"} · {draft.createdAt}
-                  </option>
-                );
-              })}
-            </select>
-            <AppButton className="py-2 text-xs" variant="secondary" onClick={() => selectedSavedLayoutDraft ? handleLoadSavedLayout(selectedSavedLayoutDraft) : undefined} disabled={!selectedSavedLayoutDraft}>
-              불러오기
-            </AppButton>
-          </div>
-        </div>
+      {productionNotice ? (
+        <ToastNoticeViewport>
+          <ToastNotice eyebrow="명함 제작" message={productionNotice} tone={productionNotice.includes("삭제") || productionNotice.includes("저장") ? "success" : "danger"} onDismiss={() => setProductionNotice("")} />
+        </ToastNoticeViewport>
       ) : null}
+      <SoftCard className="grid gap-3">
+        <div>
+          <p className="text-sm font-black text-ink">AI 명함 요청</p>
+          <p className="mt-1 text-xs font-bold leading-5 text-muted">원하는 분위기를 적으면 다음 화면에서 바로 좌표를 잡고 AI 시안을 만들 수 있어요.</p>
+        </div>
+        <TextAreaField label="프롬프트" placeholder="예: 검정 배경에 금색 포인트, 로고 크게, 왼쪽 정렬, 여백 넓게" value={businessCardLayoutPrompt} onChange={setBusinessCardLayoutPrompt} />
+      </SoftCard>
+      <AppButton variant="primary" onClick={handleStartProduction} disabled={brand.members.length > 0 && selectedMemberIds.length === 0} className="py-4 text-base font-black shadow-floating disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0">
+        {businessCardLayoutPrompt.trim() ? "프롬프트로 새 명함 제작하기" : "새 명함 제작하기"}
+      </AppButton>
+      <SavedBusinessCardLayoutList drafts={savedLayoutDrafts} selectedDraft={selectedSavedLayoutDraft} onSelectDraft={setSelectedSavedLayoutDraftId} onLoadDraft={handleLoadSavedLayout} onDeleteDraft={handleDeleteSavedLayout} />
       <div className="grid gap-4">
-        {visibleAiBusinessCardMockups.length > 0 ? (
-          <div className="grid gap-3 rounded-lg border border-line bg-surface p-4 shadow-card">
-            <div>
-              <p className="text-base font-black text-ink">완성된 명함 목업</p>
-              <p className="mt-1 text-xs font-bold leading-5 text-muted">최근 생성한 AI 명함 목업이에요. 인쇄용 PDF는 아래 버튼으로 만들 수 있어요.</p>
-              <AppButton className="mt-3 py-2 text-xs" variant="ghost" onClick={handleStartProduction} disabled={brand.members.length > 0 && selectedMemberIds.length === 0}>
-                레이아웃 수정하기
-              </AppButton>
-            </div>
-            <div className="grid gap-3">
-              {visibleAiBusinessCardMockups.map((mockup) => (
-                <div key={mockup.id} className="overflow-hidden rounded-md border border-line bg-surface-blue p-2 shadow-soft">
-                  <Image className="block h-auto w-full rounded-sm" src={mockup.imageUrl} alt={mockup.title} width={920} height={1040} sizes="(max-width: 768px) 100vw, 768px" unoptimized />
-                  <p className="mt-2 text-xs font-black text-ink">{mockup.title}</p>
-                  <AppButton className="mt-2 py-3 text-xs" variant={mockupPdfRecords[`${mockup.id}:${aiBusinessCardPdfRendererVersion}`] ? "primary" : "secondary"} onClick={() => handleDownloadMockupPdf(mockup)} disabled={runningMockupPdfId === mockup.id || !mockup.cleanImageUrl}>
-                    {runningMockupPdfId === mockup.id ? "PDF 만드는 중" : mockupPdfRecords[`${mockup.id}:${aiBusinessCardPdfRendererVersion}`] ? "PDF 다운로드" : "PDF 만들기"}
-                  </AppButton>
-                  {!mockup.cleanImageUrl ? <p className="mt-2 rounded-md bg-danger/10 px-3 py-2 text-[11px] font-bold leading-5 text-danger">클린 배경이 없는 목업이라 PDF를 만들 수 없어요.</p> : null}
-                  {mockupPdfErrors[`${mockup.id}:${aiBusinessCardPdfRendererVersion}`] ? <p className="mt-2 rounded-md bg-danger/10 px-3 py-2 text-[11px] font-bold leading-5 text-danger">{mockupPdfErrors[`${mockup.id}:${aiBusinessCardPdfRendererVersion}`]}</p> : null}
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : null}
+        <CompletedBusinessCardList
+          entries={visibleBusinessCardEntries}
+          logo={logo}
+          pdfRecords={mockupPdfRecords}
+          pdfErrors={mockupPdfErrors}
+          runningMockupPdfId={runningMockupPdfId}
+          rendererVersion={aiBusinessCardPdfRendererVersion}
+          resolveMember={({ draft, signature }) => draft?.member ?? currentBrandMockupSignatureEntries.find((entry) => entry.signature === signature)?.member ?? memberFromSavedAiBusinessCardMockupSignature(signature, brand.members)}
+          resolveLayout={({ draft, mockup, signature }) => mockup.layout ?? draft?.layout ?? layoutFromSavedAiBusinessCardMockupSignature(signature)}
+          onEdit={({ draft, mockup, signature }, matchedMember, completedLayout) => handleEditCompletedMockupLayout(mockup, matchedMember, completedLayout, signature, draft ? [mockup] : visibleAiBusinessCardMockups, draft?.id)}
+          onDelete={handleDeleteCompletedMockup}
+          onDownloadPdf={({ mockup, signature }, matchedMember, completedLayout) => handleDownloadMockupPdf(mockup, signature, matchedMember, completedLayout)}
+        />
         {orderedBusinessCards.length > 0 ? orderedBusinessCards.map(({ order, draft, template, member, logo: cardLogo }) => (
           <div key={order.id} className="grid gap-4 rounded-lg border border-line bg-surface p-4 shadow-card">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-xs font-black text-primary-strong">{order.orderNumber}</p>
-                <h3 className="mt-1 text-lg font-black tracking-[-0.04em] text-ink">{template.title}</h3>
+                <h3 className="mt-1 text-lg font-black tracking-[-0.04em] text-ink">{template?.title ?? "AI 명함 디자인"}</h3>
                 <p className="mt-2 text-xs font-bold leading-5 text-muted">{member.name} · {draft.createdAt}</p>
               </div>
               <span className="shrink-0 rounded-md bg-surface-blue px-3 py-1 text-xs font-black text-primary-strong">{order.statusLabel}</span>
             </div>
             <div className="grid gap-4">
-              <BusinessCardPreview brandName={brand.name} category={brand.category} member={member} logo={cardLogo} template={template} side="front" />
-              {template.layout ? <BusinessCardPreview brandName={brand.name} category={brand.category} member={member} logo={cardLogo} template={template} side="back" /> : null}
+              <BusinessCardPreview brandName={brand.name} category={brand.category} member={member} logo={cardLogo} template={template ?? (draft.layout ? { id: draft.id, productId: "business-card", title: "AI 명함 디자인", summary: "저장된 명함 레이아웃", tags: [], layout: draft.layout, createdAt: draft.createdAt } : undefined)} side="front" />
+              {template?.layout || draft.layout ? <BusinessCardPreview brandName={brand.name} category={brand.category} member={member} logo={cardLogo} template={template ?? (draft.layout ? { id: draft.id, productId: "business-card", title: "AI 명함 디자인", summary: "저장된 명함 레이아웃", tags: [], layout: draft.layout, createdAt: draft.createdAt } : undefined)} side="back" /> : null}
             </div>
-            <AppButton className="py-3 text-sm" variant="secondary" onClick={() => handleEditOrderedCardLayout(draft, template)}>
+            <AppButton className="py-3 text-sm" variant="secondary" onClick={() => handleEditOrderedCardLayout(draft, template ?? { id: draft.id, productId: "business-card", title: "AI 명함 디자인", summary: "저장된 명함 레이아웃", tags: [], layout: draft.layout, createdAt: draft.createdAt })}>
               레이아웃 수정하기
             </AppButton>
           </div>
-        )) : visibleAiBusinessCardMockups.length === 0 ? (
+        )) : visibleBusinessCardEntries.length === 0 ? (
           <div className="rounded-lg bg-surface-blue p-5 text-center shadow-soft">
             <p className="text-base font-black text-ink">완료된 명함이 아직 없어요</p>
             <p className="mt-2 text-xs font-bold leading-5 text-muted">입금 확인된 명함이 생기면 이곳에서 다시 확인할 수 있어요.</p>

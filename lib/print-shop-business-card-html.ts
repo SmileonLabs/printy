@@ -1,7 +1,9 @@
 import "server-only";
 
 import { businessCardTemplateIconArtwork, defaultBusinessCardTemplateLayout } from "@/lib/business-card-templates";
-import { adminCanvasReferenceWidthPx, backgroundColor, boxStyleText, businessCardContactItemGapPx, businessCardIconChromeStyle, businessCardInfoBlockIconSvgPreserveAspectRatio, businessCardInfoBlockIconTextGapStylePx, businessCardTrimWidthScale, displayBusinessCardFieldValue, estimatedBusinessCardTextWidthEm, fittedBusinessCardFontSizePx, fontFamilies, formatPercent, getBusinessCardInfoBlockRenderMetrics, getBusinessCardInfoBlockRowRenderMetrics, getBusinessCardTrimMetrics, isMultilineBusinessCardTextFieldId, readSafeColor, resolveBusinessCardContactLayout, sampleBusinessCardFieldValues, type BusinessCardContactRow, type BusinessCardInfoBlock } from "@/lib/business-card-rendering";
+import { backgroundColor, boxStyleText, businessCardContactItemGapPx, businessCardIconChromeStyle, businessCardInfoBlockIconSvgPreserveAspectRatio, businessCardInfoBlockIconTextGapStylePx, businessCardTrimWidthScale, cssPxPerMm, displayBusinessCardFieldValue, fontFamilies, formatPercent, getBusinessCardInfoBlockRenderMetrics, getBusinessCardInfoBlockRowRenderMetrics, getBusinessCardTrimMetrics, readSafeColor, resolveBusinessCardContactLayout, sampleBusinessCardFieldValue, type BusinessCardContactRow, type BusinessCardInfoBlock } from "@/lib/business-card-rendering";
+import { designTextBoxFontSizePx } from "@/lib/design-projects/text-sizing";
+import { textColorCss } from "@/lib/text-color-effects";
 import type { BusinessCardTemplateBackground, BusinessCardTemplateBox, BusinessCardTemplateIconElement, BusinessCardTemplateLayout, BusinessCardTemplateLineElement, BusinessCardTemplateSideId, BusinessCardTemplateTextElement, BusinessCardTemplateTextFieldId, Member, PrintTemplate, ResolvedLogoOption } from "@/lib/types";
 
 export type PrintShopBusinessCardRenderData = {
@@ -102,10 +104,10 @@ function renderLogo(box: BusinessCardTemplateBox, visible: boolean, origin: stri
 
 function fieldValue(fieldId: BusinessCardTemplateTextFieldId, renderData: PrintShopBusinessCardRenderData | undefined) {
   if (!renderData) {
-    return sampleBusinessCardFieldValues[fieldId];
+    return sampleBusinessCardFieldValue(fieldId);
   }
 
-  const values: Record<BusinessCardTemplateTextFieldId, string> = {
+  const values: Record<Exclude<BusinessCardTemplateTextFieldId, `headline-${number}` | `body-${number}`>, string> = {
     role: renderData.member.role || renderData.category,
     name: renderData.member.name || renderData.brandName,
     phone: renderData.member.phone,
@@ -115,18 +117,15 @@ function fieldValue(fieldId: BusinessCardTemplateTextFieldId, renderData: PrintS
     website: renderData.member.website ?? "",
     address: renderData.member.address,
     account: renderData.member.account ?? "",
-    titleLine1: renderData.member.titleLine1 ?? "",
-    titleLine2: renderData.member.titleLine2 ?? "",
-    adLine1: renderData.member.adLine1 ?? "",
-    adLine2: renderData.member.adLine2 ?? "",
     instagram: renderData.member.instagram ?? "",
     qrCode: renderData.member.qrCodeImageUrl ?? "",
   };
 
-  return values[fieldId];
+  if (fieldId.startsWith("headline-") || fieldId.startsWith("body-")) return sampleBusinessCardFieldValue(fieldId);
+  return values[fieldId as keyof typeof values];
 }
 
-function renderField(field: BusinessCardTemplateTextElement, cssPixelScale: number, trimWidthScale: number, renderData: PrintShopBusinessCardRenderData | undefined, origin: string | undefined) {
+function renderField(field: BusinessCardTemplateTextElement, trim: { widthMm: number; heightMm: number }, renderData: PrintShopBusinessCardRenderData | undefined, origin: string | undefined) {
   const rawValue = field.customValue ?? fieldValue(field.id, renderData);
   const value = displayBusinessCardFieldValue(field.id, rawValue);
 
@@ -138,16 +137,15 @@ function renderField(field: BusinessCardTemplateTextElement, cssPixelScale: numb
     return `<div class="qr-code" style="${escapeHtml(boxStyleText(field.box))}"><img src="${escapeHtml(absoluteAssetUrl(value, origin))}" alt="QR code" /></div>`;
   }
 
-  const whiteSpace = isMultilineBusinessCardTextFieldId(field.id) ? "pre-line" : "nowrap";
-  const style = `${boxStyleText(field.box)}font-family:${fontFamilies[field.fontFamily]};font-size:${fittedBusinessCardFontSizePx(field, value, cssPixelScale, field.box.width, 16 * cssPixelScale, trimWidthScale)}px;color:${readSafeColor(field.color, "#111827")};font-weight:${field.fontWeight === "bold" ? 900 : 400};font-style:${field.italic || field.fontFamily === "handwriting" ? "italic" : "normal"};text-align:${field.align};white-space:${whiteSpace};--field-padding-x:${formatPercent(8 * cssPixelScale, 4)}px;`;
+  const style = `${boxStyleText(field.box)}${fieldTextStyle(field, trim, value)}white-space:pre;--field-padding-x:0px;`;
 
-  return `<div class="field" style="${escapeHtml(style)}"><span>${escapeHtml(value)}</span></div>`;
+  return `<div class="field" style="${escapeHtml(style)}"><span style="${escapeHtml(textColorCss(field.color))}">${escapeHtml(value)}</span></div>`;
 }
 
-function fieldTextStyle(field: BusinessCardTemplateTextElement, cssPixelScale: number, trimWidthScale: number, value?: string, availableWidthPercent = field.box.width, paddingPx = 0) {
-  const fontSizePx = value === undefined ? formatPercent(field.fontSize * cssPixelScale, 8) : fittedBusinessCardFontSizePx(field, value, cssPixelScale, availableWidthPercent, paddingPx, trimWidthScale);
+function fieldTextStyle(field: BusinessCardTemplateTextElement, trim: { widthMm: number; heightMm: number }, value: string, availableWidthPercent = field.box.width) {
+  const fontSizePx = designTextBoxFontSizePx(trim.widthMm * cssPxPerMm, trim.heightMm * cssPxPerMm, { ...field.box, width: availableWidthPercent }, value);
 
-  return `font-family:${fontFamilies[field.fontFamily]};font-size:${fontSizePx}px;color:${readSafeColor(field.color, "#111827")};font-weight:${field.fontWeight === "bold" ? 900 : 400};font-style:${field.italic || field.fontFamily === "handwriting" ? "italic" : "normal"};text-align:${field.align};`;
+  return `font-family:${fontFamilies[field.fontFamily]};font-size:${fontSizePx}px;${textColorCss(field.color)}font-weight:${field.fontWeight === "bold" ? 900 : 400};font-style:${field.italic || field.fontFamily === "handwriting" ? "italic" : "normal"};text-align:${field.align};`;
 }
 
 function justifyContentForTextAlign(align: BusinessCardTemplateTextElement["align"]) {
@@ -162,19 +160,7 @@ function justifyContentForTextAlign(align: BusinessCardTemplateTextElement["alig
   return "flex-start";
 }
 
-function contactRowFontScale(row: BusinessCardContactRow, cssPixelScale: number, trimWidthScale: number, availableWidthPercent: number, gapPx: number, paddingPx: number) {
-  if (row.id !== "contact" || row.items.length <= 1) {
-    return 1;
-  }
-
-  const availableWidthPx = Math.max(1, (adminCanvasReferenceWidthPx * cssPixelScale * trimWidthScale * (availableWidthPercent / 100) - paddingPx) * 0.99);
-  const totalGapPx = gapPx * (row.items.length - 1);
-  const totalTextWidthPx = row.items.reduce((total, item) => total + estimatedBusinessCardTextWidthEm(item.value) * item.field.fontSize * cssPixelScale, 0);
-
-  return totalTextWidthPx + totalGapPx > availableWidthPx ? Math.max(0.1, (availableWidthPx - totalGapPx) / totalTextWidthPx) : 1;
-}
-
-function renderInfoBlock(block: BusinessCardInfoBlock, cssPixelScale: number, trimWidthScale: number) {
+function renderInfoBlock(block: BusinessCardInfoBlock, cssPixelScale: number, trim: { widthMm: number; heightMm: number }) {
   const firstField = block.rows[0]?.items[0]?.field;
 
   if (!firstField) {
@@ -198,19 +184,18 @@ function renderInfoBlock(block: BusinessCardInfoBlock, cssPixelScale: number, tr
     const rowMetrics = getBusinessCardInfoBlockRowRenderMetrics(block, row);
     const rowAvailableWidthPercent = Math.max(1, 100 - (block.icon ? metrics.iconTextPaddingPercent : metrics.paddingLeftPercent));
     const rowAvailableCanvasWidthPercent = block.box.width * (rowAvailableWidthPercent / 100);
-    const contactFontScale = contactRowFontScale(row, cssPixelScale, trimWidthScale, rowAvailableCanvasWidthPercent, row.id === "contact" ? businessCardContactItemGapPx : 0, iconTextGapPx);
     const contactGapReservePercent = row.id === "contact" ? Math.min(rowAvailableWidthPercent - 1, row.items.length * 3) : 0;
     const itemAvailableWidthPercent = Math.max(1, block.box.width * ((rowAvailableWidthPercent - contactGapReservePercent) / 100) / row.items.length);
     const rowStyle = `left:${rowLeft};right:0;top:${formatPercent(rowMetrics.topPercent, 0)}%;height:${formatPercent(rowMetrics.heightPercent, 100)}%;gap:${row.id === "contact" ? `${businessCardContactItemGapPx}px` : "0.35em"};justify-content:${justifyContentForTextAlign(firstField.align)};`;
 
     return `<span class="info-block-row" style="${escapeHtml(rowStyle)}">${row.items.map((item) => {
-      const itemStyle = row.id === "contact" ? `${fieldTextStyle(item.field, cssPixelScale, trimWidthScale, item.value, itemAvailableWidthPercent)}font-size:${formatPercent(item.field.fontSize * cssPixelScale * contactFontScale, item.field.fontSize * cssPixelScale)}px;` : fieldTextStyle(item.field, cssPixelScale, trimWidthScale, item.value, itemAvailableWidthPercent, iconTextGapPx);
+      const itemStyle = fieldTextStyle(item.field, trim, item.value, itemAvailableWidthPercent);
 
       return `<span class="info-block-item" style="${escapeHtml(itemStyle)}">${escapeHtml(item.value)}</span>`;
     }).join("")}</span>`;
   }).join("");
   const textPadding = block.icon ? `calc(${formatPercent(metrics.iconTextPaddingPercent, 0)}% + ${businessCardInfoBlockIconTextGapStylePx(block)}px)` : `${formatPercent(metrics.paddingLeftPercent, 0)}%`;
-  const style = `${boxStyleText(block.box)}${fieldTextStyle(firstField, cssPixelScale, trimWidthScale)}--contact-padding-left:${textPadding};`;
+  const style = `${boxStyleText(block.box)}${fieldTextStyle(firstField, trim, block.rows[0]?.items[0]?.value ?? " ")}--contact-padding-left:${textPadding};`;
 
   return `<div class="info-block" style="${escapeHtml(style)}">${iconMarkup}${rowsMarkup}</div>`;
 }
@@ -248,7 +233,7 @@ function renderSide(layout: BusinessCardTemplateLayout, sideId: BusinessCardTemp
   const cropMarks = includeProductionMarks ? renderCropMarks() : "";
   const contactLayout = resolveBusinessCardContactLayout(side.fields, side.icons, (field) => field.customValue ?? fieldValue(field.id, renderData));
 
-  return `<section class="pdf-page" data-side="${sideId}" aria-label="${sideLabels[sideId]}"><div class="bleed-background" style="${escapeHtml(backgroundStyle)}"></div><article class="trim-area">${renderLogo(side.logo.box, side.logo.visible, origin, renderData?.logo)}${side.lines.map(renderLine).join("")}${contactLayout.blocks.map((block) => renderInfoBlock(block, cssPixelScale, trimWidthScale)).join("")}${contactLayout.fields.map((field) => renderField(field, cssPixelScale, trimWidthScale, renderData, origin)).join("")}${contactLayout.icons.map((icon) => renderIcon(icon, cssPixelScale)).join("")}</article>${cropMarks}</section>`;
+  return `<section class="pdf-page" data-side="${sideId}" aria-label="${sideLabels[sideId]}"><div class="bleed-background" style="${escapeHtml(backgroundStyle)}"></div><article class="trim-area">${renderLogo(side.logo.box, side.logo.visible, origin, renderData?.logo)}${side.lines.map(renderLine).join("")}${contactLayout.blocks.map((block) => renderInfoBlock(block, cssPixelScale, layout.canvas.trim)).join("")}${contactLayout.fields.map((field) => renderField(field, layout.canvas.trim, renderData, origin)).join("")}${contactLayout.icons.map((icon) => renderIcon(icon, cssPixelScale)).join("")}</article>${cropMarks}</section>`;
 }
 
 export function buildPrintShopBusinessCardHtml({ template, origin, includeProductionMarks = false, renderData }: PrintShopBusinessCardHtmlInput): PrintShopBusinessCardHtmlResult {

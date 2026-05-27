@@ -3,7 +3,7 @@ import { normalizeBusinessCardTemplateLayout } from "@/lib/business-card-templat
 import type { BusinessCardColorPaletteId, BusinessCardProductionOptions, BusinessCardUserElementId, LogoShape, Member, ResolvedLogoOption } from "@/lib/types";
 
 const logoShapes = new Set<LogoShape>(["circle", "square", "pill", "diamond", "arch", "spark"]);
-const businessCardElementIds = new Set<BusinessCardUserElementId>(["logo", "brandName", "category", "name", "role", "phone", "mainPhone", "fax", "email", "website", "address", "account", "titleLine1", "titleLine2", "adLine1", "adLine2", "instagram", "instagramIcon", "qrCode"]);
+const businessCardElementIds = new Set<BusinessCardUserElementId>(["logo", "brandName", "category", "name", "role", "phone", "mainPhone", "fax", "email", "website", "address", "account", "instagram", "instagramIcon", "qrCode"]);
 const businessCardColorIds = new Set<BusinessCardColorPaletteId>(["black", "white", "green", "yellow", "blue", "red"]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -32,10 +32,6 @@ function readMember(value: unknown): Member | undefined {
     website: readString(value, "website"),
     address: readString(value, "address"),
     account: readString(value, "account"),
-    titleLine1: readString(value, "titleLine1"),
-    titleLine2: readString(value, "titleLine2"),
-    adLine1: readString(value, "adLine1"),
-    adLine2: readString(value, "adLine2"),
     instagram: readString(value, "instagram"),
     qrCodeImageUrl: readString(value, "qrCodeImageUrl"),
   };
@@ -51,9 +47,10 @@ function readLogo(value: unknown): ResolvedLogoOption | undefined {
   const label = readString(value, "label");
   const description = readString(value, "description");
   const imageUrl = readString(value, "imageUrl");
+  const vectorSvgUrl = readString(value, "vectorSvgUrl");
 
   if (id && name && label && description && imageUrl && (imageUrl.startsWith("data:image/png;base64,") || imageUrl.startsWith("/"))) {
-    return { id, name, label, description, imageUrl, source: "openai" };
+    return vectorSvgUrl.startsWith("/") ? { id, name, label, description, imageUrl, vectorSvgUrl, source: "openai" } : { id, name, label, description, imageUrl, source: "openai" };
   }
 
   const initial = readString(value, "initial");
@@ -69,7 +66,7 @@ function readLogo(value: unknown): ResolvedLogoOption | undefined {
 }
 
 function readElementIds(value: unknown) {
-  return Array.isArray(value) ? value.filter((item): item is BusinessCardUserElementId => typeof item === "string" && businessCardElementIds.has(item as BusinessCardUserElementId)) : [];
+  return Array.isArray(value) ? value.filter((item): item is BusinessCardUserElementId => typeof item === "string" && (businessCardElementIds.has(item as BusinessCardUserElementId) || /^headline-\d+$/.test(item) || /^body-\d+$/.test(item))) : [];
 }
 
 function readProductionOptions(value: unknown): BusinessCardProductionOptions | undefined {

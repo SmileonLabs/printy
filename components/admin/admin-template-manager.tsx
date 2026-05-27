@@ -82,6 +82,16 @@ type AdminLogoGenerationBrandStatus = {
   latestJobUpdatedAt: string;
   latestFailureKind: string;
   latestFailureReason: string;
+  logos: AdminLogoGenerationLogoSummary[];
+};
+
+type AdminLogoGenerationLogoSummary = {
+  id: string;
+  name: string;
+  imageUrl: string;
+  vectorSvgUrl: string;
+  updatedAt: string;
+  isSelected: boolean;
 };
 
 type AdminLogoGenerationAccountStatus = {
@@ -173,6 +183,31 @@ type AdminAiBusinessCardPromptSettings = {
 
 type AdminAiBusinessCardPromptsResponse = {
   prompts: AdminAiBusinessCardPromptSettings;
+};
+
+type AdminPrintProductPromptProductType = "banner" | "signage" | "flyer";
+
+type AdminPrintProductPromptVersion = {
+  id: string;
+  productType: AdminPrintProductPromptProductType;
+  mockupInstructions: string;
+  cleanInstructions: string;
+  editInstructions: string;
+  createdAt: string;
+};
+
+type AdminPrintProductPromptItem = {
+  mockupInstructions: string;
+  cleanInstructions: string;
+  editInstructions: string;
+  history: AdminPrintProductPromptVersion[];
+  updatedAt?: string;
+};
+
+type AdminPrintProductPromptSettings = Record<AdminPrintProductPromptProductType, AdminPrintProductPromptItem>;
+
+type AdminPrintProductPromptsResponse = {
+  prompts: AdminPrintProductPromptSettings;
 };
 
 type PublicTemplatesResponse = {
@@ -485,6 +520,30 @@ function readAdminAiBusinessCardPromptsResponse(value: unknown): AdminAiBusiness
   return { prompts: value.prompts };
 }
 
+function isAdminPrintProductPromptProductType(value: unknown): value is AdminPrintProductPromptProductType {
+  return value === "banner" || value === "signage" || value === "flyer";
+}
+
+function isAdminPrintProductPromptVersion(value: unknown): value is AdminPrintProductPromptVersion {
+  return isRecord(value) && typeof value.id === "string" && isAdminPrintProductPromptProductType(value.productType) && typeof value.mockupInstructions === "string" && typeof value.cleanInstructions === "string" && typeof value.editInstructions === "string" && typeof value.createdAt === "string";
+}
+
+function isAdminPrintProductPromptItem(value: unknown): value is AdminPrintProductPromptItem {
+  return isRecord(value) && typeof value.mockupInstructions === "string" && typeof value.cleanInstructions === "string" && typeof value.editInstructions === "string" && Array.isArray(value.history) && value.history.every(isAdminPrintProductPromptVersion) && (value.updatedAt === undefined || typeof value.updatedAt === "string");
+}
+
+function isAdminPrintProductPromptSettings(value: unknown): value is AdminPrintProductPromptSettings {
+  return isRecord(value) && isAdminPrintProductPromptItem(value.banner) && isAdminPrintProductPromptItem(value.signage) && isAdminPrintProductPromptItem(value.flyer);
+}
+
+function readAdminPrintProductPromptsResponse(value: unknown): AdminPrintProductPromptsResponse | undefined {
+  if (!isRecord(value) || !isAdminPrintProductPromptSettings(value.prompts)) {
+    return undefined;
+  }
+
+  return { prompts: value.prompts };
+}
+
 function isOrderRecord(value: unknown): value is OrderRecord {
   if (!isRecord(value)) {
     return false;
@@ -509,8 +568,12 @@ function isAdminLogoGenerationJobCounts(value: unknown): value is AdminLogoGener
   return isRecord(value) && typeof value.total === "number" && typeof value.queued === "number" && typeof value.running === "number" && typeof value.succeeded === "number" && typeof value.failed === "number" && typeof value.cancelled === "number";
 }
 
+function isAdminLogoGenerationLogoSummary(value: unknown): value is AdminLogoGenerationLogoSummary {
+  return isRecord(value) && typeof value.id === "string" && typeof value.name === "string" && typeof value.imageUrl === "string" && typeof value.vectorSvgUrl === "string" && typeof value.updatedAt === "string" && typeof value.isSelected === "boolean";
+}
+
 function isAdminLogoGenerationBrandStatus(value: unknown): value is AdminLogoGenerationBrandStatus {
-  return isRecord(value) && (typeof value.brandId === "string" || value.brandId === null) && typeof value.brandName === "string" && typeof value.category === "string" && typeof value.selectedLogoId === "string" && typeof value.logoCount === "number" && typeof value.latestLogoImageUrl === "string" && typeof value.latestLogoUpdatedAt === "string" && isAdminLogoGenerationJobCounts(value.jobs) && typeof value.latestJobUpdatedAt === "string" && typeof value.latestFailureKind === "string" && typeof value.latestFailureReason === "string";
+  return isRecord(value) && (typeof value.brandId === "string" || value.brandId === null) && typeof value.brandName === "string" && typeof value.category === "string" && typeof value.selectedLogoId === "string" && typeof value.logoCount === "number" && typeof value.latestLogoImageUrl === "string" && typeof value.latestLogoUpdatedAt === "string" && isAdminLogoGenerationJobCounts(value.jobs) && typeof value.latestJobUpdatedAt === "string" && typeof value.latestFailureKind === "string" && typeof value.latestFailureReason === "string" && Array.isArray(value.logos) && value.logos.every(isAdminLogoGenerationLogoSummary);
 }
 
 function isAdminLogoGenerationAccountStatus(value: unknown): value is AdminLogoGenerationAccountStatus {
@@ -523,6 +586,18 @@ function readAdminLogoGenerationStatusResponse(value: unknown): AdminLogoGenerat
   }
 
   return { accounts: value.accounts };
+}
+
+function readAdminVectorLogoResponse(value: unknown) {
+  if (!isRecord(value) || !isRecord(value.logo)) {
+    return undefined;
+  }
+
+  const logo = value.logo;
+  const id = typeof logo.id === "string" ? logo.id : "";
+  const vectorSvgUrl = typeof logo.vectorSvgUrl === "string" ? logo.vectorSvgUrl : "";
+
+  return id && vectorSvgUrl ? { id, vectorSvgUrl } : undefined;
 }
 
 function isAdminFileArchiveUser(value: unknown): value is AdminFileArchiveUser {
@@ -740,6 +815,9 @@ export function AdminTemplateManager() {
   const [aiBusinessCardPrompts, setAiBusinessCardPrompts] = useState<AdminAiBusinessCardPromptSettings>({ mockupInstructions: "", cleanInstructions: "", history: [] });
   const [isSavingAiBusinessCardPrompts, setIsSavingAiBusinessCardPrompts] = useState(false);
   const [rollingBackAiBusinessCardPromptId, setRollingBackAiBusinessCardPromptId] = useState<string>();
+  const [printProductPrompts, setPrintProductPrompts] = useState<AdminPrintProductPromptSettings>({ banner: { mockupInstructions: "", cleanInstructions: "", editInstructions: "", history: [] }, signage: { mockupInstructions: "", cleanInstructions: "", editInstructions: "", history: [] }, flyer: { mockupInstructions: "", cleanInstructions: "", editInstructions: "", history: [] } });
+  const [isSavingPrintProductPrompts, setIsSavingPrintProductPrompts] = useState(false);
+  const [rollingBackPrintProductPromptId, setRollingBackPrintProductPromptId] = useState<string>();
 
   const selectedTemplate = useMemo(() => templates.find((template) => template.id === selectedTemplateId), [selectedTemplateId, templates]);
   const publishedCount = templates.filter((template) => template.status === "published").length;
@@ -929,6 +1007,23 @@ export function AdminTemplateManager() {
     setAiBusinessCardPrompts(data.prompts);
   };
 
+  const loadPrintProductPrompts = async () => {
+    const response = await fetch("/api/admin/settings/print-product-prompts", { credentials: "include", cache: "no-store" });
+
+    if (!response.ok) {
+      setAuthenticated(false);
+      throw new Error("제작 상품 프롬프트를 불러오지 못했어요.");
+    }
+
+    const data = readAdminPrintProductPromptsResponse(await response.json());
+
+    if (!data) {
+      throw new Error("제작 상품 프롬프트 응답이 올바르지 않아요.");
+    }
+
+    setPrintProductPrompts(data.prompts);
+  };
+
   const refreshPublicTemplates = async () => {
     const response = await fetch("/api/templates", { cache: "no-store" });
 
@@ -964,7 +1059,7 @@ export function AdminTemplateManager() {
 
       setAuthenticated(true);
       setToken("");
-      await Promise.all([loadTemplates(), refreshPublicTemplates(), loadManagedBackgrounds(), loadLogoReferenceImages(), loadAdminOrders(), loadLogoGenerationStatus(), loadBrandTransferData(), loadFileArchive(), loadBankAccount(), loadAiBusinessCardPrompts()]);
+      await Promise.all([loadTemplates(), refreshPublicTemplates(), loadManagedBackgrounds(), loadLogoReferenceImages(), loadAdminOrders(), loadLogoGenerationStatus(), loadBrandTransferData(), loadFileArchive(), loadBankAccount(), loadAiBusinessCardPrompts(), loadPrintProductPrompts()]);
       setActiveSection("dashboard");
       setStatus("success");
       setMessage("관리자 화면이 열렸어요. 토큰은 화면 상태에서만 사용했어요.");
@@ -1567,6 +1662,65 @@ export function AdminTemplateManager() {
     }
   };
 
+  const handleSavePrintProductPrompts = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsSavingPrintProductPrompts(true);
+    setStatus("loading");
+    setMessage("제작 상품 프롬프트를 저장하고 있어요.");
+
+    try {
+      const response = await fetch("/api/admin/settings/print-product-prompts", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(printProductPrompts),
+      });
+      const data = readAdminPrintProductPromptsResponse(await response.json().catch(() => undefined));
+
+      if (!response.ok || !data) {
+        throw new Error("제작 상품 프롬프트를 저장하지 못했어요.");
+      }
+
+      setPrintProductPrompts(data.prompts);
+      setStatus("success");
+      setMessage("제작 상품 프롬프트를 저장했어요. 다음 배너/간판 AI 배경 생성부터 반영됩니다.");
+    } catch (error) {
+      setStatus("error");
+      setMessage(error instanceof Error ? error.message : "제작 상품 프롬프트를 저장하지 못했어요.");
+    } finally {
+      setIsSavingPrintProductPrompts(false);
+    }
+  };
+
+  const handleRollbackPrintProductPrompts = async (productType: AdminPrintProductPromptProductType, versionId: string) => {
+    setRollingBackPrintProductPromptId(versionId);
+    setStatus("loading");
+    setMessage("제작 상품 프롬프트를 이전 이력으로 되돌리고 있어요.");
+
+    try {
+      const response = await fetch("/api/admin/settings/print-product-prompts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ productType, versionId }),
+      });
+      const data = readAdminPrintProductPromptsResponse(await response.json().catch(() => undefined));
+
+      if (!response.ok || !data) {
+        throw new Error("제작 상품 프롬프트 이력을 되돌리지 못했어요.");
+      }
+
+      setPrintProductPrompts(data.prompts);
+      setStatus("success");
+      setMessage("제작 상품 프롬프트를 이전 이력으로 되돌렸어요.");
+    } catch (error) {
+      setStatus("error");
+      setMessage(error instanceof Error ? error.message : "제작 상품 프롬프트 이력을 되돌리지 못했어요.");
+    } finally {
+      setRollingBackPrintProductPromptId(undefined);
+    }
+  };
+
   const handleUpdateOrderStatus = async (orderId: string, status: OrderRecord["status"]) => {
     setStatus("loading");
     setMessage("주문 상태를 변경하고 있어요.");
@@ -1616,7 +1770,10 @@ export function AdminTemplateManager() {
     ) : activeSection === "fileArchive" ? (
       <FileArchivePanel users={fileArchiveUsers} files={fileArchiveFiles} selectedUserId={fileArchiveUserId} displayName={fileArchiveDisplayName} note={fileArchiveNote} fileInputKey={fileArchiveFileInputKey} selectedFile={fileArchiveFile} isUploading={isUploadingFileArchiveFile} status={status} message={message} onUserChange={setFileArchiveUserId} onDisplayNameChange={setFileArchiveDisplayName} onNoteChange={setFileArchiveNote} onFileChange={handleFileArchiveFileChange} onUpload={handleUploadFileArchiveFile} onRefresh={loadFileArchive} />
     ) : activeSection === "settings" ? (
-      <CommonSettingsPanel backgrounds={managedBackgrounds} bankAccount={bankAccount} aiBusinessCardPrompts={aiBusinessCardPrompts} backgroundName={backgroundName} backgroundTagsText={backgroundTagsText} backgroundFile={backgroundFile} backgroundFilePreviewUrl={backgroundFilePreviewUrl} backgroundFileInputKey={backgroundFileInputKey} status={status} message={message} isUploadingBackgroundImage={isUploadingBackgroundImage} isCleaningBackgroundImages={isCleaningBackgroundImages} isSavingBankAccount={isSavingBankAccount} isSavingAiBusinessCardPrompts={isSavingAiBusinessCardPrompts} rollingBackAiBusinessCardPromptId={rollingBackAiBusinessCardPromptId} deletingBackgroundId={deletingBackgroundId} updatingBackgroundId={updatingBackgroundId} onBankAccountChange={setBankAccount} onAiBusinessCardPromptsChange={setAiBusinessCardPrompts} onSaveBankAccount={handleSaveBankAccount} onSaveAiBusinessCardPrompts={handleSaveAiBusinessCardPrompts} onRollbackAiBusinessCardPrompts={handleRollbackAiBusinessCardPrompts} onBackgroundNameChange={setBackgroundName} onBackgroundTagsTextChange={setBackgroundTagsText} onBackgroundFileChange={handleBackgroundFileChange} onUploadBackground={handleUploadManagedBackground} onUpdateBackground={handleUpdateManagedBackground} onDeleteBackground={handleDeleteManagedBackground} onCleanupBackgroundImages={handleCleanupBackgroundImages} />
+      <div className="grid gap-4">
+        <CommonSettingsPanel backgrounds={managedBackgrounds} bankAccount={bankAccount} aiBusinessCardPrompts={aiBusinessCardPrompts} backgroundName={backgroundName} backgroundTagsText={backgroundTagsText} backgroundFile={backgroundFile} backgroundFilePreviewUrl={backgroundFilePreviewUrl} backgroundFileInputKey={backgroundFileInputKey} status={status} message={message} isUploadingBackgroundImage={isUploadingBackgroundImage} isCleaningBackgroundImages={isCleaningBackgroundImages} isSavingBankAccount={isSavingBankAccount} isSavingAiBusinessCardPrompts={isSavingAiBusinessCardPrompts} rollingBackAiBusinessCardPromptId={rollingBackAiBusinessCardPromptId} deletingBackgroundId={deletingBackgroundId} updatingBackgroundId={updatingBackgroundId} onBankAccountChange={setBankAccount} onAiBusinessCardPromptsChange={setAiBusinessCardPrompts} onSaveBankAccount={handleSaveBankAccount} onSaveAiBusinessCardPrompts={handleSaveAiBusinessCardPrompts} onRollbackAiBusinessCardPrompts={handleRollbackAiBusinessCardPrompts} onBackgroundNameChange={setBackgroundName} onBackgroundTagsTextChange={setBackgroundTagsText} onBackgroundFileChange={handleBackgroundFileChange} onUploadBackground={handleUploadManagedBackground} onUpdateBackground={handleUpdateManagedBackground} onDeleteBackground={handleDeleteManagedBackground} onCleanupBackgroundImages={handleCleanupBackgroundImages} />
+        <PrintProductPromptSettingsPanel prompts={printProductPrompts} isSaving={isSavingPrintProductPrompts} rollingBackPromptId={rollingBackPrintProductPromptId} onChange={setPrintProductPrompts} onSave={handleSavePrintProductPrompts} onRollback={handleRollbackPrintProductPrompts} />
+      </div>
     ) : activeSection === "logoReferences" ? (
       <LogoReferencePanel logoReferenceImages={logoReferenceImages} logoReferenceFile={logoReferenceFile} logoReferencePrompt={logoReferencePrompt} logoReferenceFileInputKey={logoReferenceFileInputKey} status={status} message={message} isUploadingLogoReferenceImage={isUploadingLogoReferenceImage} deletingLogoReferenceImageId={deletingLogoReferenceImageId} updatingLogoReferenceImageId={updatingLogoReferenceImageId} onLogoReferenceFileChange={handleLogoReferenceFileChange} onLogoReferencePromptChange={setLogoReferencePrompt} onUploadLogoReferenceImage={handleUploadLogoReferenceImage} onDeleteLogoReferenceImage={handleDeleteLogoReferenceImage} onUpdateForcedInstructions={handleUpdateLogoReferenceForcedInstructions} />
     ) : (
@@ -1907,7 +2064,7 @@ function LogoGenerationStatusPanel({ accounts, onRefresh }: { accounts: AdminLog
           </div>
           <div className="grid gap-3">
             {account.brands.map((brand) => (
-              <LogoGenerationBrandCard key={`${account.user.id}:${brand.brandId ?? brand.brandName}:${brand.latestJobUpdatedAt}`} brand={brand} />
+              <LogoGenerationBrandCard key={`${account.user.id}:${brand.brandId ?? brand.brandName}:${brand.latestJobUpdatedAt}`} userId={account.user.id} brand={brand} onRefresh={onRefresh} />
             ))}
           </div>
         </SoftCard>
@@ -1916,8 +2073,73 @@ function LogoGenerationStatusPanel({ accounts, onRefresh }: { accounts: AdminLog
   );
 }
 
-function LogoGenerationBrandCard({ brand }: { brand: AdminLogoGenerationBrandStatus }) {
+function LogoGenerationBrandCard({ userId, brand, onRefresh }: { userId: string; brand: AdminLogoGenerationBrandStatus; onRefresh: () => Promise<void> }) {
   const latestActivity = getLatestLogoGenerationActivity(brand);
+  const [busyLogoId, setBusyLogoId] = useState<string>();
+  const [message, setMessage] = useState("");
+  const [vectorizedLogoUrls, setVectorizedLogoUrls] = useState<Record<string, string>>({});
+
+  const handleVectorizeLogo = async (logo: AdminLogoGenerationLogoSummary, quality: "fast" | "high" = "fast") => {
+    setBusyLogoId(logo.id);
+    setMessage("");
+
+    try {
+      const response = await fetch("/api/admin/logo-generation-status/vector", {
+        method: "POST",
+        credentials: "include",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, logoId: logo.id, quality }),
+      });
+      const data: unknown = await response.json().catch(() => undefined);
+
+      const vectorLogo = readAdminVectorLogoResponse(data);
+
+      if (!response.ok || !vectorLogo) {
+        throw new Error(readApiErrorReason(data, "로고를 벡터화하지 못했어요."));
+      }
+
+      setVectorizedLogoUrls((current) => ({ ...current, [vectorLogo.id]: vectorLogo.vectorSvgUrl }));
+      setMessage(quality === "high" ? "고품질 SVG 벡터 로고를 만들었어요." : "빠른 SVG 벡터 로고를 만들었어요.");
+      await onRefresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "로고를 벡터화하지 못했어요.");
+    } finally {
+      setBusyLogoId(undefined);
+    }
+  };
+
+  const handleUploadLogoVector = async (logo: AdminLogoGenerationLogoSummary, file: File | undefined) => {
+    if (!file) {
+      return;
+    }
+
+    setBusyLogoId(logo.id);
+    setMessage("");
+
+    try {
+      const formData = new FormData();
+      formData.append("userId", userId);
+      formData.append("logoId", logo.id);
+      formData.append("file", file);
+      const response = await fetch("/api/admin/logo-generation-status/vector", { method: "POST", credentials: "include", cache: "no-store", body: formData });
+      const data: unknown = await response.json().catch(() => undefined);
+
+      const vectorLogo = readAdminVectorLogoResponse(data);
+
+      if (!response.ok || !vectorLogo) {
+        throw new Error(readApiErrorReason(data, "SVG 파일을 적용하지 못했어요."));
+      }
+
+      setVectorizedLogoUrls((current) => ({ ...current, [vectorLogo.id]: vectorLogo.vectorSvgUrl }));
+      setMessage("업로드한 SVG를 로고에 적용했어요.");
+      await onRefresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "SVG 파일을 적용하지 못했어요.");
+    } finally {
+      setBusyLogoId(undefined);
+    }
+  };
 
   return (
     <article className="rounded-lg border border-line bg-surface-blue p-4 shadow-soft">
@@ -1949,6 +2171,39 @@ function LogoGenerationBrandCard({ brand }: { brand: AdminLogoGenerationBrandSta
           {brand.latestFailureReason ? (
             <p className="mt-3 rounded-md bg-danger/10 px-3 py-2 text-xs font-bold leading-5 text-danger">최근 실패: {brand.latestFailureKind || "unknown"} · {brand.latestFailureReason}</p>
           ) : null}
+          {message ? <p className="mt-3 rounded-md bg-surface px-3 py-2 text-xs font-black leading-5 text-primary-strong">{message}</p> : null}
+          <div className="mt-4 grid gap-3">
+            <p className="text-xs font-black text-primary-strong">브랜드 로고 목록</p>
+            {brand.logos.length > 0 ? brand.logos.map((logo) => {
+              const vectorSvgUrl = vectorizedLogoUrls[logo.id] || logo.vectorSvgUrl;
+
+              return (
+                <div key={logo.id} className="grid gap-3 rounded-md border border-line bg-surface p-3 md:grid-cols-[72px_minmax(0,1fr)]">
+                  <div className="grid h-[72px] w-[72px] place-items-center overflow-hidden rounded-md border border-line bg-white">
+                    <Image src={logo.imageUrl} alt={logo.name} width={72} height={72} className="h-full w-full object-contain p-1" unoptimized />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-black text-ink">{logo.name}</p>
+                        <p className="mt-1 truncate text-[11px] font-bold text-soft">{logo.id}{logo.isSelected ? " · 대표 로고" : ""}</p>
+                        <p className="mt-1 text-[11px] font-bold text-muted">SVG {vectorSvgUrl ? "있음" : "없음"} · {formatAdminDate(logo.updatedAt)}</p>
+                      </div>
+                      <span className={`w-fit rounded-md px-2 py-1 text-[11px] font-black ${vectorSvgUrl ? "bg-success/10 text-success" : "bg-danger/10 text-danger"}`}>{vectorSvgUrl ? "벡터 준비됨" : "벡터 필요"}</span>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <a className="rounded-md bg-surface-blue px-3 py-2 text-xs font-black text-primary-strong shadow-soft transition hover:-translate-y-0.5" href={logo.imageUrl} download>PNG 다운로드</a>
+                      {vectorSvgUrl ? <a className="rounded-md bg-primary px-3 py-2 text-xs font-black text-white shadow-soft transition hover:-translate-y-0.5" href={vectorSvgUrl} download>SVG 다운로드</a> : <><button className="rounded-md bg-surface-blue px-3 py-2 text-xs font-black text-primary-strong shadow-soft transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60" type="button" disabled={busyLogoId === logo.id} onClick={() => void handleVectorizeLogo(logo, "fast")}>{busyLogoId === logo.id ? "처리 중" : "빠른 SVG"}</button><button className="rounded-md bg-surface-blue px-3 py-2 text-xs font-black text-primary-strong shadow-soft transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60" type="button" disabled={busyLogoId === logo.id} onClick={() => void handleVectorizeLogo(logo, "high")}>{busyLogoId === logo.id ? "처리 중" : "고품질 SVG 시도"}</button></>}
+                      <label className="cursor-pointer rounded-md bg-surface-blue px-3 py-2 text-xs font-black text-primary-strong shadow-soft transition hover:-translate-y-0.5">
+                        SVG 업로드
+                        <input className="sr-only" type="file" accept="image/svg+xml,.svg" disabled={busyLogoId === logo.id} onChange={(event) => void handleUploadLogoVector(logo, event.currentTarget.files?.[0])} />
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              );
+            }) : <p className="rounded-md bg-surface px-3 py-3 text-xs font-bold text-muted">이 브랜드에 저장된 로고가 없어요.</p>}
+          </div>
         </div>
       </div>
     </article>
@@ -2256,6 +2511,68 @@ function CommonSettingsPanel({ backgrounds, bankAccount, aiBusinessCardPrompts, 
         ))}
       </section>
     </div>
+  );
+}
+
+const printProductPromptLabels: Record<AdminPrintProductPromptProductType, string> = {
+  banner: "배너 / 현수막",
+  signage: "간판",
+  flyer: "홍보물",
+};
+
+function PrintProductPromptSettingsPanel({ prompts, isSaving, rollingBackPromptId, onChange, onSave, onRollback }: { prompts: AdminPrintProductPromptSettings; isSaving: boolean; rollingBackPromptId?: string; onChange: (settings: AdminPrintProductPromptSettings) => void; onSave: (event: FormEvent<HTMLFormElement>) => void; onRollback: (productType: AdminPrintProductPromptProductType, versionId: string) => void }) {
+  const updateProductPrompt = (productType: AdminPrintProductPromptProductType, patch: Partial<AdminPrintProductPromptItem>) => {
+    onChange({ ...prompts, [productType]: { ...prompts[productType], ...patch } });
+  };
+
+  return (
+    <SoftCard className="bg-[linear-gradient(180deg,var(--color-surface)_0%,var(--color-surface-blue)_100%)] p-5 sm:p-6">
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div>
+          <p className="text-xs font-black text-primary-strong">AI 제작 상품 프롬프트</p>
+          <h2 className="mt-1 text-2xl font-black tracking-[-0.05em] text-ink">홍보물/배너/간판 지시문 관리</h2>
+          <p className="mt-2 text-sm font-bold leading-6 text-muted">명함 프롬프트와 별도 저장해 홍보물/배너/간판 수정이 명함 생성에 영향을 주지 않게 관리해요.</p>
+        </div>
+        <span className="rounded-md bg-surface px-4 py-3 text-sm font-black text-primary-strong shadow-soft">이력 {prompts.banner.history.length + prompts.signage.history.length + prompts.flyer.history.length}개</span>
+      </div>
+      <form className="mt-5 grid gap-5" onSubmit={onSave}>
+        {(["flyer", "banner", "signage"] as const).map((productType) => {
+          const productPrompts = prompts[productType];
+
+          return (
+            <section key={productType} className="grid gap-4 rounded-lg border border-line bg-surface p-4 shadow-soft">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h3 className="text-lg font-black tracking-[-0.04em] text-ink">{printProductPromptLabels[productType]}</h3>
+                {productPrompts.updatedAt ? <span className="text-xs font-bold text-muted">최근 저장: {new Date(productPrompts.updatedAt).toLocaleString("ko-KR")}</span> : null}
+              </div>
+              <AdminTextArea label="AI 배경 생성 추가 지시문" value={productPrompts.mockupInstructions} maxLength={4000} placeholder="예: 멀리서도 잘 보이는 대비, 문구 영역 넓게, 실제 문구/로고/QR은 그리지 않기." onChange={(value) => updateProductPrompt(productType, { mockupInstructions: value })} />
+              <AdminTextArea label="클린 배경 추가 지시문" value={productPrompts.cleanInstructions} maxLength={4000} placeholder="예: 텍스트 제거 영역은 주변 배경만 자연스럽게 채우기." onChange={(value) => updateProductPrompt(productType, { cleanInstructions: value })} />
+              <AdminTextArea label="배경 수정 추가 지시문" value={productPrompts.editInstructions} maxLength={4000} placeholder="예: 색감/질감/장식만 수정하고 새 문구나 아이콘은 추가하지 않기." onChange={(value) => updateProductPrompt(productType, { editInstructions: value })} />
+              {productPrompts.history.length > 0 ? (
+                <div className="grid gap-3">
+                  {productPrompts.history.map((version) => (
+                    <article key={version.id} className="grid gap-3 rounded-lg border border-line bg-surface-blue p-3 lg:grid-cols-[1fr_auto] lg:items-start">
+                      <div className="grid gap-1 text-xs font-bold leading-5 text-muted">
+                        <p className="font-black text-ink">{new Date(version.createdAt).toLocaleString("ko-KR")}</p>
+                        <p><span className="font-black text-primary-strong">생성</span> {version.mockupInstructions || "추가 지시문 없음"}</p>
+                        <p><span className="font-black text-primary-strong">클린</span> {version.cleanInstructions || "추가 지시문 없음"}</p>
+                        <p><span className="font-black text-primary-strong">수정</span> {version.editInstructions || "추가 지시문 없음"}</p>
+                      </div>
+                      <button className="rounded-md bg-surface px-4 py-3 text-sm font-black text-primary-strong shadow-soft transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0" type="button" disabled={rollingBackPromptId === version.id} onClick={() => onRollback(productType, version.id)}>
+                        {rollingBackPromptId === version.id ? "롤백 중" : "이 버전으로 롤백"}
+                      </button>
+                    </article>
+                  ))}
+                </div>
+              ) : null}
+            </section>
+          );
+        })}
+        <button className="w-fit rounded-md bg-primary px-4 py-3 text-sm font-black text-white shadow-soft transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0" type="submit" disabled={isSaving}>
+          {isSaving ? "저장 중" : "배너/간판 프롬프트 저장"}
+        </button>
+      </form>
+    </SoftCard>
   );
 }
 

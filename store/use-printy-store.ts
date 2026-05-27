@@ -9,6 +9,7 @@ import { createPrintyNavigationActions } from "@/store/printy-store-navigation-a
 import { createPrintyOnboardingActions } from "@/store/printy-store-onboarding-actions";
 import { getOrderPrice } from "@/store/printy-store-order";
 import { printyStorePersistOptions } from "@/store/printy-store-persistence";
+import { createPrintyPrintProductActions } from "@/store/printy-store-print-product-actions";
 import { createPrintySessionActions } from "@/store/printy-store-session-actions";
 import { createPrintyTemplateActions } from "@/store/printy-store-template-actions";
 import { createPrintyWorkspaceActions } from "@/store/printy-store-workspace-actions";
@@ -48,9 +49,13 @@ export const usePrintyStore = create<PrintyState>()(
       authSession: undefined,
       selectedBrandId: undefined,
       activeBusinessCardDraftId: undefined,
+      businessCardEditorMode: "create",
       lastOrderId: undefined,
       brands: [],
       businessCardDrafts: [],
+      deletedBusinessCardDraftIds: [],
+      printProductDrafts: [],
+      activePrintProductDraftId: undefined,
       aiBusinessCardMockups: [],
       aiBusinessCardMockupStatus: "idle",
       aiBusinessCardMockupMessage: undefined,
@@ -71,7 +76,8 @@ export const usePrintyStore = create<PrintyState>()(
       selectedProductId: undefined,
       selectedTemplateId: undefined,
       selectedBusinessCardMemberIds: [],
-      businessCardProductionOptions: { frontElements: [], backElements: [], color: "black" },
+      pendingBusinessCardLayoutPrompt: "",
+      businessCardProductionOptions: { frontElements: [], backElements: [], color: "black", sizeId: "business-card-90x50", widthMm: 90, heightMm: 50 },
       loginRedirectTarget: undefined,
       loginBackStep: undefined,
       brandWorkspaceHasPendingLocalChanges: false,
@@ -82,6 +88,7 @@ export const usePrintyStore = create<PrintyState>()(
       ...createPrintySessionActions(set, get),
       ...createPrintyOnboardingActions(set, get),
       ...createPrintyCatalogActions(set, get),
+      ...createPrintyPrintProductActions(set, get),
       ...createPrintyTemplateActions(set),
       ...createPrintyWorkspaceActions(set),
     }),

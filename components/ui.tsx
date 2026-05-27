@@ -6,7 +6,7 @@ import { bottomTabs } from "@/lib/mock-data";
 import type { MainTab } from "@/lib/types";
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "secondary" | "ghost";
+  variant?: "primary" | "secondary" | "ghost" | "success" | "danger";
   full?: boolean;
 };
 
@@ -43,6 +43,8 @@ export function AppButton({ variant = "primary", full = true, className = "", ch
     primary: "bg-primary text-white shadow-soft active:bg-primary-strong",
     secondary: "bg-surface-blue text-primary-strong shadow-soft",
     ghost: "bg-transparent text-muted",
+    success: "bg-emerald-600 text-white shadow-soft active:bg-emerald-700",
+    danger: "bg-danger text-white shadow-soft active:bg-danger/90",
   };
 
   return (

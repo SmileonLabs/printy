@@ -2,8 +2,9 @@ import "server-only";
 
 import OpenAI, { toFile } from "openai";
 import { createLogoGenerationPlans, createLogoRevisionPlans } from "@/lib/logo/logoGenerationPlans";
-import { isGeneratedLogoPublicUrl, readGeneratedLogoBytesByPublicUrl, readLogoReferenceImageBytesById, saveGeneratedLogoBytes } from "@/lib/server/storage";
+import { isGeneratedLogoPublicUrl, readGeneratedLogoBytesByPublicUrl, readLogoReferenceImageBytesById, saveGeneratedLogoBytes, saveGeneratedLogoSvg } from "@/lib/server/storage";
 import type { GeneratedLogoOption, LogoGenerationInput, LogoGenerationMode, LogoGenerationPlan, LogoGenerationResponse, LogoRevisionGenerationInput, LogoRevisionSourceLogo } from "@/lib/types";
+import { vectorizeGeneratedLogo } from "@/lib/server/logo-vectorizer";
 
 export type InitialBrandLogoRequest = LogoGenerationInput & {
   mode: "initial";
@@ -449,9 +450,11 @@ async function generateOpenAILogo(client: OpenAI, plan: LogoGenerationPlan, inde
   }
 
   try {
-    const storedImage = await saveGeneratedLogoBytes(Buffer.from(imageData, "base64"));
+    const logoBytes = Buffer.from(imageData, "base64");
+    const storedImage = await saveGeneratedLogoBytes(logoBytes);
+    const storedVector = await vectorizeGeneratedLogo(logoBytes).then((svg) => saveGeneratedLogoSvg(svg)).catch(() => undefined);
 
-    return makeOpenAILogo(storedImage.publicUrl, plan, index);
+    return { ...makeOpenAILogo(storedImage.publicUrl, plan, index), vectorSvgUrl: storedVector?.publicUrl };
   } catch (error) {
     throw new LogoGenerationInternalStorageError("Generated logo storage failed.", error);
   }
@@ -503,9 +506,11 @@ async function generateOpenAIReferenceLogo(client: OpenAI, plan: LogoGenerationP
   }
 
   try {
-    const storedImage = await saveGeneratedLogoBytes(Buffer.from(imageData, "base64"));
+    const logoBytes = Buffer.from(imageData, "base64");
+    const storedImage = await saveGeneratedLogoBytes(logoBytes);
+    const storedVector = await vectorizeGeneratedLogo(logoBytes).then((svg) => saveGeneratedLogoSvg(svg)).catch(() => undefined);
 
-    return makeOpenAILogo(storedImage.publicUrl, plan, index);
+    return { ...makeOpenAILogo(storedImage.publicUrl, plan, index), vectorSvgUrl: storedVector?.publicUrl };
   } catch (error) {
     throw new LogoGenerationInternalStorageError("Generated reference logo storage failed.", error);
   }
@@ -562,9 +567,11 @@ async function generateOpenAIRevisionLogo(client: OpenAI, plan: LogoGenerationPl
   }
 
   try {
-    const storedImage = await saveGeneratedLogoBytes(Buffer.from(imageData, "base64"));
+    const logoBytes = Buffer.from(imageData, "base64");
+    const storedImage = await saveGeneratedLogoBytes(logoBytes);
+    const storedVector = await vectorizeGeneratedLogo(logoBytes).then((svg) => saveGeneratedLogoSvg(svg)).catch(() => undefined);
 
-    return makeOpenAILogo(storedImage.publicUrl, plan, index);
+    return { ...makeOpenAILogo(storedImage.publicUrl, plan, index), vectorSvgUrl: storedVector?.publicUrl };
   } catch (error) {
     throw new LogoGenerationInternalStorageError("Generated revision logo storage failed.", error);
   }

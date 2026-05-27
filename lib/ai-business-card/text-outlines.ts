@@ -61,15 +61,12 @@ function readFieldValue(field: AiBusinessCardTextField, input: AiBusinessCardInp
     website: input.member.website ?? "",
     address: input.member.address,
     account: input.member.account ?? "",
-    titleLine1: input.member.titleLine1 ?? "",
-    titleLine2: input.member.titleLine2 ?? "",
-    adLine1: input.member.adLine1 ?? "",
-    adLine2: input.member.adLine2 ?? "",
     instagram: input.member.instagram ?? "",
     qrCode: "",
   };
 
-  return field === "adLine1" || field === "adLine2" ? normalizeMultilineBusinessCardText(values[field]) : normalizeBusinessCardText(values[field]);
+  if (field.startsWith("headline-") || field.startsWith("body-")) return "";
+  return field.startsWith("body-") ? normalizeMultilineBusinessCardText(values[field]) : normalizeBusinessCardText(values[field]);
 }
 
 async function loadFirstAvailableFont(paths: string[]) {

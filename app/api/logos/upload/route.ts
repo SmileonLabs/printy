@@ -1,6 +1,7 @@
 import OpenAI, { toFile } from "openai";
 import { NextResponse } from "next/server";
-import { saveGeneratedLogoBytes } from "@/lib/server/storage";
+import { vectorizeGeneratedLogo } from "@/lib/server/logo-vectorizer";
+import { saveGeneratedLogoBytes, saveGeneratedLogoSvg } from "@/lib/server/storage";
 import type { GeneratedLogoOption } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -23,13 +24,14 @@ function buildPrompt(brandName: string, category: string) {
   return `Restore the provided image as a clean production-ready brand logo for ${brandName}${category ? `, ${category}` : ""}. Preserve the uploaded logo's layout, symbol, lettering, colors, proportions, and overall identity as closely as possible. Do not redesign it, do not add new text, and do not turn it into a mockup, photo, scene, or packaging render. Produce a centered logo on a clean transparent or plain background, crisp PNG, suitable for printing and mockup generation. If the source image is low resolution, carefully reconstruct edges while keeping the same design.`;
 }
 
-function makeUploadedLogo(imageUrl: string, brandName: string, category: string): GeneratedLogoOption {
+function makeUploadedLogo(imageUrl: string, brandName: string, category: string, vectorSvgUrl?: string): GeneratedLogoOption {
   return {
     id: `uploaded-openai-${Date.now()}`,
     name: `${brandName || "내 브랜드"} 등록 로고`,
     label: "내 로고",
     description: "업로드한 이미지를 인쇄와 목업에 쓰기 좋게 정리한 로고예요.",
     imageUrl,
+    vectorSvgUrl,
     source: "openai",
     promptSummary: "업로드 이미지를 최대한 보존해 정리",
     planSource: "user",
@@ -122,7 +124,8 @@ export async function POST(request: Request) {
     }
 
     const storedImage = await saveGeneratedLogoBytes(restoredBytes);
-    const logo = makeUploadedLogo(storedImage.publicUrl, brandName, category);
+    const storedVector = await vectorizeGeneratedLogo(restoredBytes).then((svg) => saveGeneratedLogoSvg(svg)).catch(() => undefined);
+    const logo = makeUploadedLogo(storedImage.publicUrl, brandName, category, storedVector?.publicUrl);
 
     return NextResponse.json({ logo });
   } catch (error) {

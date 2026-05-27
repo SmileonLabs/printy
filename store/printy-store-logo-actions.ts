@@ -76,11 +76,13 @@ export function createPrintyLogoActions(set: PrintyStoreSet, get: PrintyStoreGet
         const nextSelectedLogoId = targetBrand.selectedLogoId === logoId ? remainingLogoIds[0] ?? logoOptions[0].id : targetBrand.selectedLogoId;
         const nextBrandLogoIds = Array.from(new Set([nextSelectedLogoId, ...remainingLogoIds]));
         const brands = state.brands.map((brand) => (brand.id === brandId ? { ...brand, selectedLogoId: nextSelectedLogoId, logoIds: nextBrandLogoIds } : brand));
+        const businessCardDrafts = state.businessCardDrafts.map((draft) => (draft.brandId === brandId && draft.selectedLogoId === logoId ? { ...draft, selectedLogoId: nextSelectedLogoId } : draft));
         const selectedLogoId = state.selectedLogoId === logoId ? nextSelectedLogoId : state.selectedLogoId;
-        const isStillReferenced = brands.some((brand) => brand.selectedLogoId === logoId || (Array.isArray(brand.logoIds) && brand.logoIds.includes(logoId))) || state.businessCardDrafts.some((draft) => draft.selectedLogoId === logoId);
+        const isStillReferenced = brands.some((brand) => brand.selectedLogoId === logoId || (Array.isArray(brand.logoIds) && brand.logoIds.includes(logoId))) || businessCardDrafts.some((draft) => draft.selectedLogoId === logoId);
 
         return {
           brands,
+          businessCardDrafts,
           selectedLogoId,
           savedGeneratedLogoOptions: isStillReferenced ? state.savedGeneratedLogoOptions : state.savedGeneratedLogoOptions.filter((logo) => logo.id !== logoId),
           generatedLogoOptions: state.generatedLogoOptions.filter((logo) => logo.id !== logoId),
