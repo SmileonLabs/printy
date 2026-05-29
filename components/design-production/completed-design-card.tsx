@@ -18,9 +18,11 @@ type CompletedDesignCardProps = {
 export function CompletedDesignCard({ preview, title, subtitle, actions, notices, layout = "stack" }: CompletedDesignCardProps) {
   if (layout === "overlay") {
     return (
-      <div className="relative w-full break-inside-avoid overflow-hidden rounded-lg bg-transparent align-top">
-        {preview}
-        <div className="absolute bottom-2 right-2 top-2 grid w-[min(48%,12rem)] content-center gap-2">
+      <div className="relative w-full break-inside-avoid bg-transparent align-top">
+        <div className="overflow-hidden rounded-lg">
+          {preview}
+        </div>
+        <div className="mt-2 grid w-full content-center items-stretch gap-1.5 sm:absolute sm:bottom-2 sm:right-2 sm:top-2 sm:mt-0 sm:w-[min(62%,16rem)]">
           {actions}
         </div>
         {title ? <p className="mt-2 line-clamp-1 text-[11px] font-black text-ink">{title}</p> : null}

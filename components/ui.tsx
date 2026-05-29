@@ -14,14 +14,14 @@ export function PhoneShell({ children, topLeftAction, topRightAction, onLogoClic
   return (
     <main className="h-screen overflow-hidden bg-surface text-ink">
       <section className="relative flex h-screen w-full flex-col overflow-hidden bg-surface">
-        <header className="z-30 grid h-16 shrink-0 grid-cols-[96px_1fr_96px] items-center border-b border-line bg-white/92 px-5 backdrop-blur-xl">
-          <div className="flex items-center justify-start">{topLeftAction}</div>
-          <div className="flex items-center justify-center">
+        <header className="z-30 grid h-16 shrink-0 grid-cols-[minmax(0,auto)_1fr_minmax(0,auto)] items-center border-b border-line bg-white/92 px-3 backdrop-blur-xl sm:px-5">
+          <div className="flex min-w-0 items-center justify-start">{topLeftAction}</div>
+          <div className="flex min-w-0 items-center justify-center">
             <button className="rounded-md transition active:scale-95" type="button" onClick={onLogoClick} aria-label="홈으로 이동">
               <PrintyBrandLogo size="sm" />
             </button>
           </div>
-          <div className="flex items-center justify-end">{topRightAction}</div>
+          <div className="flex min-w-0 items-center justify-end">{topRightAction}</div>
         </header>
         {children}
       </section>
@@ -49,7 +49,7 @@ export function AppButton({ variant = "primary", full = true, className = "", ch
 
   return (
     <button
-      className={`${full ? "w-full" : ""} min-w-0 rounded-md px-[clamp(0.75rem,4vw,1.25rem)] py-4 text-center text-[clamp(0.78rem,3.7vw,1rem)] font-extrabold leading-tight transition duration-200 hover:-translate-y-0.5 ${variants[variant]} ${className}`}
+      className={`${full ? "w-full" : ""} min-w-0 break-keep rounded-md px-[clamp(0.6rem,3.5vw,1.25rem)] py-3 text-center text-[clamp(0.72rem,3.5vw,1rem)] font-extrabold leading-tight transition duration-200 hover:-translate-y-0.5 ${variants[variant]} ${className}`}
       type="button"
       {...props}
     >
@@ -149,19 +149,19 @@ export function TextAreaField({ label, value, placeholder, onChange }: { label: 
 
 export function BottomTabs({ activeTab, onChange }: { activeTab: MainTab; onChange: (tab: MainTab) => void }) {
   return (
-    <nav className="safe-bottom z-30 grid shrink-0 border-t border-line bg-white/95 px-3 pt-2 backdrop-blur-xl" style={{ gridTemplateColumns: `repeat(${bottomTabs.length}, minmax(0, 1fr))` }}>
+    <nav className="safe-bottom z-30 grid shrink-0 border-t border-line bg-white/95 px-2 pt-2 backdrop-blur-xl sm:px-3" style={{ gridTemplateColumns: `repeat(${bottomTabs.length}, minmax(0, 1fr))` }}>
       {bottomTabs.map((tab) => (
         <button
           key={tab.id}
-          className={`grid justify-items-center gap-1 rounded-md px-1 py-2 text-[11px] font-black transition ${activeTab === tab.id ? "text-primary-strong" : "text-soft"}`}
+          className={`grid justify-items-center gap-1 rounded-md px-1 py-2 text-[10px] font-black transition sm:text-[11px] ${activeTab === tab.id ? "text-primary-strong" : "text-soft"}`}
           type="button"
           onClick={() => onChange(tab.id)}
           aria-label={tab.label}
         >
-          <span className={`grid h-11 w-11 place-items-center rounded-2xl transition ${activeTab === tab.id ? "bg-surface-blue shadow-soft" : "bg-transparent"}`}>
+          <span className={`grid h-10 w-10 place-items-center rounded-2xl transition sm:h-11 sm:w-11 ${activeTab === tab.id ? "bg-surface-blue shadow-soft" : "bg-transparent"}`}>
             <BottomTabIcon tab={tab.id} />
           </span>
-          <span className="leading-4">{tab.label}</span>
+          <span className="break-keep leading-4">{tab.label}</span>
         </button>
       ))}
     </nav>

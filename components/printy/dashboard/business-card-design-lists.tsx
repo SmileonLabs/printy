@@ -69,11 +69,11 @@ export function CompletedBusinessCardList({ entries, logo, pdfRecords, pdfErrors
               layout="overlay"
               preview={mockup.cleanImageUrl && completedLayout && matchedMember ? <BusinessCardUserPreview className={completedBusinessCardPreviewClassName} cleanImageUrl={mockup.cleanImageUrl} layout={completedLayout} member={matchedMember} logo={logo} /> : <Image className="block h-full w-full rounded-lg object-cover" src={mockup.imageUrl} alt={mockup.title} width={completedBusinessCardMockupImageSize.width} height={completedBusinessCardMockupImageSize.height} sizes={completedDesignPreviewImageSizes} unoptimized />}
               actions={<>
-                <AppButton className="whitespace-nowrap px-3 py-2 text-[11px] !bg-emerald-600/60 backdrop-blur disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0" variant="success" onClick={() => onEdit(entry, matchedMember, completedLayout)}>디자인 수정하기</AppButton>
-                <AppButton className="whitespace-nowrap px-3 py-2 text-[11px] !bg-primary/60 backdrop-blur disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0" variant="primary" onClick={() => onDownloadPdf(entry, matchedMember, completedLayout)} disabled={runningMockupPdfId === mockup.id || !mockup.cleanImageUrl}>
-                  {runningMockupPdfId === mockup.id ? "PDF 만드는 중" : pdfRecords[pdfRecordKey] ? "PDF 다운 받기" : "인쇄용 PDF 만들기"}
+                <AppButton className="whitespace-normal px-2 py-2 text-[11px] leading-snug !bg-emerald-600/60 backdrop-blur disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0" variant="success" onClick={() => onEdit(entry, matchedMember, completedLayout)}>디자인 수정하기</AppButton>
+                <AppButton className="whitespace-pre-line px-2 py-2 text-[11px] leading-snug !bg-primary/60 backdrop-blur disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0" variant="primary" onClick={() => onDownloadPdf(entry, matchedMember, completedLayout)} disabled={runningMockupPdfId === mockup.id || !mockup.cleanImageUrl}>
+                  {runningMockupPdfId === mockup.id ? "PDF 만드는 중" : pdfRecords[pdfRecordKey] ? "PDF 다운 받기" : "인쇄용 PDF\n만들기"}
                 </AppButton>
-                <AppButton className="whitespace-nowrap px-3 py-2 text-[11px] !bg-danger/60 backdrop-blur disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0" variant="danger" onClick={() => onDelete(entry)} disabled={!entry.draft}>삭제하기</AppButton>
+                <AppButton className="whitespace-normal px-2 py-2 text-[11px] leading-snug !bg-danger/60 backdrop-blur disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0" variant="danger" onClick={() => onDelete(entry)} disabled={!entry.draft}>삭제하기</AppButton>
               </>}
               notices={<>
                 {!mockup.cleanImageUrl ? <p className="mt-2 rounded-md bg-danger/10 px-3 py-2 text-[11px] font-bold leading-5 text-danger">클린 배경이 없는 목업이라 PDF를 만들 수 없어요.</p> : null}
