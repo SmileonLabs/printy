@@ -14,12 +14,12 @@ export function PhoneShell({ children, topLeftAction, topRightAction, onLogoClic
   return (
     <main className="h-screen overflow-hidden bg-surface text-ink">
       <section className="relative flex h-screen w-full flex-col overflow-hidden bg-surface">
-        <header className="relative z-30 flex h-16 shrink-0 items-center border-b border-line bg-white/92 px-3 backdrop-blur-xl sm:px-5">
-          <div className="flex flex-1 items-center justify-start">{topLeftAction}</div>
-          <button className="absolute left-1/2 -translate-x-1/2 rounded-md transition active:scale-95" type="button" onClick={onLogoClick} aria-label="홈으로 이동">
+        <header className="relative z-30 flex h-16 shrink-0 items-center justify-center border-b border-line bg-white/92 px-3 backdrop-blur-xl sm:px-5">
+          {topLeftAction ? <div className="absolute left-3 flex items-center sm:left-5">{topLeftAction}</div> : null}
+          <button className="rounded-md transition active:scale-95" type="button" onClick={onLogoClick} aria-label="홈으로 이동">
             <PrintyBrandLogo size="sm" />
           </button>
-          <div className="flex flex-1 items-center justify-end">{topRightAction}</div>
+          {topRightAction ? <div className="absolute right-3 flex items-center sm:right-5">{topRightAction}</div> : null}
         </header>
         {children}
       </section>
