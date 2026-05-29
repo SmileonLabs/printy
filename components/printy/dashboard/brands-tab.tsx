@@ -48,7 +48,11 @@ export function EmptyBrands({ onStartNewBrand }: { onStartNewBrand: () => void }
 export function IconButton({ label, icon, onClick, badge = 0 }: { label: string; icon: "notification" | "plus"; onClick?: () => void; badge?: number }) {
   return (
     <button className="relative grid h-11 w-11 place-items-center rounded-full bg-surface text-ink transition duration-200 hover:-translate-y-0.5 hover:text-primary" type="button" aria-label={label} onClick={onClick}>
-      {badge > 0 ? <span className="absolute right-1 top-1 grid h-5 min-w-5 place-items-center rounded-full bg-danger px-1 text-[10px] font-black text-white">{badge}</span> : null}
+      {badge > 0 ? (
+        <span className="absolute right-0 top-0 grid h-5 min-w-5 -translate-y-1/4 translate-x-1/4 place-items-center rounded-full bg-danger px-1 text-[10px] font-black text-white">
+          {badge}
+        </span>
+      ) : null}
       {icon === "notification" ? (
         <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <path d="M6.8 10.4c0-3 2.3-5.4 5.2-5.4s5.2 2.4 5.2 5.4v2.8l1.5 2.4H5.3l1.5-2.4v-2.8Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
