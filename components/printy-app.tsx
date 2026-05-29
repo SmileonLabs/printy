@@ -58,7 +58,7 @@ export function PrintyApp() {
         topLeftAction={<ShellBackButton />}
         topRightAction={
           showDashboardTopActions ? (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
               <IconButton label={`활동 알림 보기${activityCount > 0 ? ` ${activityCount}개` : ""}`} icon="notification" onClick={openNotifications} />
               <IconButton label="새 브랜드 만들기" icon="plus" onClick={startNewBrand} />
             </div>
