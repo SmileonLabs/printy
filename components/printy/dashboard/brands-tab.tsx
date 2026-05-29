@@ -47,7 +47,7 @@ export function EmptyBrands({ onStartNewBrand }: { onStartNewBrand: () => void }
 
 export function IconButton({ label, icon, onClick, badge = 0 }: { label: string; icon: "notification" | "plus"; onClick?: () => void; badge?: number }) {
   return (
-    <button className="relative grid h-11 w-11 place-items-center rounded-full bg-surface text-ink transition duration-200 hover:-translate-y-0.5 hover:text-primary" type="button" aria-label={label} onClick={onClick}>
+    <button className="relative grid h-10 w-10 place-items-center rounded-full bg-surface text-ink transition duration-200 hover:-translate-y-0.5 hover:text-primary" type="button" aria-label={label} onClick={onClick}>
       {badge > 0 ? (
         <span className="absolute right-0 top-0 grid h-5 min-w-5 -translate-y-1/4 translate-x-1/4 place-items-center rounded-full bg-danger px-1 text-[10px] font-black text-white">
           {badge}
