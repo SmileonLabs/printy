@@ -459,6 +459,7 @@ export function PrintProductEditor({ layout, backgroundImageUrl, logoImageUrl, l
       editCanvas={editCanvas}
       basicIcons={<CanvasEditorElementPanel title="기본 아이콘" placement="bottom" actions={basicIconActions} collapsible defaultCollapsed />}
       editPreview={<div className="phone-scroll overflow-auto"><div className="mx-auto" style={{ width: `${canvasWidthPx * canvasZoom}px`, height: `${canvasHeightPx * canvasZoom}px`, maxWidth: "none" }}><div style={{ ...canvasFrameStyle, maxWidth: "none", transform: `scale(${canvasZoom})`, transformOrigin: "top left" }}><PrintProductPreviewOverlay className="h-full" layout={layout} backgroundImageUrl={backgroundImageUrl} logoImageUrl={logoImageUrl} logoVectorSvgUrl={logoVectorSvgUrl} /></div></div></div>}
+      className="!bg-transparent !p-0 sm:!p-0"
     />
   );
 }

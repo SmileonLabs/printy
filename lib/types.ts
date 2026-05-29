@@ -427,6 +427,7 @@ export type BusinessCardTemplateLogoElement = {
   visible: boolean;
   box: BusinessCardTemplateBox;
   assetType?: "png" | "svg";
+  imageFilter?: "grayscale";
 };
 
 export type BusinessCardTemplateTextElement = {

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { generatePrintProductPdf } from "@/lib/print-products/server";
+import { generatePrintProductPdf } from "@/lib/print-products/pdf-server";
 import type { PrintProductProductionLayout, PrintProductProductionType } from "@/lib/types";
 
 export const runtime = "nodejs";

@@ -127,7 +127,7 @@ export function ProductionRequestCard({ title, description, requestLabel, reques
     <SoftCard>
       <p className="text-sm font-black text-ink">{title}</p>
       <p className="mt-2 text-xs font-bold leading-5 text-muted">{description}</p>
-      <div className="mt-4 grid gap-2">
+      <div className="mt-4 grid min-w-0 gap-2">
         {requestLabel && onRequestChange ? <TextAreaField label={requestLabel} placeholder={requestPlaceholder ?? ""} value={requestValue ?? ""} onChange={onRequestChange} /> : null}
         {secondaryActions}
         <AppButton onClick={onPrimary} disabled={primaryDisabled} className="disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0">
@@ -165,8 +165,8 @@ export function ProductionAiDesignRequestCard({ mode, title, description, prompt
       {description ? <p className="mt-2 text-xs font-bold leading-5 text-muted">{description}</p> : null}
       <div className="mt-4 grid gap-2">
         <TextAreaField label="프롬프트" placeholder={promptPlaceholder} value={promptValue} onChange={onPromptChange} />
-        <ProductionEditorActionButtons isEdit={isEdit} onTemporarySave={onTemporarySave} temporarySaveLabel={temporarySaveLabel} temporarySaveDisabled={temporarySaveDisabled} onAiRequest={onAiRequest} aiRequestLabel={aiRequestLabel} aiRequestLoadingLabel={aiRequestLoadingLabel} isAiRequestLoading={isAiRequestLoading} aiRequestDisabled={aiRequestDisabled} onSaveDesign={onSaveDesign} saveDesignLabel={saveDesignLabel} saveDesignDisabled={saveDesignDisabled} showSaveDesign={showSaveDesign} />
         {children}
+        <ProductionEditorActionButtons isEdit={isEdit} onTemporarySave={onTemporarySave} temporarySaveLabel={temporarySaveLabel} temporarySaveDisabled={temporarySaveDisabled} onAiRequest={onAiRequest} aiRequestLabel={aiRequestLabel} aiRequestLoadingLabel={aiRequestLoadingLabel} isAiRequestLoading={isAiRequestLoading} aiRequestDisabled={aiRequestDisabled} onSaveDesign={onSaveDesign} saveDesignLabel={saveDesignLabel} saveDesignDisabled={saveDesignDisabled} showSaveDesign={showSaveDesign} />
       </div>
       {notices}
     </SoftCard>

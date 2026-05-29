@@ -55,7 +55,8 @@ function renderIconElement(element: AiBusinessCardIconElement) {
 
 function renderImageElement(element: AiBusinessCardImageElement, origin: string | undefined) {
   const objectFit = element.fit === "cover" ? "cover" : "contain";
-  const style = `left:${element.xMm}mm;top:${element.yMm}mm;width:${element.widthMm}mm;height:${element.heightMm}mm;object-fit:${objectFit};opacity:${element.opacity ?? 1};z-index:${element.layer};`;
+  const filter = element.imageFilter === "grayscale" ? "filter:grayscale(1);" : "";
+  const style = `left:${element.xMm}mm;top:${element.yMm}mm;width:${element.widthMm}mm;height:${element.heightMm}mm;object-fit:${objectFit};opacity:${element.opacity ?? 1};${filter}z-index:${element.layer};`;
 
   return `<img class="placed-image" src="${escapeHtml(absoluteAssetUrl(element.src, origin))}" style="${style}" alt="" />`;
 }

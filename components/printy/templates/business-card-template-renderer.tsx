@@ -73,9 +73,13 @@ function logoShapeStyle(logo: Exclude<ResolvedLogoOption, { imageUrl: string }>)
   return { ...baseStyle, borderRadius: `${formatPercent(999 * cssPxPerMm, 3775)}px ${formatPercent(999 * cssPxPerMm, 3775)}px ${twoMm} ${twoMm}` };
 }
 
-function LogoArtwork({ logo }: { logo: ResolvedLogoOption }) {
+function logoFilterStyle(imageFilter: BusinessCardTemplateLayout["sides"][BusinessCardTemplateSideId]["logo"]["imageFilter"]): CSSProperties | undefined {
+  return imageFilter === "grayscale" ? { filter: "grayscale(1)" } : undefined;
+}
+
+function LogoArtwork({ logo, imageFilter }: { logo: ResolvedLogoOption; imageFilter?: BusinessCardTemplateLayout["sides"][BusinessCardTemplateSideId]["logo"]["imageFilter"] }) {
   if ("imageUrl" in logo) {
-    return <Image src={logo.imageUrl} alt={logo.name} fill sizes="160px" className="object-contain" draggable={false} unoptimized />;
+    return <Image src={logo.imageUrl} alt={logo.name} fill sizes="160px" className="object-contain" draggable={false} unoptimized style={logoFilterStyle(imageFilter)} />;
   }
 
   return (
@@ -177,7 +181,7 @@ function BusinessCardTrimImage({ brandName, category, member, logo, layout, side
         {sideLayout.logo.visible ? (
           <div className="absolute z-[2] overflow-hidden" style={boxStyle(sideLayout.logo.box)}>
             <div className="absolute" style={{ inset: `${formatPercent(cssPxPerMm, 3.78)}px` }}>
-              <LogoArtwork logo={logo} />
+              <LogoArtwork logo={logo} imageFilter={sideLayout.logo.imageFilter} />
             </div>
           </div>
         ) : null}

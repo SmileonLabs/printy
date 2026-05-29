@@ -129,11 +129,12 @@ function GlobalAiBusinessCardPdfNotice() {
 function GlobalAiBusinessCardMockupNotice() {
   const status = usePrintyStore((state) => state.aiBusinessCardMockupStatus);
   const message = usePrintyStore((state) => state.aiBusinessCardMockupMessage);
+  const currentStep = usePrintyStore((state) => state.currentStep);
   const setStep = usePrintyStore((state) => state.setStep);
   const startCardEdit = usePrintyStore((state) => state.startCardEdit);
   const dismissAiBusinessCardMockupNotice = usePrintyStore((state) => state.dismissAiBusinessCardMockupNotice);
 
-  if (status === "idle" || !message) {
+  if (status === "idle" || !message || currentStep === "businessCardPreview") {
     return null;
   }
 
@@ -149,7 +150,7 @@ function GlobalAiBusinessCardMockupNotice() {
     }
   };
 
-  return <ToastNotice eyebrow={isSaved ? "명함 저장" : "명함 목업"} message={message} tone={status === "failed" ? "danger" : isReady ? "success" : "info"} loading={isGenerating} onDismiss={isGenerating ? undefined : dismissAiBusinessCardMockupNotice} action={!isSaved && (isReady || status === "failed") ? <button className={`rounded-md px-3 py-2 text-xs font-black shadow-soft ${isReady ? "bg-primary text-white" : "bg-danger text-white"}`} type="button" onClick={handleOpen}>{isReady ? "완성 목업 보기" : "목업 상태 확인하기"}</button> : null} />;
+  return <ToastNotice eyebrow={isSaved ? "명함 저장" : "명함 목업"} message={message} tone={status === "failed" ? "danger" : isReady ? "success" : "info"} loading={isGenerating} onDismiss={isGenerating ? undefined : dismissAiBusinessCardMockupNotice} action={status === "failed" ? <button className="rounded-md bg-danger px-3 py-2 text-xs font-black text-white shadow-soft" type="button" onClick={handleOpen}>목업 상태 확인하기</button> : null} />;
 }
 
 function GlobalBrandMockupNotice() {

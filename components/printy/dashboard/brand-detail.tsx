@@ -347,7 +347,7 @@ export function BrandDetail() {
         {brandDetailSections.map((item) => (
           <button
             key={item.id}
-            className={`shrink-0 rounded-md px-4 py-3 text-xs font-black transition ${activeBrandSection === item.id ? "bg-primary text-white shadow-soft" : "bg-surface-blue text-primary-strong"}`}
+            className={`shrink-0 rounded-md px-4 py-3 text-xs font-black transition ${activeBrandSection === item.id ? "bg-primary text-white" : "bg-surface-blue text-primary-strong"}`}
             type="button"
             onClick={() => setBrandSection(item.id)}
           >
@@ -577,18 +577,16 @@ function StyleSection({ logo, logos, selectedLogoId, canShareLogo, shareStatus, 
       <BrandLogoGallery logos={logos} selectedLogoId={selectedLogoId} onOpenMockupStudio={onOpenMockupStudio} onStartLogoRevision={onStartLogoRevision} onSelectBrandLogo={onSelectBrandLogo} onDeleteBrandLogo={onDeleteBrandLogo} />
       <div className="grid gap-3">
         {rows.map(([label, value]) => (
-          <SoftCard key={label}>
+          <div key={label} className="rounded-md bg-surface-blue p-3">
             <p className="text-xs font-black text-soft">{label}</p>
             <p className="mt-1 text-sm font-medium leading-6 text-ink">{value}</p>
-          </SoftCard>
+          </div>
         ))}
       </div>
       {canShareLogo ? (
-        <SoftCard>
-          <AppButton className="disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0" variant="secondary" onClick={onShare}>
-            공유하기
-          </AppButton>
-        </SoftCard>
+        <AppButton className="disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0" variant="secondary" onClick={onShare}>
+          공유하기
+        </AppButton>
       ) : null}
       {!logoHasImage(logo) ? <SoftCard className="bg-surface-blue text-xs font-bold leading-5 text-primary-strong">기본 제공 로고는 이미지 파일 링크가 없어 공유를 비활성화했어요.</SoftCard> : null}
       {isClaimedSharedLogo(logo) ? <SoftCard className="bg-surface-blue text-xs font-bold leading-5 text-primary-strong">이미 다른 계정에서 사용 확정된 공유 로고예요.</SoftCard> : null}
@@ -638,13 +636,13 @@ function BrandLogoGallery({ logos, selectedLogoId, onOpenMockupStudio, onStartLo
           const canDelete = logoHasImage(item) && canDeleteAnyLogo && !isSelected;
 
           return (
-            <div key={item.id} className={`rounded-lg border bg-surface p-3 shadow-card ${isSelected ? "border-primary ring-4 ring-primary-soft" : "border-line"}`}>
+            <div key={item.id} className={`rounded-lg p-3 ${isSelected ? "bg-primary-soft/45 ring-2 ring-primary-soft" : "bg-surface-blue"}`}>
               <div className="relative">
                 <button className="relative grid w-full place-items-center overflow-hidden rounded-md bg-surface-blue p-2 text-left transition hover:ring-4 hover:ring-primary-soft" type="button" onClick={() => onOpenMockupStudio(item.id)} aria-label={`${item.name} 로고로 목업 만들기`}>
                   {logoHasImage(item) ? <Image src={item.imageUrl} alt={item.name} width={512} height={512} sizes="(max-width: 430px) 100vw, 390px" className="h-auto w-full rounded-sm" unoptimized /> : <div className="grid aspect-[4/3] w-full place-items-center"><LogoMark logo={item} /></div>}
-                  <span className="absolute bottom-2 left-2 rounded-full bg-white/95 px-3 py-1 text-[10px] font-black text-primary-strong shadow-card">목업 만들기</span>
+                  <span className="absolute bottom-2 left-2 rounded-full bg-white/95 px-3 py-1 text-[10px] font-black text-primary-strong">목업 만들기</span>
                 </button>
-                {canDelete ? <button className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-white/95 text-danger shadow-card transition hover:scale-105" type="button" aria-label={`${item.name} 로고 삭제`} onClick={() => handleDeleteLogo(item)} title="로고 삭제"><TrashIcon /></button> : null}
+                {canDelete ? <button className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-white/95 text-danger transition hover:scale-105" type="button" aria-label={`${item.name} 로고 삭제`} onClick={() => handleDeleteLogo(item)} title="로고 삭제"><TrashIcon /></button> : null}
               </div>
               <p className="mt-3 text-xs font-black text-ink">{item.name}</p>
               <p className="mt-1 text-[11px] font-bold leading-4 text-muted">{item.label}</p>
@@ -695,7 +693,7 @@ function GeneratedMockupList({ assets }: { assets: BrandAsset[] }) {
     <div className="grid gap-3">
       <p className="px-1 text-sm font-black text-ink">생성된 목업</p>
       {assets.map((asset) => (
-        <div key={asset.id} className="rounded-lg bg-surface p-3 shadow-card">
+        <div key={asset.id} className="rounded-lg bg-surface-blue p-3">
           {asset.imageUrl ? (
             <div className="relative mb-3 aspect-[4/3] overflow-hidden rounded-md bg-surface-blue">
               <Image src={asset.imageUrl} alt={asset.title} fill sizes="(max-width: 430px) 100vw, 390px" className="object-cover" unoptimized />
@@ -727,7 +725,7 @@ function MockupTemplateList({ logo, activeMockupJob, generatingMockupSceneId, on
           const isGenerating = generatingMockupSceneId === template.id;
 
           return (
-            <button key={template.id} className="rounded-md border border-line bg-surface p-3 text-left shadow-card transition hover:border-primary-soft hover:bg-surface-blue disabled:cursor-not-allowed disabled:opacity-60" type="button" disabled={!canGenerate || Boolean(activeMockupJob)} onClick={() => onCreateBrandMockup(logo, template.id)}>
+            <button key={template.id} className="rounded-md bg-surface-blue p-3 text-left transition hover:bg-primary-soft disabled:cursor-not-allowed disabled:opacity-60" type="button" disabled={!canGenerate || Boolean(activeMockupJob)} onClick={() => onCreateBrandMockup(logo, template.id)}>
               <span className="block text-sm font-black text-ink">{isGenerating ? "생성 중..." : template.title}</span>
               <span className="mt-1 block text-xs font-bold leading-5 text-muted">{template.description}</span>
             </button>
@@ -749,14 +747,14 @@ function TrashIcon() {
 function LargeLogoPreview({ logo }: { logo: ResolvedLogoOption }) {
   if (logoHasImage(logo)) {
     return (
-      <div className="w-full overflow-hidden rounded-lg bg-[linear-gradient(135deg,var(--color-surface)_0%,var(--color-surface-blue)_100%)] p-3 shadow-soft">
+      <div className="w-full overflow-hidden rounded-lg bg-[linear-gradient(135deg,var(--color-surface)_0%,var(--color-surface-blue)_100%)] p-3">
         <Image src={logo.imageUrl} alt={logo.name} width={1024} height={1024} sizes="(max-width: 430px) 100vw, 390px" className="h-auto w-full rounded-md" unoptimized />
       </div>
     );
   }
 
   return (
-    <div className="grid aspect-[4/3] w-full place-items-center overflow-hidden rounded-lg bg-[linear-gradient(135deg,var(--color-surface)_0%,var(--color-surface-blue)_100%)] shadow-soft">
+    <div className="grid aspect-[4/3] w-full place-items-center overflow-hidden rounded-lg bg-[linear-gradient(135deg,var(--color-surface)_0%,var(--color-surface-blue)_100%)]">
       <div className="scale-[2.85]">
         <LogoMark logo={logo} size="xl" />
       </div>
@@ -869,13 +867,13 @@ function TeamSection({ members, notice, onAddMember, onUpdateMember, onDeleteMem
       {members.length > 0 ? (
         <div className="grid gap-3">
           {members.map((member) => (
-          <div key={member.id} className="rounded-lg bg-surface-blue p-4 shadow-soft">
+          <div key={member.id} className="rounded-lg bg-surface-blue p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
                 <p className="text-lg font-black tracking-[-0.04em] text-ink">{member.name}</p>
                 <p className="mt-1 text-xs font-black text-primary-strong">{member.role}</p>
               </div>
-              <span className="grid h-10 w-10 place-items-center rounded-full bg-primary text-sm font-black text-white shadow-soft">{member.name.slice(0, 1)}</span>
+              <span className="grid h-10 w-10 place-items-center rounded-full bg-primary text-sm font-black text-white">{member.name.slice(0, 1)}</span>
             </div>
             <div className="grid gap-2 text-xs font-bold leading-5 text-muted">
               <span>{member.phone}</span>
@@ -897,7 +895,7 @@ function TeamSection({ members, notice, onAddMember, onUpdateMember, onDeleteMem
         <p className="rounded-md bg-surface-blue px-4 py-3 text-xs font-bold leading-5 text-primary-strong">아직 저장된 구성원이 없어요. 명함에 넣을 사람 정보를 추가해 주세요.</p>
       )}
       {isFormOpen ? (
-        <div className="mt-5 grid gap-4 rounded-lg border border-line bg-surface p-4 shadow-card">
+        <div className="mt-5 grid gap-4 rounded-lg bg-surface-blue p-4">
           <div>
             <p className="text-sm font-black text-ink">{editingMemberId ? "명함 정보 수정" : "명함 정보 추가"}</p>
             <p className="mt-1 text-xs font-bold leading-5 text-muted">브랜드 로고가 적용될 명함 구성원 정보를 입력해 주세요.</p>
@@ -1058,6 +1056,7 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
   const visibleBusinessCardEntries: CompletedBusinessCardEntry[] = completedBusinessCardEntries.length > 0
     ? completedBusinessCardEntries
     : visibleAiBusinessCardMockups.map((mockup) => ({ draft: undefined, mockup, signature: visibleAiBusinessCardMockupSignature }));
+  const findDraftByCompletedMockupSignature = (signature: string | undefined) => signature ? businessCardDrafts.find((draft) => draft.brandId === brand.id && draft.completedMockupSignature === signature) : undefined;
   const completedMockupDraftId = currentBrandMockupSignatureEntries.find((entry) => entry.signature === visibleAiBusinessCardMockupSignature)?.draftId ?? businessCardDrafts.find((draft) => draft.brandId === brand.id && draft.completedMockupSignature && draft.completedMockupSignature === visibleAiBusinessCardMockupSignature)?.id ?? (storeVisibleAiBusinessCardMockups.length > 0 ? activeBusinessCardDraftId : undefined);
   const orderedBusinessCardDraftIds = useMemo(() => new Set(orders.map((order) => order.cardDraftId)), [orders]);
   const savedLayoutDrafts = useMemo(() => businessCardDrafts.filter((draft) => draft.brandId === brand.id && Boolean(draft.layout) && !draft.completedMockupSignature && !orderedBusinessCardDraftIds.has(draft.id) && draft.id !== completedMockupDraftId), [brand.id, businessCardDrafts, completedMockupDraftId, orderedBusinessCardDraftIds]);
@@ -1213,8 +1212,8 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
     setProductionNotice("완료 명함 디자인을 삭제했어요.");
   };
   const handleEditCompletedMockupLayout = (mockup: AiBusinessCardMockup, member: Member | undefined, completedLayout: BusinessCardTemplateLayout | undefined, signature = visibleAiBusinessCardMockupSignature, mockups = visibleAiBusinessCardMockups, draftId?: string) => {
-    if (!completedLayout || !member) {
-      setProductionNotice("이 완료 목업에는 저장된 레이아웃 정보가 없어 수정할 수 없어요. 새 명함 제작으로 다시 시작해 주세요.");
+    if (!member) {
+      setProductionNotice("이 완료 목업에는 저장된 구성원 정보가 없어 수정할 수 없어요. 새 명함 제작으로 다시 시작해 주세요.");
       return;
     }
 
@@ -1223,16 +1222,18 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
       return;
     }
 
-    const nextFrontElements = visibleBusinessCardElements(completedLayout, "front");
-    const nextBackElements = visibleBusinessCardElements(completedLayout, "back");
+    const fallbackElements = businessCardElementsWithInputValues(brand, [member]);
+    const nextLayout = completedLayout ?? createSizedBusinessCardLayout({ frontElements: fallbackElements, backElements: defaultBackBusinessCardElements, sizeId: selectedBusinessCardSize.id });
+    const nextFrontElements = visibleBusinessCardElements(nextLayout, "front");
+    const nextBackElements = visibleBusinessCardElements(nextLayout, "back");
 
-    setProductionNotice("");
+    setProductionNotice(completedLayout ? "" : "기존 레이아웃 정보가 없어 기본 레이아웃으로 열었어요. 위치를 조정한 뒤 다시 저장해 주세요.");
     setFrontElements(nextFrontElements);
     setBackElements(nextBackElements);
     setSelectedMemberIds([member.id]);
     syncAiBusinessCardMockups(signature, mockups.length > 0 ? mockups : [mockup]);
     selectAiBusinessCardMockup(mockup.imageUrl);
-    updateBusinessCardProductionOptions({ frontElements: nextFrontElements, backElements: nextBackElements, color: selectedColor, ...businessCardProductionSizeFields(undefined, completedLayout), layout: completedLayout });
+    updateBusinessCardProductionOptions({ frontElements: nextFrontElements, backElements: nextBackElements, color: selectedColor, ...businessCardProductionSizeFields(undefined, nextLayout), layout: nextLayout });
     onStartProduction([member.id], selectedTemplateId, "edit", member, { draftId, signature, mockups: mockups.length > 0 ? mockups : [mockup], selectedImageUrl: mockup.imageUrl });
   };
   const handleDownloadMockupPdf = async (mockup: AiBusinessCardMockup, signature = visibleAiBusinessCardMockupSignature, memberOverride?: Member, layoutOverride?: BusinessCardTemplateLayout) => {
@@ -1326,7 +1327,7 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
     }
   };
   const memberSelector = (
-    <div className="grid gap-3 rounded-lg bg-surface-blue p-4 shadow-soft">
+    <div className="grid gap-3 rounded-lg bg-surface-blue p-4">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-black text-ink">팀/구성원</p>
@@ -1336,7 +1337,7 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
       </div>
       <div className="grid gap-2">
         {brand.members.length > 0 ? brand.members.map((member) => (
-          <div key={member.id} className={`grid grid-cols-[24px_1fr_auto_auto] items-center gap-2 rounded-md border p-2 transition ${selectedMemberIds.includes(member.id) ? "border-primary bg-white shadow-soft" : "border-line bg-surface"}`}>
+          <div key={member.id} className={`grid grid-cols-[24px_1fr_auto_auto] items-center gap-2 rounded-md p-2 transition ${selectedMemberIds.includes(member.id) ? "bg-white ring-2 ring-primary-soft" : "bg-surface"}`}>
             <input className="h-5 w-5 accent-[var(--color-primary)]" aria-label={`${member.name} 선택`} type="checkbox" checked={selectedMemberIds.includes(member.id)} onChange={() => toggleMember(member.id)} />
             <div className="min-w-0">
               <p className="truncate text-sm font-black text-ink">{member.name} <span className="text-xs text-primary-strong">{member.role || brand.category}</span></p>
@@ -1348,7 +1349,7 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
         )) : <p className="rounded-md bg-white px-3 py-3 text-xs font-bold leading-5 text-primary-strong">아직 저장된 구성원이 없어요. 추가 버튼으로 명함 정보를 입력해 주세요.</p>}
       </div>
       {isMemberFormOpen ? (
-        <div className="grid gap-3 rounded-md border border-line bg-white p-3 shadow-soft">
+        <div className="grid gap-3 rounded-md bg-white p-3">
           <p className="text-xs font-black text-ink">{editingMemberId ? "구성원 수정" : "구성원 추가"}</p>
           {memberFormFields.map((field) => (field.multiline ? <TextAreaField key={field.field} label={field.label} placeholder={field.placeholder} value={memberForm[field.field] ?? ""} onChange={(value) => updateMemberForm(field.field, value)} /> : <TextField key={field.field} label={field.label} placeholder={field.placeholder} value={memberForm[field.field] ?? ""} onChange={(value) => updateMemberForm(field.field, value)} />))}
           <QrCodeImageField value={memberForm.qrCodeImageUrl ?? ""} onChange={updateQrCodeImage} onClear={() => updateMemberForm("qrCodeImageUrl", "")} />
@@ -1392,8 +1393,8 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
       ) : null}
       <SoftCard className="grid gap-3">
         <div>
-          <p className="text-sm font-black text-ink">AI 명함 요청</p>
-          <p className="mt-1 text-xs font-bold leading-5 text-muted">원하는 분위기를 적으면 다음 화면에서 바로 좌표를 잡고 AI 시안을 만들 수 있어요.</p>
+          <p className="text-sm font-black text-ink">명함 레이아웃 요청</p>
+          <p className="mt-1 text-xs font-bold leading-5 text-muted">원하는 분위기를 적으면 다음 화면에서 AI가 좌표를 먼저 잡고 확인 후 최종 디자인을 완성 합니다.</p>
         </div>
         <TextAreaField label="프롬프트" placeholder="예: 검정 배경에 금색 포인트, 로고 크게, 왼쪽 정렬, 여백 넓게" value={businessCardLayoutPrompt} onChange={setBusinessCardLayoutPrompt} />
       </SoftCard>
@@ -1409,14 +1410,18 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
           pdfErrors={mockupPdfErrors}
           runningMockupPdfId={runningMockupPdfId}
           rendererVersion={aiBusinessCardPdfRendererVersion}
-          resolveMember={({ draft, signature }) => draft?.member ?? currentBrandMockupSignatureEntries.find((entry) => entry.signature === signature)?.member ?? memberFromSavedAiBusinessCardMockupSignature(signature, brand.members)}
-          resolveLayout={({ draft, mockup, signature }) => mockup.layout ?? draft?.layout ?? layoutFromSavedAiBusinessCardMockupSignature(signature)}
-          onEdit={({ draft, mockup, signature }, matchedMember, completedLayout) => handleEditCompletedMockupLayout(mockup, matchedMember, completedLayout, signature, draft ? [mockup] : visibleAiBusinessCardMockups, draft?.id)}
+          resolveMember={({ draft, signature }) => draft?.member ?? findDraftByCompletedMockupSignature(signature)?.member ?? currentBrandMockupSignatureEntries.find((entry) => entry.signature === signature)?.member ?? memberFromSavedAiBusinessCardMockupSignature(signature, brand.members)}
+          resolveLayout={({ draft, mockup, signature }) => mockup.layout ?? draft?.layout ?? findDraftByCompletedMockupSignature(signature)?.layout ?? layoutFromSavedAiBusinessCardMockupSignature(signature)}
+          onEdit={({ draft, mockup, signature }, matchedMember, completedLayout) => {
+            const matchedDraft = draft ?? findDraftByCompletedMockupSignature(signature);
+
+            handleEditCompletedMockupLayout(mockup, matchedMember, completedLayout, signature, matchedDraft ? [mockup] : visibleAiBusinessCardMockups, matchedDraft?.id);
+          }}
           onDelete={handleDeleteCompletedMockup}
           onDownloadPdf={({ mockup, signature }, matchedMember, completedLayout) => handleDownloadMockupPdf(mockup, signature, matchedMember, completedLayout)}
         />
         {orderedBusinessCards.length > 0 ? orderedBusinessCards.map(({ order, draft, template, member, logo: cardLogo }) => (
-          <div key={order.id} className="grid gap-4 rounded-lg border border-line bg-surface p-4 shadow-card">
+          <div key={order.id} className="grid gap-4 rounded-lg bg-surface-blue p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-xs font-black text-primary-strong">{order.orderNumber}</p>
@@ -1434,7 +1439,7 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
             </AppButton>
           </div>
         )) : visibleBusinessCardEntries.length === 0 ? (
-          <div className="rounded-lg bg-surface-blue p-5 text-center shadow-soft">
+          <div className="rounded-lg bg-surface-blue p-5 text-center">
             <p className="text-base font-black text-ink">완료된 명함이 아직 없어요</p>
             <p className="mt-2 text-xs font-bold leading-5 text-muted">입금 확인된 명함이 생기면 이곳에서 다시 확인할 수 있어요.</p>
           </div>
@@ -1446,7 +1451,7 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
 
 function ComingSoonSection() {
   return (
-    <div className="rounded-lg bg-surface-blue p-5 text-center shadow-soft">
+    <div className="rounded-lg bg-surface-blue p-5 text-center">
       <p className="text-base font-black text-ink">준비중입니다.</p>
     </div>
   );
@@ -1501,14 +1506,14 @@ function FilesSection({ cardDraft, orders, assets }: { cardDraft?: BusinessCardD
         <p className="mt-2 text-sm font-bold leading-6 text-muted">관리자가 등록한 원본, 인쇄 파일, 안내 파일을 여기에서 내려받을 수 있어요.</p>
       </SoftCard>
       {archiveFiles.map((file) => (
-        <article key={file.id} className="rounded-lg border border-line bg-surface p-4 shadow-card">
+        <article key={file.id} className="rounded-lg bg-surface-blue p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
               <p className="text-base font-black text-ink">{file.displayName}</p>
               <p className="mt-1 text-xs font-bold text-muted">{file.originalName} · {formatArchiveFileSize(file.size)} · {formatArchiveDate(file.createdAt)}</p>
               {file.note ? <p className="mt-3 rounded-md bg-surface-blue px-3 py-2 text-xs font-bold leading-5 text-muted">{file.note}</p> : null}
             </div>
-            <a className="shrink-0 rounded-md bg-primary px-4 py-3 text-center text-sm font-black text-white shadow-soft transition hover:-translate-y-0.5" href={`/api/file-archive/${encodeURIComponent(file.id)}/download`} download>
+            <a className="shrink-0 rounded-md bg-primary px-4 py-3 text-center text-sm font-black text-white transition hover:-translate-y-0.5" href={`/api/file-archive/${encodeURIComponent(file.id)}/download`} download>
               다운로드
             </a>
           </div>

@@ -250,8 +250,9 @@ function readLogo(value: unknown) {
   const box = readBox(value.box);
 
   const assetType: "png" | "svg" | undefined = value.assetType === "svg" ? "svg" : value.assetType === "png" ? "png" : undefined;
+  const imageFilter: "grayscale" | undefined = value.imageFilter === "grayscale" ? "grayscale" : undefined;
 
-  return box ? { visible: value.visible, box, assetType } : undefined;
+  return box ? { visible: value.visible, box, assetType, imageFilter } : undefined;
 }
 
 function readSafeColor(value: unknown, fallback: string) {

@@ -14,7 +14,7 @@ import { aiRequestStatusIntervalMs, createAiRequestStatusMessage, startAiRequest
 import { businessCardProductionSizeFields, businessCardSizeOptions, createSizedBusinessCardLayout, resolveBusinessCardSize, sizeBusinessCardLayout } from "@/lib/design-session";
 import { getBusinessCardLayoutOrientation, layoutForBusinessCardOrientation } from "@/lib/business-card-layout-generator";
 import { readQrImageFile } from "@/lib/member-qr-image";
-import type { AiBusinessCardMockup, BusinessCardTemplateLayout, BusinessCardTemplateSideId, BusinessCardTemplateTextFieldId, BusinessCardUserElementId } from "@/lib/types";
+import type { AiBusinessCardMockup, BusinessCardTemplateLayout, BusinessCardTemplateSideId, BusinessCardTemplateTextFieldId, BusinessCardUserElementId, Member } from "@/lib/types";
 import { usePrintyStore } from "@/store/use-printy-store";
 
 type DownloadState = {
@@ -28,7 +28,14 @@ type AiBusinessCardJobResponse =
   | { jobId: string; kind: "pdf"; status: "succeeded"; fileName: string; contentType: "application/pdf"; base64: string }
   | { jobId: string; kind: "mockups" | "pdf"; status: "failed" | "cancelled"; reason: string };
 
+type PendingBackgroundEditJob = {
+  jobId: string;
+  expiresAt: number;
+};
+
 const clientRequestTimeoutMs = 540_000;
+const backgroundEditRecoveryTtlMs = 15 * 60 * 1000;
+const backgroundEditRecoveryKey = "printy:ai-business-card-background-edit";
 const businessCardSideOptions = [
   { id: "front", label: "앞면" },
   { id: "back", label: "뒷면" },
@@ -43,14 +50,14 @@ function cloneBusinessCardTemplateLayout(layout: BusinessCardTemplateLayout): Bu
     },
     sides: {
       front: {
-        logo: { visible: layout.sides.front.logo.visible, box: { ...layout.sides.front.logo.box }, assetType: layout.sides.front.logo.assetType },
+        logo: { visible: layout.sides.front.logo.visible, box: { ...layout.sides.front.logo.box }, assetType: layout.sides.front.logo.assetType, imageFilter: layout.sides.front.logo.imageFilter },
         fields: layout.sides.front.fields.map((field) => ({ ...field, box: { ...field.box } })),
         icons: layout.sides.front.icons.map((icon) => ({ ...icon, box: { ...icon.box } })),
         lines: layout.sides.front.lines.map((line) => ({ ...line, box: { ...line.box } })),
         background: { ...layout.sides.front.background },
       },
       back: {
-        logo: { visible: layout.sides.back.logo.visible, box: { ...layout.sides.back.logo.box }, assetType: layout.sides.back.logo.assetType },
+        logo: { visible: layout.sides.back.logo.visible, box: { ...layout.sides.back.logo.box }, assetType: layout.sides.back.logo.assetType, imageFilter: layout.sides.back.logo.imageFilter },
         fields: layout.sides.back.fields.map((field) => ({ ...field, box: { ...field.box } })),
         icons: layout.sides.back.icons.map((icon) => ({ ...icon, box: { ...icon.box } })),
         lines: layout.sides.back.lines.map((line) => ({ ...line, box: { ...line.box } })),
@@ -84,10 +91,58 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function readPendingBackgroundEditJob(): PendingBackgroundEditJob | undefined {
+  const raw = window.localStorage.getItem(backgroundEditRecoveryKey);
+
+  if (!raw) {
+    return undefined;
+  }
+
+  const value: unknown = (() => {
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return undefined;
+    }
+  })();
+
+  if (!isRecord(value) || typeof value.jobId !== "string" || typeof value.expiresAt !== "number") {
+    window.localStorage.removeItem(backgroundEditRecoveryKey);
+    return undefined;
+  }
+
+  if (value.expiresAt <= Date.now()) {
+    window.localStorage.removeItem(backgroundEditRecoveryKey);
+    return undefined;
+  }
+
+  return { jobId: value.jobId, expiresAt: value.expiresAt };
+}
+
+function writePendingBackgroundEditJob(jobId: string) {
+  window.localStorage.setItem(backgroundEditRecoveryKey, JSON.stringify({ jobId, expiresAt: Date.now() + backgroundEditRecoveryTtlMs } satisfies PendingBackgroundEditJob));
+}
+
 function visibleBusinessCardElements(layout: BusinessCardTemplateLayout, sideId: "front" | "back"): BusinessCardUserElementId[] {
   const side = layout.sides[sideId];
 
   return [...(side.logo.visible ? ["logo" as const] : []), ...side.fields.filter((field) => field.visible).map((field) => field.id)];
+}
+
+function layoutMemberContext(member: Member) {
+  return {
+    name: member.name,
+    role: member.role,
+    phone: member.phone,
+    mainPhone: member.mainPhone,
+    fax: member.fax,
+    email: member.email,
+    website: member.website ?? "",
+    address: member.address,
+    account: member.account ?? "",
+    instagram: member.instagram ?? "",
+    qrCodeImageUrl: member.qrCodeImageUrl ?? "",
+  };
 }
 
 async function saveAiBusinessCardMockupsToServer(signature: string, mockups: AiBusinessCardMockup[]) {
@@ -196,7 +251,7 @@ async function pollAiBusinessCardJob(jobId: string, onStatus?: (message: string)
 }
 
 export function BusinessCardPreviewScreen() {
-  const { brandDraft, memberDraft, selectedLogoId, selectedBusinessCardMemberIds, aiBusinessCardMockups, aiBusinessCardMockupStatus, aiBusinessCardMockupMessage, aiBusinessCardMockupSignature, activeAiBusinessCardMockupJobId, selectedAiBusinessCardMockupUrl, beginAiBusinessCardMockupGeneration, setActiveAiBusinessCardMockupJob, syncAiBusinessCardMockups, finishAiBusinessCardMockupGeneration, completeAiBusinessCardDesign, failAiBusinessCardMockupGeneration, selectAiBusinessCardMockup, dismissAiBusinessCardPdfNotice, updateMemberDraft, updateBusinessCardProductionOptions, ensureBusinessCardDraft, syncBrandWorkspace, enterDashboard, openBrandDetail, setBrandSection } = usePrintyStore();
+  const { brandDraft, memberDraft, selectedLogoId, selectedBusinessCardMemberIds, aiBusinessCardMockups, aiBusinessCardMockupStatus, aiBusinessCardMockupMessage, aiBusinessCardMockupSignature, activeAiBusinessCardMockupJobId, selectedAiBusinessCardMockupUrl, beginAiBusinessCardMockupGeneration, setActiveAiBusinessCardMockupJob, syncAiBusinessCardMockups, finishAiBusinessCardMockupGeneration, completeAiBusinessCardDesign, failAiBusinessCardMockupGeneration, selectAiBusinessCardMockup, deleteAiBusinessCardMockup, dismissAiBusinessCardPdfNotice, updateMemberDraft, updateBusinessCardProductionOptions, ensureBusinessCardDraft, syncBrandWorkspace, enterDashboard, openBrandDetail, setBrandSection } = usePrintyStore();
   const isAuthenticated = usePrintyStore((state) => state.isAuthenticated);
   const authUserId = usePrintyStore((state) => state.authSession?.userId);
   const effectiveLogoId = usePrintyStore((state) => state.brands.find((brand) => brand.id === state.selectedBrandId)?.selectedLogoId ?? selectedLogoId);
@@ -210,6 +265,8 @@ export function BusinessCardPreviewScreen() {
   const [downloadState, setDownloadState] = useState<DownloadState>({});
   const [mockupRequest, setMockupRequest] = useState("");
   const [cleanBackgroundEditRequest, setCleanBackgroundEditRequest] = useState("");
+  const [referenceImageDataUrl, setReferenceImageDataUrl] = useState<string>();
+  const [referenceImageName, setReferenceImageName] = useState("");
   const [cleanBackgroundEditStatus, setCleanBackgroundEditStatus] = useState("");
   const [layoutSuggestionMessage, setLayoutSuggestionMessage] = useState("");
   const [isEditingCleanBackground, setIsEditingCleanBackground] = useState(false);
@@ -218,15 +275,22 @@ export function BusinessCardPreviewScreen() {
   const [editableLayout, setEditableLayout] = useState<BusinessCardTemplateLayout>();
   const [activeBusinessCardSide, setActiveBusinessCardSide] = useState<BusinessCardTemplateSideId>("front");
   const [savedLayoutMessage, setSavedLayoutMessage] = useState("");
+  const [showGeneratedMockups, setShowGeneratedMockups] = useState(false);
   const loadedServerMockupKeysRef = useRef<Set<string>>(new Set());
   const requestedLogoVectorRefreshIdsRef = useRef<Set<string>>(new Set());
   const appliedInitialLayoutPromptRef = useRef("");
+  const recoveredBackgroundEditJobIdsRef = useRef<Set<string>>(new Set());
   const productionOptionsWithLayout = useMemo(() => editableLayout ? { ...productionOptions, layout: editableLayout } : productionOptions, [editableLayout, productionOptions]);
   const selectedMemberId = selectedBusinessCardMemberIds[0] ?? memberDraft.id;
   const activeMember = selectedBrand?.members.find((member) => member.id === selectedMemberId) ?? selectedBrand?.members.find((member) => member.id === memberDraft.id) ?? memberDraft;
   const layoutMember = activeMember.id === memberDraft.id ? { ...activeMember, qrCodeImageUrl: memberDraft.qrCodeImageUrl ?? activeMember.qrCodeImageUrl } : activeMember;
+  const selectedLayoutMembers = useMemo(() => {
+    const selectedMembers = selectedBrand?.members.filter((member) => selectedBusinessCardMemberIds.includes(member.id)) ?? [];
+
+    return selectedMembers.length > 0 ? selectedMembers : [layoutMember];
+  }, [layoutMember, selectedBrand?.members, selectedBusinessCardMemberIds]);
   const isDesignEditMode = businessCardEditorMode === "edit";
-  const input = { brandName: brandDraft.name, category: brandDraft.category, member: layoutMember, logo, mood: brandDraft.designRequest, mockupRequest, templateId: selectedTemplateId, productionOptions: productionOptionsWithLayout };
+  const input = { brandName: brandDraft.name, category: brandDraft.category, member: layoutMember, logo, mood: brandDraft.designRequest, mockupRequest, referenceImageDataUrl, templateId: selectedTemplateId, productionOptions: productionOptionsWithLayout };
   const currentSignature = createAiBusinessCardMockupSignature(input);
   const serverMockupKeys = useMemo(() => [currentSignature], [currentSignature]);
   const serverMockupLoadKey = currentSignature;
@@ -344,8 +408,23 @@ export function BusinessCardPreviewScreen() {
     await Promise.all(serverMockupKeys.map((key) => saveAiBusinessCardMockupsToServer(key, mockups)));
   };
 
+  const applyBackgroundEditMockup = (mockup: AiBusinessCardMockup) => {
+    const layoutMockup = withCurrentLayoutMockups([mockup])[0];
+    const nextMockups = mergeAiBusinessCardMockups(aiBusinessCardMockups, [layoutMockup]);
+
+    syncAiBusinessCardMockups(currentSignature, nextMockups);
+    if (isDesignEditMode) {
+      void saveServerMockups(nextMockups);
+    }
+    selectAiBusinessCardMockup(layoutMockup.imageUrl);
+    setReferenceImageDataUrl(undefined);
+    setReferenceImageName("");
+    window.localStorage.removeItem(backgroundEditRecoveryKey);
+    setCleanBackgroundEditStatus("배경 이미지를 새 후보로 추가하고 선택했어요.");
+  };
+
   useEffect(() => {
-    if (!isAuthenticated || !authUserId) {
+    if (!isAuthenticated || !authUserId || !isDesignEditMode) {
       return;
     }
 
@@ -442,8 +521,69 @@ export function BusinessCardPreviewScreen() {
     };
   }, [hasCurrentMockups, aiBusinessCardMockupSignature, aiBusinessCardMockupStatus, activeAiBusinessCardMockupJobId, currentSignature, failAiBusinessCardMockupGeneration, finishAiBusinessCardMockupGeneration, setActiveAiBusinessCardMockupJob]);
 
+  useEffect(() => {
+    if (!isDesignEditMode) {
+      return;
+    }
+
+    const pending = readPendingBackgroundEditJob();
+
+    if (!pending || recoveredBackgroundEditJobIdsRef.current.has(pending.jobId)) {
+      return;
+    }
+
+    const pendingJob = pending;
+
+    recoveredBackgroundEditJobIdsRef.current.add(pendingJob.jobId);
+    let isActive = true;
+
+    setIsEditingCleanBackground(true);
+    setCleanBackgroundEditStatus("이전에 요청한 배경 이미지 수정 결과를 확인하고 있어요.");
+
+    async function recoverBackgroundEditJob() {
+      const job = await pollAiBusinessCardJob(pendingJob.jobId, (message) => setCleanBackgroundEditStatus(message.replace("명함 AI 디자인 요청은", "배경 이미지 수정 요청은")));
+
+      if (!isActive) {
+        return;
+      }
+
+      if (job.status === "failed" || job.status === "cancelled") {
+        throw new Error(job.reason);
+      }
+
+      const mockup = job.kind === "mockups" && job.status === "succeeded" ? job.mockups[0] : undefined;
+
+      if (!mockup) {
+        throw new Error("배경 이미지 응답이 올바르지 않아요.");
+      }
+
+      applyBackgroundEditMockup(mockup);
+    }
+
+    void recoverBackgroundEditJob()
+      .catch((error: unknown) => {
+        if (!isActive) {
+          return;
+        }
+
+        const message = error instanceof Error ? error.message : "배경 이미지 수정 결과를 확인하지 못했어요.";
+
+        window.localStorage.removeItem(backgroundEditRecoveryKey);
+        setCleanBackgroundEditStatus(message);
+      })
+      .finally(() => {
+        if (isActive) {
+          setIsEditingCleanBackground(false);
+        }
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [isDesignEditMode]);
+
   const recoverCurrentMockupState = async () => {
-    if (isAuthenticated) {
+    if (isAuthenticated && isDesignEditMode) {
       const params = createSavedMockupSearchParams(currentSignature, { brandName: brandDraft.name, logoId: effectiveLogoId, memberName: layoutMember.name, memberPhone: layoutMember.phone });
       const savedResponse = await fetch(`/api/ai-business-cards/mockups/saved?${params.toString()}`, { cache: "no-store" }).catch(() => undefined);
 
@@ -589,7 +729,7 @@ export function BusinessCardPreviewScreen() {
         method: "POST",
         cache: "no-store",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: layoutPrompt, brandName: brandDraft.name, category: brandDraft.category, baseLayout: editableLayout }),
+        body: JSON.stringify({ prompt: layoutPrompt, logo: { present: Boolean(logo) }, primaryMember: layoutMemberContext(layoutMember), selectedMembers: selectedLayoutMembers.map(layoutMemberContext), baseLayout: editableLayout }),
       });
       const payload = await response.json() as { layout?: BusinessCardTemplateLayout; reason?: string; source?: string };
 
@@ -660,12 +800,16 @@ export function BusinessCardPreviewScreen() {
       setSavedLayoutMessage("완료 목업 디자인을 저장하고 있어요.");
       await saveServerMockups(layoutMockups);
       const draft = completeAiBusinessCardDesign(aiBusinessCardMockupSignature ?? currentSignature, layoutMockups, cloneBusinessCardTemplateLayout(editableLayout));
+      usePrintyStore.setState({ aiBusinessCardMockupMessage: "완료 목업 디자인을 서버에 저장하고 있어요." });
 
       if (isAuthenticated && authUserId) {
         await saveCurrentBrandWorkspaceSnapshot(authUserId);
       }
 
-      setSavedLayoutMessage(isDesignEditMode ? "완료 목업 디자인을 업데이트했어요." : "선택한 명함 디자인을 저장했어요. 명함 탭으로 이동해요.");
+      const successMessage = isDesignEditMode ? "완료 목업 디자인을 업데이트했어요." : "선택한 명함 디자인을 저장했어요. 명함 탭으로 이동해요.";
+
+      usePrintyStore.setState({ aiBusinessCardMockupMessage: isDesignEditMode ? "완료 목업 디자인을 업데이트했어요." : "선택한 명함 디자인을 저장했어요." });
+      setSavedLayoutMessage(successMessage);
       setDownloadState({});
 
       if (!isDesignEditMode && draft?.brandId) {
@@ -674,9 +818,30 @@ export function BusinessCardPreviewScreen() {
         setBrandSection("cards");
       }
     } catch (error) {
-      setSavedLayoutMessage(error instanceof Error ? error.message : "완료 목업 저장에 실패했어요. 잠시 후 다시 시도해 주세요.");
+      const message = error instanceof Error ? error.message : "완료 목업 저장에 실패했어요. 잠시 후 다시 시도해 주세요.";
+
+      usePrintyStore.setState({ aiBusinessCardMockupMessage: message });
+      setSavedLayoutMessage(message);
     } finally {
       setIsSavingDesign(false);
+    }
+  };
+
+  const handleDeleteGeneratedMockup = (mockup: AiBusinessCardMockup) => {
+    if (!window.confirm("이 생성 이미지를 삭제할까요?")) {
+      return;
+    }
+
+    const nextMockups = aiBusinessCardMockups.filter((item) => item.id !== mockup.id);
+
+    deleteAiBusinessCardMockup(mockup.id);
+    setDownloadState({});
+    setSavedLayoutMessage("생성 이미지를 삭제했어요.");
+
+    if (isAuthenticated) {
+      void saveServerMockups(nextMockups).catch((error: unknown) => {
+        setSavedLayoutMessage(error instanceof Error ? error.message : "삭제한 이미지 목록을 서버에 저장하지 못했어요.");
+      });
     }
   };
 
@@ -702,11 +867,12 @@ export function BusinessCardPreviewScreen() {
         method: "POST",
         cache: "no-store",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cleanImageUrl: selectedCleanMockupUrl, editRequest }),
+        body: JSON.stringify({ cleanImageUrl: selectedCleanMockupUrl, editRequest, referenceImageDataUrl }),
       });
       const queuedJob = await readAiBusinessCardJob(response);
 
       if (queuedJob.status === "queued" || queuedJob.status === "running") {
+        writePendingBackgroundEditJob(queuedJob.jobId);
         setCleanBackgroundEditStatus("배경 이미지 수정을 백그라운드에서 진행하고 있어요. 완료되면 자동으로 새 후보를 선택해요.");
       }
 
@@ -722,15 +888,7 @@ export function BusinessCardPreviewScreen() {
         throw new Error("배경 이미지 응답이 올바르지 않아요.");
       }
 
-      const layoutMockup = withCurrentLayoutMockups([mockup])[0];
-      const nextMockups = mergeAiBusinessCardMockups(aiBusinessCardMockups, [layoutMockup]);
-
-      syncAiBusinessCardMockups(currentSignature, nextMockups);
-      if (isDesignEditMode) {
-        void saveServerMockups(nextMockups);
-      }
-      selectAiBusinessCardMockup(layoutMockup.imageUrl);
-      setCleanBackgroundEditStatus("배경 이미지를 새 후보로 추가하고 선택했어요.");
+      applyBackgroundEditMockup(mockup);
     } catch (error) {
       const message = error instanceof DOMException && error.name === "AbortError" ? "배경 이미지 수정이 오래 걸리고 있어요. 잠시 후 다시 시도해 주세요." : error instanceof Error ? error.message : "배경 이미지를 수정하지 못했어요.";
 
@@ -746,7 +904,7 @@ export function BusinessCardPreviewScreen() {
         <ToastNoticeViewport>
           {cleanBackgroundEditStatus ? <ToastNotice eyebrow="디자인 수정" message={cleanBackgroundEditStatus} tone={cleanBackgroundEditTone} loading={isEditingCleanBackground} onDismiss={() => setCleanBackgroundEditStatus("")} /> : null}
           {layoutSuggestionMessage ? <ToastNotice eyebrow="레이아웃 제안" message={layoutSuggestionMessage} tone={layoutSuggestionTone} loading={isSuggestingLayout} onDismiss={() => setLayoutSuggestionMessage("")} /> : null}
-          {savedLayoutMessage ? <ToastNotice eyebrow="명함 저장" message={savedLayoutMessage} tone={savedLayoutTone} onDismiss={() => setSavedLayoutMessage("")} /> : null}
+          {savedLayoutMessage ? <ToastNotice eyebrow="명함 저장" message={savedLayoutMessage} tone={savedLayoutTone} loading={isSavingDesign} onDismiss={() => setSavedLayoutMessage("")} /> : null}
           {downloadState.error ? <ToastNotice eyebrow="작업 실패" message={downloadState.error} tone="danger" onDismiss={() => setDownloadState({})} /> : null}
         </ToastNoticeViewport>
       ) : null}
@@ -770,8 +928,8 @@ export function BusinessCardPreviewScreen() {
         onAiRequest={isDesignEditMode ? handleEditCleanBackground : handleGenerateMockups}
         isAiRequestLoading={isDesignEditMode ? isEditingCleanBackground : downloadState.status === "mockups" || isGeneratingCurrentMockups || isAiDesignRequestPending}
         aiRequestDisabled={isDesignEditMode ? !selectedCleanMockupUrl || !cleanBackgroundEditRequest.trim() || isEditingCleanBackground : !canGenerateMockups || downloadState.status === "mockups" || isGeneratingCurrentMockups || isAiDesignRequestPending}
-        showSaveDesign={hasGeneratedMockups}
-        onSaveDesign={handleSaveDesign}
+        showSaveDesign={false}
+        onSaveDesign={undefined}
         saveDesignLabel="저장하기"
         saveDesignDisabled={!editableLayout || aiBusinessCardMockups.length === 0 || isSavingDesign}
         notices={<>
@@ -780,35 +938,53 @@ export function BusinessCardPreviewScreen() {
           {!isDesignEditMode && isAiDesignRequestPending ? <p className="mt-3 rounded-md bg-surface-blue px-4 py-3 text-xs font-bold leading-5 text-primary-strong">AI 디자인 요청이 진행 중이에요. 완료되면 토스트로 알려드릴게요.</p> : null}
         </>}
       >
+        <BusinessCardReferenceImageInput value={referenceImageDataUrl} name={referenceImageName} onChange={(dataUrl, name) => { setReferenceImageDataUrl(dataUrl); setReferenceImageName(name); }} />
         {isDesignEditMode && !selectedCleanMockupUrl ? <p className="rounded-md bg-danger/10 px-4 py-3 text-xs font-bold leading-5 text-danger">수정할 클린 배경 시안이 필요해요. 완료 시안을 다시 선택해 주세요.</p> : null}
       </ProductionAiDesignRequestCard>
+      {hasGeneratedMockups ? (
+        <div className="grid gap-2 rounded-lg bg-surface p-3">
+          <AppButton onClick={handleSaveDesign} disabled={!editableLayout || aiBusinessCardMockups.length === 0 || isSavingDesign} className="py-3 text-xs disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0">저장하기</AppButton>
+        </div>
+      ) : null}
       {aiBusinessCardMockups.length > 0 ? (
         <SoftCard>
-          <p className="text-sm font-black text-ink">지금까지 생성한 이미지</p>
-          <p className="mt-1 text-xs font-bold leading-5 text-muted">이 명함 제작 화면에서 만든 시안을 모두 보여줘요. 수정 결과는 자동 선택되고, 이전 이미지는 목록에 남아요.</p>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-black text-ink">지금까지 생성한 이미지</p>
+              <p className="mt-1 text-xs font-bold leading-5 text-muted">이 명함 제작 화면에서 만든 시안을 모두 보여줘요. 수정 결과는 자동 선택되고, 이전 이미지는 목록에 남아요.</p>
+            </div>
+            <button className="shrink-0 rounded-sm bg-surface-blue px-3 py-1.5 text-xs font-black text-primary-strong" type="button" aria-expanded={showGeneratedMockups} onClick={() => setShowGeneratedMockups((current) => !current)}>
+              {showGeneratedMockups ? "접기" : "펼치기"}
+            </button>
+          </div>
+          <div className={`${showGeneratedMockups ? "grid" : "hidden"} mt-3 gap-3 sm:grid-cols-2 xl:grid-cols-3`}>
             {aiBusinessCardMockups.map((mockup) => {
               const mockupLayout = mockup.layout ?? editableLayout;
               const isSelected = mockup.imageUrl === selectedAiBusinessCardMockupUrl;
 
               return (
-                <div key={mockup.imageUrl} className={`rounded-lg border p-2 ${isSelected ? "border-primary bg-surface-blue" : "border-line bg-surface"}`}>
+                <div key={mockup.imageUrl} className={`rounded-lg p-2 ${isSelected ? "bg-primary-soft/45 ring-2 ring-primary-soft" : "bg-surface-blue"}`}>
                   <button className="block w-full text-left" type="button" onClick={() => selectAiBusinessCardMockup(mockup.imageUrl)}>
                     {mockup.cleanImageUrl && mockupLayout ? (
                       <div className="grid gap-2">
-                        <BusinessCardUserPreview className="rounded-md shadow-card" cleanImageUrl={mockup.cleanImageUrl} layout={mockupLayout} member={layoutMember} logo={logo} sideId="front" />
-                        <BusinessCardUserPreview className="rounded-md shadow-card" cleanImageUrl={mockup.cleanImageUrl} layout={mockupLayout} member={layoutMember} logo={logo} sideId="back" />
+                        <BusinessCardUserPreview className="rounded-md" cleanImageUrl={mockup.cleanImageUrl} layout={mockupLayout} member={layoutMember} logo={logo} sideId="front" />
+                        <BusinessCardUserPreview className="rounded-md" cleanImageUrl={mockup.cleanImageUrl} layout={mockupLayout} member={layoutMember} logo={logo} sideId="back" />
                       </div>
                     ) : (
                       <div className="grid aspect-[3/2] place-items-center rounded-md bg-surface-blue text-xs font-bold text-muted">미리보기 준비 중</div>
                     )}
                     <p className="mt-2 text-xs font-black text-ink">{mockup.title}</p>
                   </button>
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <button className={`rounded-sm px-3 py-2 text-xs font-black shadow-soft transition ${isSelected ? "bg-primary text-white" : "bg-white text-primary-strong hover:-translate-y-0.5"}`} type="button" onClick={() => selectAiBusinessCardMockup(mockup.imageUrl)} disabled={isSelected}>{isSelected ? "적용됨" : "선택하기"}</button>
-                    <span className="text-[11px] font-bold text-muted">{isSelected ? "현재 편집 배경" : "생성 시안"}</span>
-                    <a className="text-[11px] font-black text-primary-strong underline underline-offset-2" href={mockup.imageUrl} target="_blank" rel="noreferrer">원본 보기</a>
-                    {mockup.cleanImageUrl ? <a className="text-[11px] font-black text-primary-strong underline underline-offset-2" href={mockup.cleanImageUrl} target="_blank" rel="noreferrer">클린 보기</a> : null}
+                  <div className="mt-2 grid gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button className={`rounded-sm px-3 py-2 text-xs font-black transition ${isSelected ? "bg-primary text-white" : "bg-white text-primary-strong hover:-translate-y-0.5"}`} type="button" onClick={() => selectAiBusinessCardMockup(mockup.imageUrl)} disabled={isSelected}>{isSelected ? "적용됨" : "선택하기"}</button>
+                      <button className="rounded-sm bg-white px-3 py-2 text-xs font-black text-danger transition hover:-translate-y-0.5" type="button" onClick={() => handleDeleteGeneratedMockup(mockup)}>삭제</button>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-[11px] font-bold text-muted">{isSelected ? "현재 편집 배경" : "생성 시안"}</span>
+                      <a className="text-[11px] font-black text-primary-strong underline underline-offset-2" href={mockup.imageUrl} target="_blank" rel="noreferrer">원본 보기</a>
+                      {mockup.cleanImageUrl ? <a className="text-[11px] font-black text-primary-strong underline underline-offset-2" href={mockup.cleanImageUrl} target="_blank" rel="noreferrer">클린 보기</a> : null}
+                    </div>
                   </div>
                 </div>
               );
@@ -817,5 +993,36 @@ export function BusinessCardPreviewScreen() {
         </SoftCard>
       ) : null}
     </Screen>
+  );
+}
+
+function BusinessCardReferenceImageInput({ value, name, onChange }: { value?: string; name: string; onChange: (dataUrl: string | undefined, name: string) => void }) {
+  const handleFileChange = (file: File | undefined) => {
+    if (!file) {
+      return;
+    }
+
+    if (!file.type.startsWith("image/") || file.size > 8 * 1024 * 1024) {
+      window.alert("참고 이미지는 8MB 이하의 이미지 파일만 사용할 수 있어요.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => onChange(typeof reader.result === "string" ? reader.result : undefined, file.name);
+    reader.readAsDataURL(file);
+  };
+
+  return (
+    <div className="grid min-w-0 gap-2 overflow-hidden rounded-md bg-surface-blue p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-xs font-black text-ink">참고 이미지</p>
+          <p className="mt-1 text-[11px] font-bold leading-5 text-muted">분위기, 색감, 질감 참고용으로만 AI에 전달돼요.</p>
+        </div>
+        {value ? <button className="rounded-sm bg-white px-3 py-2 text-xs font-black text-danger" type="button" onClick={() => onChange(undefined, "")}>삭제</button> : null}
+      </div>
+      <input className="block w-full min-w-0 max-w-full overflow-hidden text-[11px] font-bold text-muted file:mr-2 file:rounded-sm file:border-0 file:bg-white file:px-3 file:py-2 file:text-xs file:font-black file:text-primary-strong" type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => handleFileChange(event.target.files?.[0])} />
+      {value ? <div className="flex items-center gap-3 rounded-md bg-white p-2"><img className="h-16 w-16 rounded-sm object-cover" src={value} alt="참고 이미지 미리보기" /><p className="min-w-0 truncate text-xs font-bold text-ink">{name || "참고 이미지 선택됨"}</p></div> : null}
+    </div>
   );
 }

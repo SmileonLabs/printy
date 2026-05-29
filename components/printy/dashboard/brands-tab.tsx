@@ -47,7 +47,7 @@ export function EmptyBrands({ onStartNewBrand }: { onStartNewBrand: () => void }
 
 export function IconButton({ label, icon, onClick, badge = 0 }: { label: string; icon: "notification" | "plus"; onClick?: () => void; badge?: number }) {
   return (
-    <button className="relative grid h-11 w-11 place-items-center rounded-full border border-line bg-surface text-ink shadow-card transition duration-200 hover:-translate-y-0.5 hover:text-primary" type="button" aria-label={label} onClick={onClick}>
+    <button className="relative grid h-11 w-11 place-items-center rounded-full bg-surface text-ink transition duration-200 hover:-translate-y-0.5 hover:text-primary" type="button" aria-label={label} onClick={onClick}>
       {badge > 0 ? <span className="absolute right-1 top-1 grid h-5 min-w-5 place-items-center rounded-full bg-danger px-1 text-[10px] font-black text-white">{badge}</span> : null}
       {icon === "notification" ? (
         <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -79,7 +79,7 @@ export function BrandCard({ brand, onOpen }: { brand: Brand; onOpen: () => void 
   const logo = usePrintyStore((state) => resolveLogoFromState(state, brand.selectedLogoId));
 
   return (
-    <button className="group relative overflow-hidden rounded-lg border border-line bg-[#f3f4f6] p-3 text-left shadow-card transition duration-200 hover:-translate-y-0.5" type="button" onClick={onOpen}>
+    <button className="group relative overflow-hidden rounded-lg bg-[#f3f4f6] p-3 text-left transition duration-200 hover:-translate-y-0.5" type="button" onClick={onOpen}>
       {"imageUrl" in logo && !imageFailed ? (
         <Image src={logo.imageUrl} alt="" width={512} height={512} sizes="(max-width: 430px) 50vw, 190px" className="h-auto w-full rounded-sm opacity-100 transition duration-300 group-hover:scale-105" unoptimized aria-hidden="true" onError={() => setImageFailed(true)} />
       ) : (
@@ -93,7 +93,7 @@ export function BrandCard({ brand, onOpen }: { brand: Brand; onOpen: () => void 
       )}
       <span className="mt-3 flex justify-end">
         <span className="flex items-start gap-3">
-          <span className="rounded-md bg-white/90 px-2 py-1 text-[10px] font-black text-primary-strong shadow-soft backdrop-blur-xl">{brand.category}</span>
+          <span className="rounded-md bg-white/90 px-2 py-1 text-[10px] font-black text-primary-strong backdrop-blur-xl">{brand.category}</span>
         </span>
       </span>
     </button>

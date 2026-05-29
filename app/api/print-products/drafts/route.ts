@@ -27,22 +27,31 @@ function readPatchBody(body: unknown) {
 }
 
 export async function PUT(request: Request) {
+  const startedAt = Date.now();
+
   try {
     const session = await getCurrentDbSession();
+    const authenticatedAt = Date.now();
 
     if (!session) {
       return NextResponse.json(unauthorizedResponse, { status: 401 });
     }
 
     const patch = readPatchBody(await request.json().catch(() => undefined));
+    const parsedAt = Date.now();
 
     if (!patch) {
       return NextResponse.json(malformedResponse, { status: 400 });
     }
 
-    return NextResponse.json(await savePrintProductDraftPatch(session.user.id, patch.draft, patch.assets));
+    const result = await savePrintProductDraftPatch(session.user.id, patch.draft, patch.assets);
+    const completedAt = Date.now();
+
+    console.info("Print product draft patch saved", { authMs: authenticatedAt - startedAt, parseMs: parsedAt - authenticatedAt, saveMs: completedAt - parsedAt, totalMs: completedAt - startedAt, draftId: patch.draft.id, assetCount: patch.assets.length });
+
+    return NextResponse.json(result);
   } catch (error) {
-    console.error("Print product draft save failed", { errorName: error instanceof Error ? error.name : "UnknownError", errorMessage: error instanceof Error ? error.message : "Unknown error" });
+    console.error("Print product draft save failed", { totalMs: Date.now() - startedAt, errorName: error instanceof Error ? error.name : "UnknownError", errorMessage: error instanceof Error ? error.message : "Unknown error" });
     return NextResponse.json(unavailableResponse, { status: 503 });
   }
 }

@@ -7,6 +7,26 @@
   "preview_urls": true,
   "routes": [
     {
+      "pattern": "printy.smileon.app/api/ai-business-cards/mockups",
+      "zone_name": "smileon.app"
+    },
+    {
+      "pattern": "printy.smileon.app/api/ai-business-cards/backgrounds/edit",
+      "zone_name": "smileon.app"
+    },
+    {
+      "pattern": "printy.smileon.app/api/ai-business-cards/jobs/active",
+      "zone_name": "smileon.app"
+    },
+    {
+      "pattern": "printy.smileon.app/api/ai-business-cards/jobs/process",
+      "zone_name": "smileon.app"
+    },
+    {
+      "pattern": "printy.smileon.app/api/ai-business-cards/jobs/*",
+      "zone_name": "smileon.app"
+    },
+    {
       "pattern": "printy.smileon.app/api/templates/*",
       "zone_name": "smileon.app"
     },

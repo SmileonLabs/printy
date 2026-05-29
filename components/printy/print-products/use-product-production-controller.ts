@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { downloadBlob, readDownloadFileName } from "@/lib/client/download";
 import { startAiRequestStatusTicker } from "@/lib/client/ai-request-status";
 import { fetchWithTimeout, readApiReason } from "@/lib/client/fetch";
+import { createBrandWorkspaceSignature } from "@/lib/brand-workspace";
 import { designSessionMessage, editSessionTitle } from "@/lib/design-session";
 import { applyPrintProductSize, createDefaultPrintProductLayout, normalizePrintProductLayout, printProductAdapters } from "@/lib/print-products/adapters";
 import type { Brand, BrandAsset, PrintProductDraft, PrintProductMockup, PrintProductProductionLayout, PrintProductProductionType, ResolvedLogoOption } from "@/lib/types";
@@ -18,10 +19,10 @@ function logoHasImage(logo: ResolvedLogoOption): logo is LogoWithImage {
   return "imageUrl" in logo;
 }
 
-function findDraft(drafts: PrintProductDraft[], brandId: string, productType: PrintProductProductionType, activeDraftId: string | undefined) {
+function findDraft(drafts: PrintProductDraft[], brandId: string, productType: PrintProductProductionType, activeDraftId: string | undefined, includeCompletedActiveDraft: boolean) {
   const activeDraft = drafts.find((draft) => draft.id === activeDraftId && draft.brandId === brandId && draft.productType === productType);
 
-  if (activeDraft) {
+  if (activeDraft && (includeCompletedActiveDraft || !activeDraft.completedAt)) {
     return activeDraft;
   }
 
@@ -82,6 +83,20 @@ async function savePrintProductDraftPatch(draft: PrintProductDraft, assets: Bran
   }
 }
 
+function acknowledgeCurrentPrintProductPatchSave(ownerUserId: string) {
+  const state = usePrintyStore.getState();
+  const savedSignature = createBrandWorkspaceSignature({
+    brands: state.brands,
+    brandAssets: state.brandAssets,
+    savedGeneratedLogoOptions: state.savedGeneratedLogoOptions,
+    businessCardDrafts: state.businessCardDrafts,
+    printProductDrafts: state.printProductDrafts,
+    orders: state.orders,
+  });
+
+  state.acknowledgeBrandWorkspaceSave(savedSignature, ownerUserId);
+}
+
 export function useProductProductionController(brand: Brand, productType: PrintProductProductionType, logo: ResolvedLogoOption) {
   const adapter = printProductAdapters[productType];
   const drafts = usePrintyStore((state) => state.printProductDrafts);
@@ -95,7 +110,6 @@ export function useProductProductionController(brand: Brand, productType: PrintP
   const deleteMockup = usePrintyStore((state) => state.deletePrintProductMockup);
   const deleteDraft = usePrintyStore((state) => state.deletePrintProductDraft);
   const selectMockup = usePrintyStore((state) => state.selectPrintProductMockup);
-  const completeDesign = usePrintyStore((state) => state.completePrintProductDesign);
   const savePdf = usePrintyStore((state) => state.savePrintProductPdf);
   const [status, setStatus] = useState("");
   const [isGeneratingMockup, setIsGeneratingMockup] = useState(false);
@@ -103,9 +117,15 @@ export function useProductProductionController(brand: Brand, productType: PrintP
   const [isGeneratingLayout, setIsGeneratingLayout] = useState(false);
   const [layoutPrompt, setLayoutPrompt] = useState("");
   const [mockupPrompt, setMockupPrompt] = useState("");
+  const [referenceImageDataUrl, setReferenceImageDataUrl] = useState<string>();
+  const [referenceImageName, setReferenceImageName] = useState("");
+  const [draftOverride, setDraftOverride] = useState<PrintProductDraft>();
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [editorMode, setEditorMode] = useState<"create" | "edit">("create");
-  const draft = findDraft(drafts, brand.id, productType, activePrintProductDraftId);
+  const storeDraft = findDraft(drafts, brand.id, productType, activePrintProductDraftId, editorMode === "edit");
+  const latestDraftOverride = draftOverride ? drafts.find((item) => item.id === draftOverride.id) ?? draftOverride : undefined;
+  const resolvedDraftOverride = latestDraftOverride && (editorMode === "edit" || !latestDraftOverride.completedAt) ? latestDraftOverride : undefined;
+  const draft = resolvedDraftOverride ?? storeDraft;
   const selectedMockup = draft?.mockups.find((mockup) => mockup.id === draft.selectedMockupId) ?? draft?.mockups[0];
   const layout = normalizePrintProductLayout(draft?.layout ?? createDefaultPrintProductLayout(productType, brand, brand.members));
   const logoImageUrl = logoHasImage(logo) ? logo.imageUrl : undefined;
@@ -120,6 +140,9 @@ export function useProductProductionController(brand: Brand, productType: PrintP
     setIsEditorOpen(false);
     setEditorMode("create");
     setMockupPrompt("");
+    setReferenceImageDataUrl(undefined);
+    setReferenceImageName("");
+    setDraftOverride(undefined);
     setLayoutPrompt("");
     setStatus("");
   }, [brand.id, productType]);
@@ -146,7 +169,7 @@ export function useProductProductionController(brand: Brand, productType: PrintP
 
   const ensureDraft = () => draft ?? createPrintProductDraft(brand.id, productType, layout);
 
-  const mockupRequestBody = (current: PrintProductDraft, promptOverride?: string, promptOnly = false) => ({ brandId: brand.id, brandName: brand.name, category: brand.category, productType, request: current.request, layout: normalizePrintProductLayout(current.layout), promptOverride, promptOnly });
+  const mockupRequestBody = (current: PrintProductDraft, promptOverride?: string, promptOnly = false) => ({ brandId: brand.id, brandName: brand.name, category: brand.category, productType, request: current.request, layout: normalizePrintProductLayout(current.layout), promptOverride, promptOnly, referenceImageDataUrl });
 
   const saveLayout = () => {
     const current = ensureDraft();
@@ -158,8 +181,9 @@ export function useProductProductionController(brand: Brand, productType: PrintP
 
   const startNewDesign = () => {
     const nextLayout = createDefaultPrintProductLayout(productType, brand, brand.members);
+    const nextDraft = createPrintProductDraft(brand.id, productType, nextLayout);
 
-    createPrintProductDraft(brand.id, productType, nextLayout);
+    setDraftOverride(nextDraft);
     setMockupPrompt("");
     setEditorMode("create");
     setIsEditorOpen(true);
@@ -194,6 +218,7 @@ export function useProductProductionController(brand: Brand, productType: PrintP
       const nextLayout = normalizePrintProductLayout(payload.layout as PrintProductProductionLayout);
       const nextDraft = createPrintProductDraft(brand.id, productType, nextLayout);
 
+      setDraftOverride(nextDraft);
       upsertPrintProductDraft({ ...nextDraft, layout: nextLayout, updatedAt: new Date().toISOString() });
       setMockupPrompt("");
       setEditorMode("create");
@@ -207,6 +232,7 @@ export function useProductProductionController(brand: Brand, productType: PrintP
   };
 
   const loadDraft = (targetDraft: PrintProductDraft) => {
+    setDraftOverride(targetDraft);
     upsertPrintProductDraft(targetDraft);
     setMockupPrompt("");
     setEditorMode("create");
@@ -226,7 +252,10 @@ export function useProductProductionController(brand: Brand, productType: PrintP
   };
 
   const editCompletedDraft = (targetDraft: PrintProductDraft) => {
-    upsertPrintProductDraft({ ...targetDraft, title: editSessionTitle(targetDraft.title), updatedAt: new Date().toISOString() });
+    const editDraft = { ...targetDraft, title: editSessionTitle(targetDraft.title), updatedAt: new Date().toISOString() };
+
+    setDraftOverride(editDraft);
+    upsertPrintProductDraft(editDraft);
     setMockupPrompt("");
     setEditorMode("edit");
     setIsEditorOpen(true);
@@ -244,11 +273,16 @@ export function useProductProductionController(brand: Brand, productType: PrintP
     }
 
     try {
-      upsertPrintProductDraft({ ...latestDraft, layout: normalizePrintProductLayout(latestDraft.layout), updatedAt: new Date().toISOString() });
-      completeDesign(latestDraft.id, latestSelectedMockup.id);
+      const now = new Date().toISOString();
+      const completedDraft = { ...latestDraft, layout: normalizePrintProductLayout(latestDraft.layout), selectedMockupId: latestSelectedMockup.id, completedMockupId: latestSelectedMockup.id, completedAt: now, updatedAt: now };
+
       if (isAuthenticated && authUserId) {
         setStatus("완료 디자인을 서버에 저장하고 있어요.");
-        await savePrintProductDraftPatch(readLatestPrintProductDraft(latestDraft.id, latestDraft));
+        await savePrintProductDraftPatch(completedDraft);
+      }
+      upsertPrintProductDraft(completedDraft);
+      if (isAuthenticated && authUserId) {
+        acknowledgeCurrentPrintProductPatchSave(authUserId);
       }
       setIsEditorOpen(false);
       setStatus(`선택한 ${adapter.shortTitle} 디자인을 완료 저장했어요.`);
@@ -310,20 +344,24 @@ export function useProductProductionController(brand: Brand, productType: PrintP
       const result = payload as { mockup: PrintProductMockup; asset?: unknown };
       const latestDraft = readLatestPrintProductDraft(requestDraft.id, requestDraft);
       const nextMockups = [result.mockup, ...latestDraft.mockups.filter((mockup) => mockup.id !== result.mockup.id)];
-
-      upsertPrintProductDraft({ ...latestDraft, mockups: nextMockups, selectedMockupId: result.mockup.id, updatedAt: new Date().toISOString() });
-      completeDesign(latestDraft.id, result.mockup.id);
-
-      if (hasBrandAsset(result.asset)) {
-        addBrandAssets(brand.id, [result.asset]);
-      }
+      const now = new Date().toISOString();
+      const completedDraft = { ...latestDraft, mockups: nextMockups, selectedMockupId: result.mockup.id, completedMockupId: result.mockup.id, completedAt: now, updatedAt: now };
 
       if (isAuthenticated && authUserId) {
         setStatus("완료 디자인을 서버에 저장하고 있어요.");
-        await savePrintProductDraftPatch(readLatestPrintProductDraft(latestDraft.id, latestDraft), hasBrandAsset(result.asset) ? [result.asset] : []);
+        await savePrintProductDraftPatch(completedDraft, hasBrandAsset(result.asset) ? [result.asset] : []);
+      }
+      upsertPrintProductDraft(completedDraft);
+      if (hasBrandAsset(result.asset)) {
+        addBrandAssets(brand.id, [result.asset]);
+      }
+      if (isAuthenticated && authUserId) {
+        acknowledgeCurrentPrintProductPatchSave(authUserId);
       }
 
       setMockupPrompt("");
+      setReferenceImageDataUrl(undefined);
+      setReferenceImageName("");
       setEditorMode("edit");
       setIsEditorOpen(true);
       window.localStorage.removeItem(pendingMockupKey);
@@ -395,6 +433,10 @@ export function useProductProductionController(brand: Brand, productType: PrintP
     isEditorOpen,
     setIsEditorOpen,
     setMockupPrompt,
+    referenceImageDataUrl,
+    referenceImageName,
+    setReferenceImageDataUrl,
+    setReferenceImageName,
     setLayoutPrompt,
     clearStatus: () => setStatus(""),
     saveLayout,

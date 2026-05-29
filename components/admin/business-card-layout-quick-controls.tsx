@@ -1,7 +1,7 @@
 import { type CSSProperties, type ReactNode } from "react";
 import { CanvasEditorCompactBoxNumberControls, CanvasEditorQrImageControl, canvasEditorFontLabels, canvasEditorTextAlignLabels, readCanvasEditorFontFamily, type CanvasEditorTextControlModel } from "@/components/design-production/canvas-editor-control-primitives";
 import { useCanvasEditorFloatingPanelDrag } from "@/components/design-production/canvas-editor-interactions";
-import { CanvasEditorFloatingControls, CanvasEditorFloatingHeader, CanvasEditorFloatingVisibilityHeader, CanvasEditorFontSelect, CanvasEditorLogoAssetTypeButtons, CanvasEditorNumberInput, CanvasEditorSelectInput, CanvasEditorSolidColorInput, CanvasEditorTextColorInput, CanvasEditorTextContentInput, CanvasEditorTextFormatButtons, CanvasEditorTextStyleControls } from "@/components/design-production/canvas-editor-panels";
+import { CanvasEditorCheckboxPill, CanvasEditorFloatingControls, CanvasEditorFloatingHeader, CanvasEditorFloatingVisibilityHeader, CanvasEditorFontSelect, CanvasEditorLogoAssetTypeButtons, CanvasEditorNumberInput, CanvasEditorSelectInput, CanvasEditorSolidColorInput, CanvasEditorTextColorInput, CanvasEditorTextContentInput, CanvasEditorTextFormatButtons, CanvasEditorTextStyleControls } from "@/components/design-production/canvas-editor-panels";
 import { businessCardTemplateFontFamilies, businessCardTemplateIconIds } from "@/lib/business-card-templates";
 import { businessCardInfoBlockIconTextGapPx, editableBusinessCardFieldValue, isMultilineBusinessCardTextFieldId, sampleBusinessCardFieldValue, type BusinessCardInfoBlock } from "@/lib/business-card-rendering";
 import { clampCanvasValue, roundCanvasPercent, updateCanvasBoxValue } from "@/lib/design-projects";
@@ -165,7 +165,7 @@ export function QuickControls({ selectedItem, position, fixed = false, portal = 
       <>
         {renderVisibilityHeader(businessCardInfoBlockLabels[infoBlock.id] ?? "정보 영역", allVisible, (visible) => onInfoBlockFieldsChange((current) => ({ ...current, visible })))}
         {firstField ? (
-          <CanvasEditorTextStyleControls className="grid grid-cols-[18px_67px_19px_23px] items-end gap-0.5" fontFamily={firstField.fontFamily} fontOptions={businessCardTemplateFontFamilies} fontLabels={canvasEditorFontLabels} color={firstField.color} fontWeight={firstField.fontWeight} italic={firstField.italic} onFontFamilyChange={(value) => onInfoBlockFieldsChange((current) => ({ ...current, fontFamily: readCanvasEditorFontFamily(value) }))} onColorChange={(color) => onInfoBlockFieldsChange((current) => ({ ...current, color }))} onFontWeightChange={(fontWeight) => onInfoBlockFieldsChange((current) => ({ ...current, fontWeight }))} onItalicChange={(italic) => onInfoBlockFieldsChange((current) => ({ ...current, italic }))} renderColorInput={(props) => <FontColorInput {...props} />} />
+          <CanvasEditorTextStyleControls className="grid grid-cols-[72px_minmax(0,1fr)] items-end gap-2" fontFamily={firstField.fontFamily} fontOptions={businessCardTemplateFontFamilies} fontLabels={canvasEditorFontLabels} color={firstField.color} fontWeight={firstField.fontWeight} italic={firstField.italic} onFontFamilyChange={(value) => onInfoBlockFieldsChange((current) => ({ ...current, fontFamily: readCanvasEditorFontFamily(value) }))} onColorChange={(color) => onInfoBlockFieldsChange((current) => ({ ...current, color }))} onFontWeightChange={(fontWeight) => onInfoBlockFieldsChange((current) => ({ ...current, fontWeight }))} onItalicChange={(italic) => onInfoBlockFieldsChange((current) => ({ ...current, italic }))} renderColorInput={(props) => <FontColorInput {...props} />} />
         ) : null}
         <div className="grid gap-1">
           {blockFields.map((blockField) => (
@@ -182,9 +182,9 @@ export function QuickControls({ selectedItem, position, fixed = false, portal = 
             </label>
           ))}
         </div>
-        <div className="grid grid-cols-[112px_minmax(0,1fr)] items-end gap-2">
+        <div className="grid gap-2">
           <CompactBoxControls box={infoBlock.box} onChange={(key, value) => onInfoBlockChange((box) => updateBoxValue(box, key, value))} />
-          <div className="grid min-w-0 grid-cols-[44px_minmax(0,1fr)] items-end gap-2">
+          <div className="grid min-w-0 grid-cols-[52px_minmax(0,1fr)] items-end gap-2">
             {infoBlock.icon ? <CompactNumberInput label="간격" value={iconTextGapPx} min={0} max={80} step={1} onChange={(value) => onInfoBlockIconChange((current) => ({ ...current, textGapPx: roundPercent(clamp(value, 0, 80)) }))} /> : <span />}
             {firstField ? <CanvasEditorTextFormatButtons align={firstField.align} alignLabels={canvasEditorTextAlignLabels} onAlignChange={(align) => onInfoBlockFieldsChange((current) => ({ ...current, align }))} /> : null}
           </div>
@@ -199,7 +199,7 @@ export function QuickControls({ selectedItem, position, fixed = false, portal = 
       return renderPanel(
         <>
           {renderVisibilityHeader("QR 코드 이미지", field.visible, (visible) => onFieldChange((current) => ({ ...current, visible })), true)}
-          <CompactBoxControls box={field.box} className="grid grid-cols-[repeat(4,24px)] gap-0.5" onChange={(key, value) => onFieldChange((current) => ({ ...current, box: updateBoxValue(current.box, key, value) }))} />
+          <CompactBoxControls box={field.box} onChange={(key, value) => onFieldChange((current) => ({ ...current, box: updateBoxValue(current.box, key, value) }))} />
           {onUserQrCodeImageChange && onUserQrCodeImageClear ? <CanvasEditorQrImageControl value={userQrCodeImageUrl} onChange={onUserQrCodeImageChange} onClear={onUserQrCodeImageClear} /> : null}
         </>
       );
@@ -210,8 +210,8 @@ export function QuickControls({ selectedItem, position, fixed = false, portal = 
     return renderPanel(
       <>
         {renderVisibilityHeader(model.title, model.visible, (visible) => onFieldChange((current) => ({ ...current, visible })), true)}
-        <CompactBoxControls box={field.box} className="grid grid-cols-[repeat(4,34px)] gap-1" onChange={(key, value) => onFieldChange((current) => ({ ...current, box: updateBoxValue(current.box, key, value) }))} />
-        <div className="grid grid-cols-[64px_repeat(5,18px)] items-end gap-1">
+        <CompactBoxControls box={field.box} onChange={(key, value) => onFieldChange((current) => ({ ...current, box: updateBoxValue(current.box, key, value) }))} />
+        <div className="grid grid-cols-[72px_minmax(0,1fr)] items-end gap-2">
           <CanvasEditorFontSelect value={model.fontFamily} options={businessCardTemplateFontFamilies} labels={canvasEditorFontLabels} onChange={(value) => onFieldChange((current) => ({ ...current, fontFamily: readCanvasEditorFontFamily(value) }))} selectClassName="h-7 w-full rounded-sm border border-line bg-surface px-1 text-sm font-black text-ink outline-none focus:border-primary" />
           <CanvasEditorTextFormatButtons fontWeight={model.fontWeight} italic={model.italic} align={model.align} alignLabels={canvasEditorTextAlignLabels} onFontWeightChange={(fontWeight) => onFieldChange((current) => ({ ...current, fontWeight }))} onItalicChange={(italic) => onFieldChange((current) => ({ ...current, italic }))} onAlignChange={(align) => onFieldChange((current) => ({ ...current, align }))} />
         </div>
@@ -225,7 +225,7 @@ export function QuickControls({ selectedItem, position, fixed = false, portal = 
     return renderPanel(
       <>
         {renderVisibilityHeader("아이콘", icon.visible, (visible) => onIconChange((current) => ({ ...current, visible })))}
-        <div className="grid grid-cols-[92px_98px] items-end gap-1">
+        <div className="grid grid-cols-[minmax(0,1fr)_92px] items-end gap-2">
           <CanvasEditorSelectInput label="아이콘 종류" value={icon.icon} options={iconSelectOptions} onChange={(value) => onIconChange((current) => ({ ...current, icon: readIconId(value) }))} />
           <CompactColorInput label="색" value={icon.color} onChange={(color) => onIconChange((current) => ({ ...current, color }))} />
         </div>
@@ -240,11 +240,11 @@ export function QuickControls({ selectedItem, position, fixed = false, portal = 
     return renderPanel(
       <>
         {renderVisibilityHeader("라인", line.visible, (visible) => onLineChange((current) => ({ ...current, visible })))}
-        <div className="grid grid-cols-[76px_98px] items-end gap-1">
+        <div className="grid grid-cols-[minmax(0,1fr)_92px] items-end gap-2">
           <CanvasEditorSelectInput label="방향" value={line.orientation} options={lineOrientationOptions} onChange={(value) => onLineChange((current) => ({ ...current, orientation: value === "vertical" ? "vertical" : "horizontal" }))} />
           <CompactColorInput label="색" value={line.color} onChange={(color) => onLineChange((current) => ({ ...current, color }))} />
         </div>
-        <div className="grid grid-cols-[24px_24px_24px_24px] gap-0.5">
+        <div className="grid grid-cols-4 gap-1">
           <CompactNumberInput label="X" value={line.box.x} min={-100} max={100} step={0.01} onChange={(value) => onLineChange((current) => ({ ...current, box: updateBoxValue(current.box, "x", value) }))} />
           <CompactNumberInput label="Y" value={line.box.y} min={-100} max={100} step={0.01} onChange={(value) => onLineChange((current) => ({ ...current, box: updateBoxValue(current.box, "y", value) }))} />
           <CompactNumberInput label="길이" value={isHorizontal ? line.box.width : line.box.height} min={0.25} max={100} step={0.01} onChange={(value) => onLineChange((current) => ({ ...current, box: updateLineBoxValue(current.box, isHorizontal ? "width" : "height", value) }))} />
@@ -260,6 +260,7 @@ export function QuickControls({ selectedItem, position, fixed = false, portal = 
         {hideLogoVisibility ? renderHeader("로고") : renderVisibilityHeader("로고", logo.visible, (visible) => onLogoChange((current) => ({ ...current, visible })))}
         <CompactBoxControls box={logo.box} onChange={(key, value) => onLogoChange((current) => ({ ...current, box: updateBoxValue(current.box, key, value) }))} />
         <CanvasEditorLogoAssetTypeButtons value={logo.assetType === "svg" ? "svg" : "png"} labels={{ png: "PNG 사용", svg: "SVG 사용" }} className="grid grid-cols-2 gap-1" onChange={(assetType) => onLogoChange((current) => ({ ...current, assetType }))} />
+        <CanvasEditorCheckboxPill label="흑백 필터" checked={logo.imageFilter === "grayscale"} compact onChange={(checked) => onLogoChange((current) => ({ ...current, imageFilter: checked ? "grayscale" : undefined }))} />
       </>
     );
   }
@@ -267,14 +268,14 @@ export function QuickControls({ selectedItem, position, fixed = false, portal = 
   return null;
 }
 
-function CompactBoxControls({ box, className = "grid grid-cols-[24px_24px_24px_24px] gap-0.5", onChange }: { box: BusinessCardTemplateBox; className?: string; onChange: (key: BoxKey, value: number) => void }) {
+function CompactBoxControls({ box, className = "grid grid-cols-4 gap-1", onChange }: { box: BusinessCardTemplateBox; className?: string; onChange: (key: BoxKey, value: number) => void }) {
   return (
     <CanvasEditorCompactBoxNumberControls box={box} className={className} onChange={onChange} />
   );
 }
 
 function CompactNumberInput({ label, value, min, max, step, onChange }: { label: string; value: number; min: number; max: number; step: number; onChange: (value: number) => void }) {
-  return <CanvasEditorNumberInput label={label} value={value} min={min} max={max} step={step} emptyValue={0} inputClassName="h-7 w-full rounded-sm border border-line bg-surface px-1 text-[11px] font-black text-ink outline-none focus:border-primary" normalizeValue={(nextValue, inputMin, inputMax) => roundPercent(clamp(nextValue, inputMin, inputMax))} onChange={onChange} />;
+  return <CanvasEditorNumberInput label={label} value={value} min={min} max={max} step={step} emptyValue={0} inputClassName="h-8 w-full min-w-0 rounded-sm border border-line bg-surface px-1.5 text-xs font-black text-ink outline-none focus:border-primary" normalizeValue={(nextValue, inputMin, inputMax) => roundPercent(clamp(nextValue, inputMin, inputMax))} onChange={onChange} />;
 }
 
 function CompactColorInput({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {

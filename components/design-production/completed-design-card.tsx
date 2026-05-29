@@ -12,11 +12,40 @@ type CompletedDesignCardProps = {
   subtitle?: string;
   actions: ReactNode;
   notices?: ReactNode;
+  layout?: "stack" | "row" | "overlay";
 };
 
-export function CompletedDesignCard({ preview, title, subtitle, actions, notices }: CompletedDesignCardProps) {
+export function CompletedDesignCard({ preview, title, subtitle, actions, notices, layout = "stack" }: CompletedDesignCardProps) {
+  if (layout === "overlay") {
+    return (
+      <div className="relative w-full break-inside-avoid overflow-hidden rounded-lg bg-transparent align-top">
+        {preview}
+        <div className="absolute bottom-2 right-2 top-2 grid w-[min(48%,12rem)] content-center gap-2">
+          {actions}
+        </div>
+        {title ? <p className="mt-2 line-clamp-1 text-[11px] font-black text-ink">{title}</p> : null}
+        {subtitle ? <p className="mt-1 text-[11px] font-bold text-muted">{subtitle}</p> : null}
+        {notices}
+      </div>
+    );
+  }
+
+  if (layout === "row") {
+    return (
+      <div className="grid w-full break-inside-avoid grid-cols-[minmax(0,1fr)_minmax(132px,190px)] items-stretch gap-3 rounded-lg bg-transparent align-top">
+        <div className="min-w-0 overflow-hidden rounded-lg">{preview}</div>
+        <div className="grid content-start gap-2">
+          {title ? <p className="line-clamp-1 text-[11px] font-black text-ink">{title}</p> : null}
+          {subtitle ? <p className="text-[11px] font-bold text-muted">{subtitle}</p> : null}
+          <div className="grid gap-2">{actions}</div>
+          {notices}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="mb-3 inline-block w-full break-inside-avoid overflow-hidden rounded-[18px] border border-line bg-surface p-2 align-top shadow-soft transition hover:-translate-y-0.5 hover:shadow-floating">
+    <div className="mb-4 inline-block w-full break-inside-avoid overflow-hidden rounded-lg bg-transparent align-top transition hover:-translate-y-0.5">
       {preview}
       {title ? <p className="mt-2 line-clamp-1 text-[11px] font-black text-ink">{title}</p> : null}
       {subtitle ? <p className="mt-1 text-[11px] font-bold text-muted">{subtitle}</p> : null}

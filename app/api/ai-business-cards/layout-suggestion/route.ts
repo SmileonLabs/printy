@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { applyBusinessCardLayoutIntent, fallbackBusinessCardLayoutIntent, normalizeBusinessCardLayoutIntent } from "@/lib/ai-business-card/layout-suggestion";
+import { applyBusinessCardLayoutIntent, fallbackBusinessCardLayoutIntent, normalizeBusinessCardLayoutIntent, type BusinessCardLayoutMemberContext } from "@/lib/ai-business-card/layout-suggestion";
 import { normalizeBusinessCardTemplateLayout } from "@/lib/business-card-templates";
 
 export const runtime = "nodejs";
@@ -12,9 +12,33 @@ function readString(record: Record<string, unknown>, key: string) {
   return typeof record[key] === "string" ? record[key].trim() : "";
 }
 
-async function requestIntentFromOpenAi({ prompt, brandName, category }: { prompt: string; brandName: string; category: string }) {
+function readMemberContext(value: unknown): BusinessCardLayoutMemberContext | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  return {
+    name: readString(value, "name"),
+    role: readString(value, "role"),
+    phone: readString(value, "phone"),
+    mainPhone: readString(value, "mainPhone"),
+    fax: readString(value, "fax"),
+    email: readString(value, "email"),
+    website: readString(value, "website"),
+    address: readString(value, "address"),
+    account: readString(value, "account"),
+    instagram: readString(value, "instagram"),
+    qrCodeImageUrl: readString(value, "qrCodeImageUrl"),
+  };
+}
+
+function readMemberContexts(value: unknown) {
+  return Array.isArray(value) ? value.map(readMemberContext).filter((member): member is BusinessCardLayoutMemberContext => member !== undefined) : [];
+}
+
+async function requestIntentFromOpenAi({ prompt, hasLogo, primaryMember, selectedMembers }: { prompt: string; hasLogo: boolean; primaryMember?: BusinessCardLayoutMemberContext; selectedMembers: BusinessCardLayoutMemberContext[] }) {
   if (!process.env.OPENAI_API_KEY) {
-    return fallbackBusinessCardLayoutIntent(prompt);
+    return fallbackBusinessCardLayoutIntent(prompt, primaryMember);
   }
 
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -25,8 +49,8 @@ async function requestIntentFromOpenAi({ prompt, brandName, category }: { prompt
       temperature: 0.15,
       response_format: { type: "json_object" },
       messages: [
-        { role: "system", content: "Return only JSON for a Korean business card layout intent. Keys: layoutStyle(minimal_luxury|bold_promo|clean_modern|friendly), spacing(compact|comfortable|wide), logoPriority(low|medium|high), textAlignment(left|center|right)." },
-        { role: "user", content: JSON.stringify({ prompt, brandName, category }) },
+        { role: "system", content: "Return only JSON for a Korean business card layout intent. Keys: layoutStyle(minimal_luxury|bold_promo|clean_modern|friendly), spacing(compact|comfortable|wide), logoPriority(low|medium|high), textAlignment(left|center|right). Use only the user's layout prompt, logo presence, and the provided team/member fields. Ignore icons, decorative lines, slogans, sample text, category, and any other elements. Do not invent text; choose an intent that makes the provided member fields fit cleanly." },
+        { role: "user", content: JSON.stringify({ prompt, logo: { present: hasLogo }, primaryMember, selectedMembers }) },
       ],
     }),
   });
@@ -38,7 +62,7 @@ async function requestIntentFromOpenAi({ prompt, brandName, category }: { prompt
     throw new Error("GPT 명함 레이아웃 제안을 만들지 못했어요.");
   }
 
-  return normalizeBusinessCardLayoutIntent(parsed, prompt);
+  return normalizeBusinessCardLayoutIntent(parsed, prompt, primaryMember);
 }
 
 export async function POST(request: Request) {
@@ -49,8 +73,9 @@ export async function POST(request: Request) {
   }
 
   const prompt = readString(body, "prompt");
-  const brandName = readString(body, "brandName");
-  const category = readString(body, "category");
+  const hasLogo = isRecord(body.logo) ? body.logo.present === true : true;
+  const primaryMember = readMemberContext(body.primaryMember);
+  const selectedMembers = readMemberContexts(body.selectedMembers);
   const baseLayout = normalizeBusinessCardTemplateLayout(body.baseLayout);
 
   if (!prompt) {
@@ -62,13 +87,13 @@ export async function POST(request: Request) {
   }
 
   try {
-    const intent = await requestIntentFromOpenAi({ prompt, brandName, category });
-    const layout = applyBusinessCardLayoutIntent({ brandName, category, prompt, baseLayout }, intent);
+    const intent = await requestIntentFromOpenAi({ prompt, hasLogo, primaryMember, selectedMembers });
+    const layout = applyBusinessCardLayoutIntent({ prompt, baseLayout, primaryMember, selectedMembers }, intent);
 
     return NextResponse.json({ intent, layout });
   } catch (error) {
-    const intent = fallbackBusinessCardLayoutIntent(prompt);
-    const layout = applyBusinessCardLayoutIntent({ brandName, category, prompt, baseLayout }, intent);
+    const intent = fallbackBusinessCardLayoutIntent(prompt, primaryMember);
+    const layout = applyBusinessCardLayoutIntent({ prompt, baseLayout, primaryMember, selectedMembers }, intent);
 
     return NextResponse.json({ reason: error instanceof Error ? error.message : "GPT 명함 레이아웃 제안을 만들지 못했어요.", intent, layout, source: "fallback" });
   }

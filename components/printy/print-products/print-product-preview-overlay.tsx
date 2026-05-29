@@ -13,5 +13,5 @@ type PrintProductPreviewOverlayProps = {
 };
 
 export function PrintProductPreviewOverlay({ layout, backgroundImageUrl, logoImageUrl, logoVectorSvgUrl, className = "" }: PrintProductPreviewOverlayProps) {
-  return <DesignPreviewOverlay className={`rounded-lg shadow-card ${className}`} layout={printProductLayoutToDesignLayout(layout)} cleanImageUrl={backgroundImageUrl} logoImageUrl={logoImageUrl} logoVectorSvgUrl={logoVectorSvgUrl} />;
+  return <DesignPreviewOverlay className={`rounded-lg !border-0 !bg-transparent !shadow-none ${className}`} layout={printProductLayoutToDesignLayout(layout)} cleanImageUrl={backgroundImageUrl} logoImageUrl={logoImageUrl} logoVectorSvgUrl={logoVectorSvgUrl} />;
 }

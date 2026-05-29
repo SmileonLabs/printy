@@ -222,17 +222,19 @@ STRICT CLEAN BACKGROUND RULES:
 - Perform a high-fidelity cleanup edit only: preserve the source image composition, card positions, card sizes, logo placement, decorative background, colors, and style as exactly as possible.
 - Keep exactly one flat front design and exactly one flat back design on the same 92mm x 104mm vertical sheet.
 - The sheet is split horizontally into exactly two equal 92mm x 52mm panels: top half front, bottom half back.
+- Keep the required two-panel sheet structure, but separate the two halves by placement only, not by drawn lines.
+- The boundary between the top and bottom panels must be invisible and filled with the same surrounding background texture/color.
 - Keep the front and back panels the exact same visible size as the source image. The back side must not become shorter, thinner, cropped, or a different ratio.
 - Remove all customer-entered field text glyphs: name, role, phone, main phone, fax, email, website, address, account number, Instagram, title lines, advertising lines, and QR code artwork.
-- Also remove all field icons and markers next to those fields, including phone, mobile, email, fax, address/location, website, account, Instagram, QR, bullets, dividers, and any accidental name/role marker.
-- Fill only the removed text/icon/marker/QR pixels with the immediately surrounding background texture/color. Do not modify other pixels.
+- Also remove QR code artwork. Keep field icons, bullets, dividers, and markers if they are part of the selected design.
+- Fill only the removed text/QR pixels with the immediately surrounding background texture/color. Do not modify other pixels.
 - If a QR code or QR-like square is removed, leave that area as clean empty background only. Never replace the removed QR area with a logo, logo fragment, icon, symbol, decorative square, pattern, text, or any new artwork.
 - Do not move, copy, enlarge, duplicate, or add the representative logo into any removed field area. The logo may remain only where it already existed in the source mockup.
 - Do not remove or alter any text that is part of the representative logo image. Logo lettering must remain exactly as-is.
 - Do not remove or alter brand lettering that is visually embedded inside the logo mark or logo lockup.
-- Do not preserve field icons, bullets, dividers, or field markers in the clean background. The final PDF renderer will redraw selected icons and text as vectors.
+- Preserve field icons, bullets, dividers, and field markers unless they are embedded inside customer-entered text or QR artwork.
 - Do not erase logo marks, decorative shapes, borders, background patterns, or non-field artwork.
-- Do not draw crop lines, guide outlines, borders, registration marks, separator rules, neon green lines, or any external frame around the two panels.
+- Do not draw crop lines, guide outlines, borders, registration marks, separator rules, neon green lines, external frames, visible horizontal divider lines, strokes, bevels, shadow edges, white lines, or black lines around or between the two panels.
 - The clean background must extend to the full edge of each panel with no artificial white margin unless it is an intentional full-bleed white background.
 - Keep both card sides front-facing, flat, unwarped, and ratio 92:52.
 - No perspective, no 3D mockup, no hands, no desk, no angled view.

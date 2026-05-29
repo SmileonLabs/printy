@@ -26,6 +26,8 @@ export function ProductProductionSection({ brand, productType, logo }: ProductPr
           layout={controller.layout}
           selectedMockup={controller.selectedMockup}
           mockupPrompt={controller.mockupPrompt}
+          referenceImageDataUrl={controller.referenceImageDataUrl}
+          referenceImageName={controller.referenceImageName}
           editorMode={controller.editorMode}
           isGeneratingMockup={controller.isGeneratingMockup}
           isGeneratingPdf={controller.isGeneratingPdf}
@@ -36,6 +38,7 @@ export function ProductProductionSection({ brand, productType, logo }: ProductPr
           onSizeChange={controller.updateSize}
           onRequestChange={controller.updateRequest}
           onMockupPromptChange={controller.setMockupPrompt}
+          onReferenceImageChange={(dataUrl, name) => { controller.setReferenceImageDataUrl(dataUrl); controller.setReferenceImageName(name); }}
           onSelectMockup={controller.selectMockup}
           onDeleteMockup={controller.deleteMockup}
           onSave={controller.saveLayout}

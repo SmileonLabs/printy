@@ -1,10 +1,8 @@
 import "server-only";
 
-import OpenAI from "openai";
-import { buildPrintProductPdfHtml } from "@/lib/print-products/pdf-html";
+import OpenAI, { toFile } from "openai";
 import { normalizePrintProductLayout, printProductAdapters } from "@/lib/print-products/adapters";
 import { runLimitedImageGeneration, readOpenAIImageModel } from "@/lib/ai-business-card/image-generation";
-import { launchPrintyChromium } from "@/lib/server/chromium-renderer";
 import { getPrintProductPromptSettings } from "@/lib/server/print-product-settings";
 import { saveBrandAssetImageBytes } from "@/lib/server/storage";
 import type { BrandAsset, PrintProductMockup, PrintProductProductionLayout, PrintProductProductionType } from "@/lib/types";
@@ -17,6 +15,7 @@ type MockupRequest = {
   request: string;
   layout: PrintProductProductionLayout;
   promptOverride?: string;
+  referenceImage?: { bytes: Buffer; contentType: "image/png" | "image/jpeg" | "image/webp" };
 };
 
 function assertProductType(value: string): asserts value is PrintProductProductionType {
@@ -25,8 +24,24 @@ function assertProductType(value: string): asserts value is PrintProductProducti
   }
 }
 
-function safeFileName(value: string, fallback: string) {
-  return value.trim().replace(/[^a-zA-Z0-9가-힣._-]+/g, "-").slice(0, 80) || fallback;
+function readReferenceImageDataUrl(value: unknown): MockupRequest["referenceImage"] {
+  if (typeof value !== "string" || !value.startsWith("data:image/")) {
+    return undefined;
+  }
+
+  const match = /^data:(image\/(?:png|jpeg|webp));base64,([a-zA-Z0-9+/=\s]+)$/.exec(value.trim());
+
+  if (!match) {
+    throw new Error("참고 이미지는 PNG, JPG, WEBP 형식만 사용할 수 있어요.");
+  }
+
+  const bytes = Buffer.from(match[2].replace(/\s/g, ""), "base64");
+
+  if (bytes.byteLength <= 0 || bytes.byteLength > 8 * 1024 * 1024) {
+    throw new Error("참고 이미지는 8MB 이하로 올려 주세요.");
+  }
+
+  return { bytes, contentType: match[1] as "image/png" | "image/jpeg" | "image/webp" };
 }
 
 export function parsePrintProductMockupRequest(value: unknown): MockupRequest {
@@ -41,6 +56,7 @@ export function parsePrintProductMockupRequest(value: unknown): MockupRequest {
   const category = typeof record.category === "string" ? record.category.trim() : "";
   const request = typeof record.request === "string" ? record.request.trim() : "";
   const promptOverride = typeof record.promptOverride === "string" ? record.promptOverride.trim() : undefined;
+  const referenceImage = readReferenceImageDataUrl(record.referenceImageDataUrl);
 
   assertProductType(productType);
 
@@ -48,7 +64,7 @@ export function parsePrintProductMockupRequest(value: unknown): MockupRequest {
     throw new Error("브랜드와 레이아웃 정보가 필요해요.");
   }
 
-  return { brandId, productType, brandName, category, request, layout: normalizePrintProductLayout(record.layout as PrintProductProductionLayout), promptOverride };
+  return { brandId, productType, brandName, category, request, layout: normalizePrintProductLayout(record.layout as PrintProductProductionLayout), promptOverride, referenceImage };
 }
 
 export async function buildPrintProductMockupPrompt(input: MockupRequest) {
@@ -62,6 +78,7 @@ export async function buildPrintProductMockupPrompt(input: MockupRequest) {
     `Selected background color: ${input.layout.backgroundColor}.`,
     input.category ? `Brand category for visual mood only: ${input.category}.` : "Use a polished commercial visual mood.",
     input.request ? `User background style request: ${input.request}` : "",
+    input.referenceImage ? "A user-provided reference image is attached. Use it only as visual inspiration for mood, colors, texture, composition, or material feel. Do not copy any readable text, watermark, logo, QR code, person, or protected artwork from the reference image." : "",
     override ? `Admin additional instructions for this product only: ${override}` : "",
     "The image should be one uninterrupted surface with smooth gradients, soft lighting, subtle texture, gentle depth, and abstract decoration.",
     "Keep the composition fluid and organic from top to bottom. Avoid any structured advertising-design look.",
@@ -76,7 +93,10 @@ export async function generatePrintProductMockup(input: MockupRequest): Promise<
   const adapter = printProductAdapters[input.productType];
   const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   const prompt = input.promptOverride?.trim() || await buildPrintProductMockupPrompt(input);
-  const response = await runLimitedImageGeneration((signal) => client.images.generate({ model: readOpenAIImageModel(), prompt, n: 1, size: "1024x1024", output_format: "png" }, { signal }));
+  const referenceImage = input.referenceImage;
+  const response = referenceImage
+    ? await runLimitedImageGeneration(async (signal) => client.images.edit({ model: readOpenAIImageModel(), image: await toFile(referenceImage.bytes, `print-product-reference.${referenceImage.contentType === "image/jpeg" ? "jpg" : referenceImage.contentType === "image/webp" ? "webp" : "png"}`, { type: referenceImage.contentType }), prompt, n: 1, size: "auto", output_format: "png" }, { signal }))
+    : await runLimitedImageGeneration((signal) => client.images.generate({ model: readOpenAIImageModel(), prompt, n: 1, size: "1024x1024", output_format: "png" }, { signal }));
   const imageData = response.data?.[0]?.b64_json;
 
   if (!imageData) {
@@ -90,22 +110,4 @@ export async function generatePrintProductMockup(input: MockupRequest): Promise<
   const asset: BrandAsset = { id: `brand-asset-${input.productType}-${Date.now()}`, brandId: input.brandId, sectionId: adapter.sectionId, productId: adapter.productId, title, description: input.request || adapter.description, imageUrl: stored.publicUrl, assetType: "mockup", createdAt };
 
   return { mockup, asset };
-}
-
-export async function generatePrintProductPdf(input: { brandName: string; productType: PrintProductProductionType; layout: PrintProductProductionLayout; backgroundImageUrl?: string; logoImageUrl?: string; logoVectorSvgUrl?: string; origin?: string }) {
-  const layout = normalizePrintProductLayout(input.layout);
-  const html = buildPrintProductPdfHtml({ layout, backgroundImageUrl: input.backgroundImageUrl, logoImageUrl: input.logoImageUrl, logoVectorSvgUrl: input.logoVectorSvgUrl, origin: input.origin });
-  const browser = await launchPrintyChromium();
-
-  try {
-    const page = await browser.newPage();
-
-    await page.setContent(html, { waitUntil: "domcontentloaded" });
-    const bytes = await page.pdf({ printBackground: true, preferCSSPageSize: true, width: `${layout.widthMm}mm`, height: `${layout.heightMm}mm` });
-    const fileName = `printy-${input.productType}-${safeFileName(input.brandName, input.productType)}-${new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z")}.pdf`;
-
-    return { bytes, fileName };
-  } finally {
-    await browser.close();
-  }
 }

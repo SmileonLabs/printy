@@ -5,6 +5,7 @@ export type AiBusinessCardClientInput = {
   category: string;
   mood?: string;
   mockupRequest?: string;
+  referenceImageDataUrl?: string;
   member: Member;
   logo?: ResolvedLogoOption;
   templateId?: string;
@@ -19,6 +20,7 @@ export function createAiBusinessCardRequestBody(input: AiBusinessCardClientInput
     logo: input.logo,
     mood: input.mood,
     mockupRequest: input.mockupRequest,
+    referenceImageDataUrl: input.referenceImageDataUrl,
     templateId: input.templateId,
     productionOptions: input.productionOptions,
   };
@@ -44,6 +46,7 @@ export function createAiBusinessCardMockupSignature(input: AiBusinessCardClientI
     category: input.category.trim(),
     mood: input.mood?.trim() ?? "",
     mockupRequest: input.mockupRequest?.trim() ?? "",
+    referenceImageFingerprint: createShortStringFingerprint(input.referenceImageDataUrl?.trim() ?? ""),
     logoId: input.logo?.id ?? "",
     templateId: input.templateId ?? "",
     member: {

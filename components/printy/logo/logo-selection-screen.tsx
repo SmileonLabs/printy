@@ -38,7 +38,7 @@ export function LogoSelectionScreen() {
         {generatedLogoOptions.map((logo) => (
           <button
             key={logo.id}
-            className={`rounded-lg border bg-surface p-3 text-left shadow-card transition duration-200 hover:-translate-y-0.5 ${selectedLogoId === logo.id ? "border-primary ring-4 ring-primary-soft" : "border-line"}`}
+            className={`rounded-lg bg-surface p-3 text-left transition duration-200 hover:-translate-y-0.5 ${selectedLogoId === logo.id ? "ring-2 ring-primary-soft" : ""}`}
             type="button"
             onClick={() => selectLogo(logo.id)}
           >

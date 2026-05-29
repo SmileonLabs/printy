@@ -43,7 +43,7 @@ export const canvasEditorBasicIconOptions: CanvasEditorBasicIconOption[] = [
   { id: "led", label: "LED", glyph: "LED" },
 ];
 
-export function canvasEditorBasicIconActions(createAction: (option: CanvasEditorBasicIconOption) => Pick<CanvasEditorElementAction, "onClick"> & Partial<Omit<CanvasEditorElementAction, "id" | "label" | "onClick">>): CanvasEditorElementAction[] {
+export function canvasEditorBasicIconActions(createAction: (option: CanvasEditorBasicIconOption) => Pick<CanvasEditorElementAction, "onClick"> & Partial<Omit<CanvasEditorElementAction, "id" | "onClick">>): CanvasEditorElementAction[] {
   return canvasEditorBasicIconOptions.map((option) => ({ id: option.id, label: option.label, ...createAction(option) }));
 }
 
@@ -56,7 +56,7 @@ export function canvasEditorBackgroundGridActions({ backgroundColor, showGrid, o
 
 export function canvasEditorCoreElementActions({ logoActive, onLogoAdd, onHeadlineAdd, onBodyAdd }: { logoActive?: boolean; onLogoAdd: () => void; onHeadlineAdd: () => void; onBodyAdd: () => void }): CanvasEditorElementAction[] {
   return [
-    { id: "logo", label: "로고 추가", active: logoActive, onClick: onLogoAdd },
+    { id: "logo", label: "로고", active: logoActive, onClick: onLogoAdd },
     { id: "headline", label: "문구 추가", onClick: onHeadlineAdd },
     { id: "body", label: "상세 안내 추가", onClick: onBodyAdd },
   ];
@@ -131,12 +131,15 @@ type SharedCanvasEditorModuleProps = {
   basicIcons: ReactNode;
   editPreview: ReactNode;
   elementAddPlacement?: CanvasElementPanelPlacement;
+  className?: string;
 };
 
 type CanvasEditorZoomFrameProps = {
   children: ReactNode | ((state: { zoom: number }) => ReactNode);
   className?: string;
   contentClassName?: string;
+  toolbarActions?: ReactNode;
+  toolbarPanel?: ReactNode;
   minZoom?: number;
   maxZoom?: number;
   onZoomChange?: (zoom: number) => void;
@@ -302,7 +305,7 @@ const placementClasses: Record<CanvasElementPanelPlacement, string> = {
 
 export function CanvasEditorPanelFrame({ title = "요소 추가", placement = "right", children }: CanvasEditorPanelFrameProps) {
   return (
-    <section className={`${placementClasses[placement]} rounded-lg border border-line bg-surface p-3 shadow-soft`}>
+    <section className={`${placementClasses[placement]} rounded-lg bg-surface p-3`}>
       {title ? <p className="mb-3 text-xs font-black text-primary-strong">{title}</p> : null}
       {children}
     </section>
@@ -312,17 +315,32 @@ export function CanvasEditorPanelFrame({ title = "요소 추가", placement = "r
 export function CanvasEditorElementPanel({ title = "요소 추가", placement = "right", actions, collapsible = false, defaultCollapsed = false }: CanvasEditorElementPanelProps) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
 
+  if (collapsible) {
+    return (
+      <section className={`${placementClasses[placement]} rounded-lg bg-surface p-3`}>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <p className="text-xs font-black text-primary-strong">{title}</p>
+          <button className="rounded-sm bg-surface-blue px-3 py-1.5 text-xs font-black text-primary-strong" type="button" aria-expanded={!collapsed} onClick={() => setCollapsed((current) => !current)}>
+            {collapsed ? "펼치기" : "접기"}
+          </button>
+        </div>
+        <div className={`${collapsed ? "hidden" : "flex"} flex-wrap gap-2`}>
+          {actions.map((action) => (
+            <button key={action.id} className={`inline-flex items-center gap-1 rounded-md px-3 py-2 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${action.active ? "bg-primary text-white" : "bg-surface-blue text-primary-strong hover:bg-primary-soft"}`} type="button" disabled={action.disabled} aria-pressed={action.active} onClick={action.onClick}>
+              {action.icon ? <span className="grid h-7 w-7 place-items-center">{action.icon}</span> : null}
+              {action.label}
+            </button>
+          ))}
+        </div>
+      </section>
+    );
+  }
+
   return (
-    <CanvasEditorPanelFrame title={collapsible ? undefined : title} placement={placement}>
-      {collapsible ? (
-        <button className="mb-3 flex w-full items-center justify-between rounded-md bg-surface-blue px-3 py-2 text-xs font-black text-primary-strong shadow-soft" type="button" aria-expanded={!collapsed} onClick={() => setCollapsed((current) => !current)}>
-          <span>{title}</span>
-          <span>{collapsed ? "펼치기" : "접기"}</span>
-        </button>
-      ) : null}
-      <div className={`${collapsed ? "hidden" : "flex"} flex-wrap gap-2`}>
+    <CanvasEditorPanelFrame title={title} placement={placement}>
+      <div className="flex flex-wrap gap-2">
         {actions.map((action) => (
-          <button key={action.id} className={`inline-flex items-center gap-1 rounded-md px-3 py-2 text-xs font-black shadow-soft transition disabled:cursor-not-allowed disabled:opacity-50 ${action.active ? "bg-primary text-white" : "bg-surface-blue text-primary-strong hover:bg-primary-soft"}`} type="button" disabled={action.disabled} aria-pressed={action.active} onClick={action.onClick}>
+          <button key={action.id} className={`inline-flex items-center gap-1 rounded-md px-3 py-2 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${action.active ? "bg-primary text-white" : "bg-surface-blue text-primary-strong hover:bg-primary-soft"}`} type="button" disabled={action.disabled} aria-pressed={action.active} onClick={action.onClick}>
             {action.icon ? <span className="grid h-7 w-7 place-items-center">{action.icon}</span> : null}
             {action.label}
           </button>
@@ -334,7 +352,7 @@ export function CanvasEditorElementPanel({ title = "요소 추가", placement = 
 
 export function CanvasEditorFloatingControls({ fixed = false, fixedViewport = false, portal = false, verticalAnchor = "top", title, actions, style, children, onPointerDown, onPointerMove, onPointerUp, onPointerCancel }: CanvasEditorFloatingControlsProps) {
   const [mounted, setMounted] = useState(false);
-  const positionClassName = fixed ? "relative w-full" : fixedViewport ? "fixed z-[2147483647] w-[12.1rem] max-w-[min(12.1rem,calc(100vw-1rem))]" : "absolute z-[2147483647] w-[12.1rem] max-w-[min(12.1rem,calc(100vw-1rem))]";
+  const positionClassName = fixed ? "relative w-full" : fixedViewport ? "fixed z-[2147483647] w-[15rem] max-w-[min(15rem,calc(100vw-1rem))]" : "absolute z-[2147483647] w-[15rem] max-w-[min(15rem,calc(100vw-1rem))]";
   const anchorClassName = fixed || fixedViewport ? "" : verticalAnchor === "bottom" ? "origin-bottom -translate-y-full" : "";
 
   useEffect(() => {
@@ -342,7 +360,7 @@ export function CanvasEditorFloatingControls({ fixed = false, fixedViewport = fa
   }, []);
 
   const panel = (
-    <div data-canvas-floating-panel="true" className={`${positionClassName} ${anchorClassName} grid min-w-0 touch-none gap-1 overflow-visible rounded-md border border-line bg-surface/95 p-1 shadow-floating backdrop-blur`} style={style} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel}>
+    <div data-canvas-floating-panel="true" className={`${positionClassName} ${anchorClassName} grid min-w-0 touch-none gap-2 overflow-hidden rounded-lg border border-line bg-surface/95 p-2 shadow-floating backdrop-blur`} style={style} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel}>
       {title || actions ? (
         <div className="flex flex-wrap items-center justify-between gap-1">
           {title}
@@ -419,20 +437,22 @@ export function CanvasEditorBoxNumberControls({ box, minSize, className, step = 
 
 export function CanvasEditorTextFormatButtons({ fontWeight, italic, align, alignLabels = { left: "좌측", center: "중앙", right: "우측" }, onFontWeightChange, onItalicChange, onAlignChange }: CanvasEditorTextFormatButtonsProps) {
   return (
-    <>
-      {onFontWeightChange ? <button className={`h-4 rounded-sm px-0.5 text-[8px] font-black ${fontWeight === "bold" ? "bg-primary text-white" : "bg-surface-blue text-primary-strong"}`} type="button" aria-label="굵게" onClick={() => onFontWeightChange(fontWeight === "bold" ? "regular" : "bold")}>B</button> : null}
-      {onItalicChange ? <button className={`h-4 rounded-sm px-0.5 text-[8px] font-black italic ${italic ? "bg-primary text-white" : "bg-surface-blue text-primary-strong"}`} type="button" aria-label="이탤릭" onClick={() => onItalicChange(!italic)}>I</button> : null}
-      {onAlignChange ? (["left", "center", "right"] satisfies CanvasEditorTextAlign[]).map((item) => <button key={item} className={`h-4 rounded-sm px-0.5 text-[8px] font-black ${align === item ? "bg-primary text-white" : "bg-surface-blue text-primary-strong"}`} type="button" aria-label={alignLabels[item]} onClick={() => onAlignChange(item)}>{item === "left" ? "≡" : item === "center" ? "☰" : "≣"}</button>) : null}
-    </>
+    <div className="flex min-w-0 items-end gap-1">
+      {onFontWeightChange ? <button className={`grid h-7 w-7 place-items-center rounded-sm text-xs font-black ${fontWeight === "bold" ? "bg-primary text-white" : "bg-surface-blue text-primary-strong"}`} type="button" aria-label="굵게" onClick={() => onFontWeightChange(fontWeight === "bold" ? "regular" : "bold")}>B</button> : null}
+      {onItalicChange ? <button className={`grid h-7 w-7 place-items-center rounded-sm text-xs font-black italic ${italic ? "bg-primary text-white" : "bg-surface-blue text-primary-strong"}`} type="button" aria-label="이탤릭" onClick={() => onItalicChange(!italic)}>I</button> : null}
+      {onAlignChange ? (["left", "center", "right"] satisfies CanvasEditorTextAlign[]).map((item) => <button key={item} className={`grid h-7 w-7 place-items-center rounded-sm text-xs font-black ${align === item ? "bg-primary text-white" : "bg-surface-blue text-primary-strong"}`} type="button" aria-label={alignLabels[item]} onClick={() => onAlignChange(item)}>{item === "left" ? "≡" : item === "center" ? "☰" : "≣"}</button>) : null}
+    </div>
   );
 }
 
-export function CanvasEditorTextStyleControls({ fontFamily, fontOptions, fontLabels, color, className = "grid grid-cols-[18px_58px_12px_12px_12px_12px_12px] items-end gap-0.5", fontWeight, italic, align, alignLabels, onFontFamilyChange, onColorChange, onFontWeightChange, onItalicChange, onAlignChange, renderColorInput }: CanvasEditorTextStyleControlsProps) {
+export function CanvasEditorTextStyleControls({ fontFamily, fontOptions, fontLabels, color, className = "grid grid-cols-[72px_minmax(0,1fr)] items-end gap-2", fontWeight, italic, align, alignLabels, onFontFamilyChange, onColorChange, onFontWeightChange, onItalicChange, onAlignChange, renderColorInput }: CanvasEditorTextStyleControlsProps) {
   return (
     <div className={className}>
       <CanvasEditorFontSelect value={fontFamily} options={fontOptions} labels={fontLabels} onChange={onFontFamilyChange} />
-      {renderColorInput ? renderColorInput({ label: "색", value: color, onChange: onColorChange }) : <CanvasEditorTextColorInput label="색" value={color} onChange={onColorChange} />}
-      <CanvasEditorTextFormatButtons fontWeight={fontWeight} italic={italic} align={align} alignLabels={alignLabels} onFontWeightChange={onFontWeightChange} onItalicChange={onItalicChange} onAlignChange={onAlignChange} />
+      <div className="flex min-w-0 items-end gap-2">
+        {renderColorInput ? renderColorInput({ label: "색", value: color, onChange: onColorChange }) : <CanvasEditorTextColorInput label="색" value={color} onChange={onColorChange} />}
+        <CanvasEditorTextFormatButtons fontWeight={fontWeight} italic={italic} align={align} alignLabels={alignLabels} onFontWeightChange={onFontWeightChange} onItalicChange={onItalicChange} onAlignChange={onAlignChange} />
+      </div>
     </div>
   );
 }
@@ -504,7 +524,7 @@ export function useCanvasEditorDraftNumberInput(displayValue: string) {
   return { draftValue, setDraftValue, isFocused, setIsFocused };
 }
 
-export function CanvasEditorNumberInput({ label, value, min, max, step = 0.5, arrowStep = 0.5, displayValue = String(value), emptyValue, labelClassName = "mb-0.5 block text-[8px] font-extrabold text-soft", inputClassName = "h-6 w-full rounded-sm border border-line bg-surface px-1 text-[10px] font-black text-ink outline-none focus:border-primary", normalizeValue, onChange }: CanvasEditorNumberInputProps) {
+export function CanvasEditorNumberInput({ label, value, min, max, step = 0.5, arrowStep = 0.5, displayValue = String(value), emptyValue, labelClassName = "mb-0.5 block text-[8px] font-extrabold text-soft", inputClassName = "h-7 w-full min-w-0 rounded-sm border border-line bg-surface px-1.5 text-[11px] font-black text-ink outline-none focus:border-primary", normalizeValue, onChange }: CanvasEditorNumberInputProps) {
   const { draftValue, setDraftValue, setIsFocused } = useCanvasEditorDraftNumberInput(displayValue);
   const commitNumber = (nextValue: number) => {
     const committedValue = normalizeValue ? normalizeValue(nextValue, min, max, step) : Math.min(Math.max(nextValue, min), max);
@@ -597,7 +617,7 @@ function clampZoom(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
-export function CanvasEditorZoomFrame({ children, className, contentClassName, minZoom = 0.65, maxZoom = 3, onZoomChange }: CanvasEditorZoomFrameProps) {
+export function CanvasEditorZoomFrame({ children, className, contentClassName, toolbarActions, toolbarPanel, minZoom = 0.65, maxZoom = 3, onZoomChange }: CanvasEditorZoomFrameProps) {
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const panRef = useRef<{ pointerId: number; startX: number; startY: number; panX: number; panY: number } | undefined>(undefined);
@@ -653,12 +673,16 @@ export function CanvasEditorZoomFrame({ children, className, contentClassName, m
 
   return (
     <div className={`grid gap-2 ${className ?? ""}`}>
-      <div className="flex items-center justify-end gap-2 text-[11px] font-black text-primary-strong">
-        <button className="inline-flex items-center gap-1 rounded-sm bg-surface-blue px-2 py-1 shadow-soft" type="button" aria-label="캔버스 축소" onClick={() => updateZoom(zoom - 0.1)}><MagnifierIcon minus />축소</button>
-        <span className="min-w-12 text-center">{zoomPercent}%</span>
-        <button className="inline-flex items-center gap-1 rounded-sm bg-surface-blue px-2 py-1 shadow-soft" type="button" aria-label="캔버스 확대" onClick={() => updateZoom(zoom + 0.1)}><MagnifierIcon />확대</button>
-        <button className="rounded-sm bg-surface-blue px-2 py-1 shadow-soft" type="button" onClick={() => updateZoom(1)}>초기화</button>
+      <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-black text-primary-strong">
+        <div className="flex flex-wrap items-center gap-2">{toolbarActions}</div>
+        <div className="flex items-center justify-end gap-2">
+          <button className="inline-flex items-center gap-1 rounded-sm bg-surface-blue px-2 py-1" type="button" aria-label="캔버스 축소" onClick={() => updateZoom(zoom - 0.1)}><MagnifierIcon minus />축소</button>
+          <span className="min-w-12 text-center">{zoomPercent}%</span>
+          <button className="inline-flex items-center gap-1 rounded-sm bg-surface-blue px-2 py-1" type="button" aria-label="캔버스 확대" onClick={() => updateZoom(zoom + 0.1)}><MagnifierIcon />확대</button>
+          <button className="rounded-sm bg-surface-blue px-2 py-1" type="button" onClick={() => updateZoom(1)}>초기화</button>
+        </div>
       </div>
+      {toolbarPanel}
       <div className="phone-scroll overflow-auto rounded-lg" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd} onTouchCancel={handleTouchEnd} onPointerDownCapture={startPan} onPointerMove={movePan} onPointerUp={stopPan} onPointerCancel={stopPan}>
         <div className={`origin-top-left transition-transform ${contentClassName ?? ""}`} style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}>
           {typeof children === "function" ? children({ zoom }) : children}
@@ -691,7 +715,7 @@ function SharedCanvasEditorBody({ elementAdd, editCanvas, basicIcons, editPrevie
         {inlineElementAdd}
         {basicIcons}
       </div>
-      <div className="min-w-0 rounded-lg border border-line bg-surface p-2 shadow-soft sm:p-3">
+      <div className="min-w-0 rounded-lg bg-surface p-2 sm:p-3">
         <p className="mb-3 text-xs font-black text-primary-strong">편집화면 미리보기</p>
         {editPreview}
       </div>
@@ -699,13 +723,13 @@ function SharedCanvasEditorBody({ elementAdd, editCanvas, basicIcons, editPrevie
   );
 }
 
-export function SharedCanvasEditorModule({ elementAdd, editCanvas, basicIcons, editPreview, elementAddPlacement = "top" }: SharedCanvasEditorModuleProps) {
+export function SharedCanvasEditorModule({ elementAdd, editCanvas, basicIcons, editPreview, elementAddPlacement = "top", className }: SharedCanvasEditorModuleProps) {
   const body = <SharedCanvasEditorBody elementAdd={elementAdd} editCanvas={editCanvas} basicIcons={basicIcons} editPreview={editPreview} elementAddPlacement={elementAddPlacement} />;
   const elementAddPanel = <div className="min-w-0">{elementAdd}</div>;
 
   if (elementAddPlacement === "left" || elementAddPlacement === "right") {
     return (
-      <section className="grid gap-4 rounded-lg border border-line bg-[linear-gradient(180deg,var(--color-surface)_0%,var(--color-surface-blue)_100%)] p-3 shadow-card sm:p-4">
+      <section className={`grid gap-4 rounded-lg bg-[linear-gradient(180deg,var(--color-surface)_0%,var(--color-surface-blue)_100%)] p-3 sm:p-4 ${className ?? ""}`}>
         <div className={`grid gap-4 ${elementAddPlacement === "left" ? "lg:grid-cols-[260px_minmax(0,1fr)]" : "lg:grid-cols-[minmax(0,1fr)_260px]"}`}>
           {elementAddPlacement === "left" ? elementAddPanel : body}
           {elementAddPlacement === "left" ? body : elementAddPanel}
@@ -715,7 +739,7 @@ export function SharedCanvasEditorModule({ elementAdd, editCanvas, basicIcons, e
   }
 
   return (
-    <section className="grid gap-4 rounded-lg border border-line bg-[linear-gradient(180deg,var(--color-surface)_0%,var(--color-surface-blue)_100%)] p-3 shadow-card sm:p-4">
+    <section className={`grid gap-4 rounded-lg bg-[linear-gradient(180deg,var(--color-surface)_0%,var(--color-surface-blue)_100%)] p-3 sm:p-4 ${className ?? ""}`}>
       {body}
     </section>
   );

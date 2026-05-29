@@ -11,6 +11,14 @@
 	"preview_urls": true,
 	"routes": [
 		{
+			"pattern": "printy.smileon.app/api/print-products/mockups",
+			"zone_name": "smileon.app"
+		},
+		{
+			"pattern": "printy.smileon.app/api/print-products/mockup-prompt",
+			"zone_name": "smileon.app"
+		},
+		{
 			"pattern": "printy.smileon.app/api/print-products/drafts",
 			"zone_name": "smileon.app"
 		},

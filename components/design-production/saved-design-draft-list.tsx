@@ -27,7 +27,7 @@ export function SavedDesignDraftList({ title, description, options, selectedId, 
   const hasSelected = Boolean(selectedId);
 
   return (
-    <div className="grid gap-2 rounded-lg border border-line bg-surface p-3 shadow-soft">
+    <div className="grid gap-2 rounded-lg bg-surface-blue p-3">
       <div>
         <p className="text-xs font-black text-ink">{title}</p>
         {description ? <p className="mt-1 text-[11px] font-bold leading-5 text-muted">{description}</p> : null}

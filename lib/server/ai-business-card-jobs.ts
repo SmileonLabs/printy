@@ -2,7 +2,7 @@ import "server-only";
 
 import { createHash, randomUUID } from "crypto";
 import type { PoolClient, QueryResultRow } from "pg";
-import { editAiBusinessCardCleanBackground, generateAiBusinessCardMockups, type AiBusinessCardMockup } from "@/lib/ai-business-card/mockups";
+import { editAiBusinessCardCleanBackground, generateAiBusinessCardMockups, readAiBusinessCardReferenceImageDataUrl, type AiBusinessCardMockup } from "@/lib/ai-business-card/mockups";
 import { generateAiBusinessCardPdf } from "@/lib/ai-business-card/pdf";
 import { readAiBusinessCardInput } from "@/lib/ai-business-card/request";
 import { validateAiBusinessCardDesign } from "@/lib/ai-business-card/schema";
@@ -80,8 +80,9 @@ function readBackgroundEditRequest(value: unknown) {
 
   const cleanImageUrl = readString(value.cleanImageUrl);
   const editRequest = readString(value.editRequest);
+  const referenceImage = readAiBusinessCardReferenceImageDataUrl(value.referenceImageDataUrl);
 
-  return cleanImageUrl && editRequest ? { cleanImageUrl, editRequest } : undefined;
+  return cleanImageUrl && editRequest ? { cleanImageUrl, editRequest, referenceImage } : undefined;
 }
 
 function readPdfResult(value: unknown) {
@@ -316,7 +317,7 @@ async function processClaimedAiBusinessCardJob(job: ClaimedAiBusinessCardJob) {
     const backgroundEdit = readBackgroundEditRequest(job.requestPayload);
 
     if (job.kind === "mockups" && backgroundEdit) {
-      const mockup = await editAiBusinessCardCleanBackground(backgroundEdit.cleanImageUrl, backgroundEdit.editRequest);
+      const mockup = await editAiBusinessCardCleanBackground(backgroundEdit.cleanImageUrl, backgroundEdit.editRequest, backgroundEdit.referenceImage);
       await markAiBusinessCardJobSucceeded(job.id, { mockups: [mockup] });
       return;
     }
@@ -335,7 +336,7 @@ async function processClaimedAiBusinessCardJob(job: ClaimedAiBusinessCardJob) {
       }
 
       const layoutTemplate: PrintTemplate | undefined = template ?? (input.productionOptions?.layout ? { id: "system-business-card-layout", productId: "business-card", title: "시스템 생성 명함 레이아웃", summary: "사용자 선택 요소로 만든 레이아웃", tags: ["명함"], orientation: "horizontal", status: "published", source: "admin", layout: input.productionOptions.layout, createdAt: new Date().toISOString() } : undefined);
-      const mockups = await generateAiBusinessCardMockups(input, readCount(job.requestPayload.count), layoutTemplate);
+      const mockups = await generateAiBusinessCardMockups(input, readCount(job.requestPayload.count), layoutTemplate, readAiBusinessCardReferenceImageDataUrl(job.requestPayload.referenceImageDataUrl));
       await markAiBusinessCardJobSucceeded(job.id, { mockups });
       return;
     }

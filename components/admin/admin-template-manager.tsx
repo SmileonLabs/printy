@@ -307,14 +307,14 @@ function cloneBusinessCardTemplateLayout(layout: BusinessCardTemplateLayout): Bu
     },
     sides: {
       front: {
-        logo: { visible: layout.sides.front.logo.visible, box: { ...layout.sides.front.logo.box } },
+        logo: { visible: layout.sides.front.logo.visible, box: { ...layout.sides.front.logo.box }, assetType: layout.sides.front.logo.assetType, imageFilter: layout.sides.front.logo.imageFilter },
         fields: layout.sides.front.fields.map((field) => ({ ...field, box: { ...field.box } })),
         icons: layout.sides.front.icons.map((icon) => ({ ...icon, box: { ...icon.box } })),
         lines: layout.sides.front.lines.map((line) => ({ ...line, box: { ...line.box } })),
         background: cloneBusinessCardTemplateBackground(layout.sides.front.background),
       },
       back: {
-        logo: { visible: layout.sides.back.logo.visible, box: { ...layout.sides.back.logo.box } },
+        logo: { visible: layout.sides.back.logo.visible, box: { ...layout.sides.back.logo.box }, assetType: layout.sides.back.logo.assetType, imageFilter: layout.sides.back.logo.imageFilter },
         fields: layout.sides.back.fields.map((field) => ({ ...field, box: { ...field.box } })),
         icons: layout.sides.back.icons.map((icon) => ({ ...icon, box: { ...icon.box } })),
         lines: layout.sides.back.lines.map((line) => ({ ...line, box: { ...line.box } })),

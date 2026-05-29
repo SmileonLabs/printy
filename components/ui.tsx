@@ -99,7 +99,7 @@ export function ProgressHeader({ eyebrow, title, description, step, total, actio
 }
 
 export function SoftCard({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <section className={`rounded-lg border border-line bg-surface p-4 shadow-card ${className}`}>{children}</section>;
+  return <section className={`printy-soft-card min-w-0 overflow-hidden rounded-lg border border-line bg-surface p-4 shadow-card [&_.printy-soft-card]:border-0 [&_.printy-soft-card]:bg-transparent [&_.printy-soft-card]:p-0 [&_.printy-soft-card]:shadow-none ${className}`}>{children}</section>;
 }
 
 export function OptionChip({ label, selected, onClick }: { label: string; selected: boolean; onClick: () => void }) {

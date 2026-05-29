@@ -106,6 +106,7 @@ export type AiBusinessCardImageElement = {
   heightMm: number;
   fit: "cover" | "contain";
   opacity?: number;
+  imageFilter?: "grayscale";
   layer: number;
 };
 
@@ -256,7 +257,7 @@ function readElement(value: unknown): AiBusinessCardElement | undefined {
     const src = readString(value, "src");
     const fit = readString(value, "fit");
 
-    return (src.startsWith("/uploads/") || src.startsWith("data:image/")) && (fit === "cover" || fit === "contain") ? { type: "image", src, ...box, fit, opacity: readOptionalNumber(value, "opacity", 0, 1), layer: readLayer(value) } : undefined;
+    return (src.startsWith("/uploads/") || src.startsWith("data:image/")) && (fit === "cover" || fit === "contain") ? { type: "image", src, ...box, fit, opacity: readOptionalNumber(value, "opacity", 0, 1), imageFilter: readString(value, "imageFilter") === "grayscale" ? "grayscale" : undefined, layer: readLayer(value) } : undefined;
   }
 
   return undefined;

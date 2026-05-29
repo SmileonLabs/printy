@@ -52,7 +52,7 @@ export function MyTab() {
       <ProgressHeader eyebrow="마이" title="프린티 계정" description="현재 로그인된 계정의 브랜드, 명함 시안, 주문 데이터를 한곳에서 확인해요." />
       <SoftCard className="mb-4 bg-[linear-gradient(180deg,var(--color-surface)_0%,var(--color-surface-blue)_100%)]">
         <div className="mb-5 flex items-center gap-4">
-          <span className="grid h-14 w-14 place-items-center rounded-full bg-primary text-xl font-black text-white shadow-soft">{displayName.slice(0, 1)}</span>
+          <span className="grid h-14 w-14 place-items-center rounded-full bg-primary text-xl font-black text-white">{displayName.slice(0, 1)}</span>
           <div>
             <p className="text-xs font-black text-primary-strong">간편 계정</p>
             <h2 className="mt-1 text-2xl font-black tracking-[-0.04em] text-ink">{displayName} 님</h2>
@@ -69,7 +69,7 @@ export function MyTab() {
       </SoftCard>
       <div className="mb-4 grid grid-cols-2 gap-3">
         {stats.map(([label, value]) => (
-          <SoftCard key={label} className="bg-white text-center">
+          <SoftCard key={label} className="bg-surface-blue text-center">
             <p className="text-[11px] font-black text-soft">{label}</p>
             <p className="mt-2 text-2xl font-black tracking-[-0.05em] text-ink">{value}</p>
           </SoftCard>

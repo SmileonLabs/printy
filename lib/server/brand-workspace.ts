@@ -289,6 +289,18 @@ export async function savePrintProductDraftPatch(userId: string, draft: PrintPro
         );
       }
 
+      if (assets.length > 0) {
+        await client.query(
+          `
+            update brands
+            set assets = greatest(assets, (select count(*)::int from brand_assets where user_id = $1 and brand_id = $2)),
+              updated_at = now()
+            where user_id = $1 and id = $2
+          `,
+          [userId, draft.brandId],
+        );
+      }
+
       await client.query("commit");
 
       return { draft, assets };

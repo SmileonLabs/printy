@@ -38,9 +38,9 @@ export function CanvasEditorQrImageControl({ value, onChange, onClear }: { value
   return <QrCodeImageField value={value} onChange={onChange} onClear={onClear} />;
 }
 
-export function CanvasEditorCompactBoxNumberControls({ box, className = "grid grid-cols-[24px_24px_24px_24px] gap-0.5", minSize = 1, onChange }: { box: DesignBox; className?: string; minSize?: number; onChange: (key: keyof DesignBox, value: number) => void }) {
+export function CanvasEditorCompactBoxNumberControls({ box, className = "grid grid-cols-4 gap-1", minSize = 1, onChange }: { box: DesignBox; className?: string; minSize?: number; onChange: (key: keyof DesignBox, value: number) => void }) {
   return (
-    <CanvasEditorBoxNumberControls box={box} minSize={minSize} className={className} step={0.01} emptyValue={0} inputClassName="h-7 w-full rounded-sm border border-line bg-surface px-1 text-[11px] font-black text-ink outline-none focus:border-primary" normalizeValue={(nextValue, inputMin, inputMax) => roundCanvasPercent(clampCanvasValue(nextValue, inputMin, inputMax))} onChange={onChange} />
+    <CanvasEditorBoxNumberControls box={box} minSize={minSize} className={className} step={0.01} emptyValue={0} inputClassName="h-8 w-full min-w-0 rounded-sm border border-line bg-surface px-1.5 text-xs font-black text-ink outline-none focus:border-primary" normalizeValue={(nextValue, inputMin, inputMax) => roundCanvasPercent(clampCanvasValue(nextValue, inputMin, inputMax))} onChange={onChange} />
   );
 }
 

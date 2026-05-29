@@ -17,6 +17,11 @@ export type AiBusinessCardMockup = {
   layout?: BusinessCardTemplateLayout;
 };
 
+export type AiBusinessCardReferenceImage = {
+  bytes: Buffer;
+  contentType: "image/png" | "image/jpeg" | "image/webp";
+};
+
 export class AiBusinessCardMockupInputError extends Error {
   constructor(message: string) {
     super(message);
@@ -46,6 +51,22 @@ export class AiBusinessCardMockupGenerationError extends Error {
 
 const mockupSheetWidth = 920;
 const mockupSideHeight = 520;
+
+export function readAiBusinessCardReferenceImageDataUrl(value: unknown): AiBusinessCardReferenceImage | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const match = value.match(/^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/);
+
+  if (!match) {
+    return undefined;
+  }
+
+  const bytes = Buffer.from(match[2], "base64");
+
+  return bytes.length > 0 && bytes.length <= 8 * 1024 * 1024 ? { bytes, contentType: match[1] as AiBusinessCardReferenceImage["contentType"] } : undefined;
+}
 
 function decodeDataPng(value: string) {
   const prefix = "data:image/png;base64,";
@@ -99,7 +120,11 @@ async function readLogoBytes(input: AiBusinessCardInput) {
   return normalizeImageBytesForOpenAi(logoBytes);
 }
 
-export async function generateAiBusinessCardMockups(input: AiBusinessCardInput, count = 3, template?: PrintTemplate): Promise<AiBusinessCardMockup[]> {
+function referenceImageFileName(contentType: AiBusinessCardReferenceImage["contentType"]) {
+  return contentType === "image/jpeg" ? "business-card-reference.jpg" : contentType === "image/webp" ? "business-card-reference.webp" : "business-card-reference.png";
+}
+
+export async function generateAiBusinessCardMockups(input: AiBusinessCardInput, count = 3, template?: PrintTemplate, referenceImage?: AiBusinessCardReferenceImage): Promise<AiBusinessCardMockup[]> {
   if (!process.env.OPENAI_API_KEY) {
     throw new Error("OpenAI API key is not configured.");
   }
@@ -114,14 +139,16 @@ export async function generateAiBusinessCardMockups(input: AiBusinessCardInput, 
 
   for (let index = 0; index < total; index += 1) {
     const promptTemplate = template && input.productionOptions?.layout ? { ...template, layout: input.productionOptions.layout } : template;
-    const prompt = buildAiBusinessCardMockupPrompt(input, index + 1, promptTemplate, promptSettings);
+    const prompt = `${buildAiBusinessCardMockupPrompt(input, index + 1, promptTemplate, promptSettings)}${referenceImage ? "\n\nA user-provided reference image is attached. Use it only as visual inspiration for mood, colors, texture, composition, or material feel. Do not copy any readable text, watermark, logo, QR code, person, or protected artwork from the reference image." : ""}`;
     const cleanPrompt = buildAiBusinessCardCleanBackgroundPrompt(index + 1, promptSettings);
+    const imageFiles = [
+      await toFile(guideBytes, "business-card-92x104-guide.png", { type: "image/png" }),
+      ...(logoBytes ? [await toFile(logoBytes, "representative-logo.png", { type: "image/png" })] : []),
+      ...(referenceImage ? [await toFile(referenceImage.bytes, referenceImageFileName(referenceImage.contentType), { type: referenceImage.contentType })] : []),
+    ];
     const response = await runLimitedImageGeneration(async (signal) => client.images.edit({
           model: readOpenAIImageModel(),
-          image: logoBytes ? [
-            await toFile(guideBytes, "business-card-92x104-guide.png", { type: "image/png" }),
-            await toFile(logoBytes, "representative-logo.png", { type: "image/png" }),
-          ] : await toFile(guideBytes, "business-card-92x104-guide.png", { type: "image/png" }),
+          image: imageFiles.length > 1 ? imageFiles : imageFiles[0],
           prompt,
           n: 1,
           size: "auto",
@@ -162,7 +189,7 @@ export async function generateAiBusinessCardMockups(input: AiBusinessCardInput, 
   return mockups;
 }
 
-export async function editAiBusinessCardCleanBackground(cleanImageUrl: string, editRequest: string): Promise<AiBusinessCardMockup> {
+export async function editAiBusinessCardCleanBackground(cleanImageUrl: string, editRequest: string, referenceImage?: AiBusinessCardReferenceImage): Promise<AiBusinessCardMockup> {
   if (!process.env.OPENAI_API_KEY) {
     throw new Error("OpenAI API key is not configured.");
   }
@@ -180,13 +207,19 @@ export async function editAiBusinessCardCleanBackground(cleanImageUrl: string, e
   }
 
   const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const imageFiles = [
+    await toFile(cleanBytes, "clean-business-card-background.png", { type: "image/png" }),
+    ...(referenceImage ? [await toFile(referenceImage.bytes, referenceImageFileName(referenceImage.contentType), { type: referenceImage.contentType })] : []),
+  ];
   const response = await runLimitedImageGeneration(async (signal) => client.images.edit({
     model: readOpenAIImageModel(),
-    image: await toFile(cleanBytes, "clean-business-card-background.png", { type: "image/png" }),
+    image: imageFiles.length > 1 ? imageFiles : imageFiles[0],
     prompt: `Edit this Printy clean Korean business-card background sheet according to the user's request.
 
 USER BACKGROUND EDIT REQUEST:
 - ${prompt}
+
+${referenceImage ? "A user-provided reference image is attached. Use it only as visual inspiration for mood, colors, texture, composition, or material feel. Do not copy any readable text, watermark, logo, QR code, person, or protected artwork from the reference image." : ""}
 
 STRICT RULES:
 - Preserve the 92mm x 104mm vertical sheet with two equal 92mm x 52mm panels: front on top, back on bottom.

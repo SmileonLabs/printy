@@ -29,7 +29,7 @@ export function TemplatesTab() {
 
 export function TemplateCard({ template, selected, productTitle, onSelect }: { template: PrintTemplate; selected: boolean; productTitle: string; onSelect: () => void }) {
   return (
-    <button className={`rounded-lg border p-4 text-left shadow-card transition duration-200 hover:-translate-y-0.5 ${selected ? "border-primary bg-surface-blue ring-4 ring-primary-soft" : "border-line bg-surface"}`} type="button" onClick={onSelect}>
+    <button className={`rounded-lg p-4 text-left transition duration-200 hover:-translate-y-0.5 ${selected ? "bg-primary-soft/45 ring-2 ring-primary-soft" : "bg-surface"}`} type="button" onClick={onSelect}>
       <div className="mb-3 flex items-center justify-between gap-3">
         <span className="rounded-md bg-surface-blue px-3 py-1 text-xs font-black text-primary-strong">{productTitle}</span>
         <span className="text-xs font-black text-soft">{selected ? "선택됨" : template.createdAt}</span>

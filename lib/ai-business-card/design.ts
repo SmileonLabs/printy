@@ -172,7 +172,7 @@ export function createAiBusinessCardDesignFromTemplate(input: AiBusinessCardInpu
     const logoUrl = selectedLogoUrl(input, side.logo.assetType);
 
     if (side.logo.visible && logoUrl) {
-      sides[sideId].elements.push({ type: "image", src: logoUrl, ...templateBoxToMm(side.logo.box), fit: "contain", layer });
+      sides[sideId].elements.push({ type: "image", src: logoUrl, ...templateBoxToMm(side.logo.box), fit: "contain", imageFilter: side.logo.imageFilter, layer });
       layer += 1;
     }
 

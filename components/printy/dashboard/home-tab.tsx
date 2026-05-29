@@ -54,18 +54,18 @@ export function BusinessCardPromoBanner() {
   };
 
   return (
-    <button className="relative block w-full overflow-hidden rounded-lg bg-[linear-gradient(135deg,var(--color-primary)_0%,var(--color-primary-strong)_100%)] p-5 text-left text-surface shadow-soft transition hover:-translate-y-0.5" type="button" onClick={handleStartBusinessCard}>
+    <button className="relative block w-full overflow-hidden rounded-lg bg-[linear-gradient(135deg,var(--color-primary)_0%,var(--color-primary-strong)_100%)] p-5 text-left text-surface transition hover:-translate-y-0.5" type="button" onClick={handleStartBusinessCard}>
       <div className="relative z-10 max-w-52">
         <p className="mb-2 text-xs font-black text-surface/80">3분 만에 완성!</p>
         <h2 className="text-2xl font-black tracking-[-0.05em]">명함 바로 만들기</h2>
         <p className="mt-3 text-xs font-bold leading-5 text-surface/80">로고와 정보를 입력하면 자동으로 명함이 완성돼요.</p>
-        <span className="mt-4 inline-block rounded-md bg-surface px-4 py-2 text-xs font-black text-primary-strong shadow-soft">
+        <span className="mt-4 inline-block rounded-md bg-surface px-4 py-2 text-xs font-black text-primary-strong">
           명함 만들기 →
         </span>
       </div>
       <div className="absolute bottom-4 right-4 h-32 w-40" aria-hidden="true">
-        <div className="absolute bottom-1 right-0 h-24 w-36 rotate-6 rounded-lg border border-surface/70 bg-surface/20 shadow-card" />
-        <div className="absolute bottom-4 right-4 h-24 w-36 -rotate-6 rounded-lg border border-surface/70 bg-surface p-3 shadow-floating">
+        <div className="absolute bottom-1 right-0 h-24 w-36 rotate-6 rounded-lg bg-surface/20" />
+        <div className="absolute bottom-4 right-4 h-24 w-36 -rotate-6 rounded-lg bg-surface p-3">
           <div className="mb-5 flex items-center justify-between">
             <span className="h-8 w-8 rounded-full bg-surface-blue" />
             <span className="h-2 w-14 rounded-md bg-primary-soft" />

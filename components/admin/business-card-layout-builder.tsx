@@ -5,7 +5,7 @@ import { type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type Poin
 import { businessCardInfoBlockLabels, QuickControls } from "@/components/admin/business-card-layout-quick-controls";
 import { BusinessCardInfoBlockRenderer } from "@/components/business-card-info-block-renderer";
 import { CanvasEditorQrImageControl, CanvasEditorReadOnlyPreviewFrame, CanvasEditorSelectableOverlayBox } from "@/components/design-production/canvas-editor-control-primitives";
-import { canvasEditorKeyboardMoveDelta, isCanvasEditorCopyShortcut, isCanvasEditorDeleteShortcut, isCanvasEditorFormTarget, isCanvasEditorUndoShortcut, useCanvasEditorHistory, useCanvasEditorPointerDrag } from "@/components/design-production/canvas-editor-interactions";
+import { canvasEditorKeyboardMoveDelta, isCanvasEditorCopyShortcut, isCanvasEditorDeleteShortcut, isCanvasEditorFormTarget, isCanvasEditorUndoShortcut, useCanvasEditorFloatingPanelDrag, useCanvasEditorHistory, useCanvasEditorPointerDrag } from "@/components/design-production/canvas-editor-interactions";
 import { CanvasEditorCheckboxPill as CheckboxPill, CanvasEditorElementPanel, CanvasEditorSelectableBox, CanvasEditorZoomFrame, SharedCanvasEditorModule, canvasEditorBackgroundGridActions, canvasEditorBasicIconActions, canvasEditorCoreElementActions, canvasEditorMappedElementActions, type CanvasEditorResizeCorner, type CanvasElementPanelPlacement } from "@/components/design-production/canvas-editor-panels";
 import { businessCardTemplateFieldIds, businessCardTemplateIconArtwork, businessCardTemplateIconIds, defaultBusinessCardTemplateLayout } from "@/lib/business-card-templates";
 import { businessCardIconChromeStyle, businessCardTrimWidthScale, displayBusinessCardFieldValue, editableBusinessCardFieldValue, fontFamilies, formatPercent, getBusinessCardTrimMetrics, isMultilineBusinessCardTextFieldId, resolveBusinessCardContactLayout, sampleBusinessCardFieldValue, type BusinessCardContactLayout, type BusinessCardInfoBlock } from "@/lib/business-card-rendering";
@@ -192,6 +192,8 @@ const fontPreviewClasses: Record<BusinessCardTemplateFontFamily, string> = {
 
 const sideIds: BusinessCardTemplateSideId[] = ["front", "back"];
 const defaultIconColor = "#075dcb";
+const defaultUserIconId: BusinessCardTemplateIconId = "phone";
+const defaultUserIconBox: BusinessCardTemplateBox = { x: 45, y: 45, width: 10, height: 10 };
 const defaultLineColor = "#111827";
 const gridStep = 2.5;
 const userExpandableFieldIds: UserExpandableFieldId[] = ["qrCode"];
@@ -218,6 +220,10 @@ function cssUrl(value: string) {
 
 function boxStyle(box: BusinessCardTemplateBox): CSSProperties {
   return canvasBoxStyle(box);
+}
+
+function logoFilterStyle(imageFilter: BusinessCardTemplateLayout["sides"][BusinessCardTemplateSideId]["logo"]["imageFilter"]): CSSProperties | undefined {
+  return imageFilter === "grayscale" ? { filter: "grayscale(1)" } : undefined;
 }
 
 function updateBoxValue(box: BusinessCardTemplateBox, key: BoxKey, value: number): BusinessCardTemplateBox {
@@ -343,6 +349,8 @@ export function BusinessCardLayoutBuilder({ layout, orientation, managedBackgrou
   const dragController = useCanvasEditorPointerDrag<DragState>();
   const dragState = dragController.dragState;
   const [showGrid, setShowGrid] = useState(true);
+  const [showIconPicker, setShowIconPicker] = useState(false);
+  const [iconPickerPosition, setIconPickerPosition] = useState<ControlsPosition>({ x: 4, y: 8 });
   const [expandedUserFieldId, setExpandedUserFieldId] = useState<UserExpandableFieldId>();
   const history = useCanvasEditorHistory({ value: layout, onChange });
   const layoutRef = useRef(layout);
@@ -379,6 +387,7 @@ export function BusinessCardLayoutBuilder({ layout, orientation, managedBackgrou
   const isExpandedUserFieldVisible = Boolean(expandedUserField?.visible);
   const isQrCodeVisible = getField(layout, activeSide, "qrCode").visible;
   const canvasSizeStyle: CSSProperties = { width: "100%" };
+  const iconPickerDrag = useCanvasEditorFloatingPanelDrag({ position: iconPickerPosition, onPositionChange: setIconPickerPosition, relativeRef: canvasRef, minX: -20, maxX: 100, minY: -20, maxY: 100 });
 
   const changeActiveSide = (sideId: BusinessCardTemplateSideId) => {
     setActiveSideState(sideId);
@@ -389,6 +398,33 @@ export function BusinessCardLayoutBuilder({ layout, orientation, managedBackgrou
   useEffect(() => {
     layoutRef.current = layout;
   }, [layout]);
+
+  useEffect(() => {
+    if (!selectedItem) {
+      return;
+    }
+
+    const handlePointerDown = (event: globalThis.PointerEvent) => {
+      const target = event.target;
+
+      if (!(target instanceof Element)) {
+        return;
+      }
+
+      if (target.closest('[data-canvas-floating-panel="true"]')) {
+        return;
+      }
+
+      if (canvasRef.current?.contains(target)) {
+        return;
+      }
+
+      setSelectedItem(undefined);
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown, true);
+    return () => document.removeEventListener("pointerdown", handlePointerDown, true);
+  }, [selectedItem]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -622,6 +658,16 @@ export function BusinessCardLayoutBuilder({ layout, orientation, managedBackgrou
 
   const updateLine = (lineId: string, updater: (line: BusinessCardTemplateLineElement) => BusinessCardTemplateLineElement, recordHistory = true) => {
     updateActiveSide({ ...side, lines: side.lines.map((line) => (line.id === lineId ? updater(line) : line)) }, recordHistory);
+  };
+
+  const activateLogo = () => {
+    if (side.logo.visible && selectedItem?.type === "logo") {
+      setSelectedItem(undefined);
+      return;
+    }
+
+    updateActiveSide({ ...side, logo: { ...side.logo, visible: true } });
+    setSelectedItem({ type: "logo" });
   };
 
   const updateFieldBox = (fieldId: BusinessCardTemplateTextFieldId, key: BoxKey, value: number) => {
@@ -966,28 +1012,7 @@ export function BusinessCardLayoutBuilder({ layout, orientation, managedBackgrou
     updateActiveSide({ ...side, background: { enabled: true, type: "color", color } });
   };
 
-  const toggleIcon = (iconId: BusinessCardTemplateIconId) => {
-    const matchingIcons = side.icons.filter((icon) => icon.icon === iconId);
-    const visibleIcon = matchingIcons.find((icon) => icon.visible);
-
-    if (visibleIcon) {
-      updateActiveSide({ ...side, icons: side.icons.map((icon) => (icon.icon === iconId ? { ...icon, visible: false } : icon)) });
-
-      if (selectedItem?.type === "icon" && matchingIcons.some((icon) => icon.id === selectedItem.iconId)) {
-        setSelectedItem({ type: "field", fieldId: "name" });
-      }
-
-      return;
-    }
-
-    const hiddenIcon = matchingIcons[0];
-
-    if (hiddenIcon) {
-      updateIcon(hiddenIcon.id, (icon) => ({ ...icon, visible: true }));
-      setSelectedItem({ type: "icon", iconId: hiddenIcon.id });
-      return;
-    }
-
+  const addIcon = (iconId: BusinessCardTemplateIconId) => {
     const usedIconIds = new Set(side.icons.map((icon) => icon.id));
     let iconSequence = side.icons.length + 1;
     let nextIconId = `icon-${activeSide}-${iconSequence}`;
@@ -1001,12 +1026,37 @@ export function BusinessCardLayoutBuilder({ layout, orientation, managedBackgrou
       id: nextIconId,
       icon: iconId,
       visible: true,
-      box: { x: 46, y: 46, width: 7, height: 7 },
+      box: defaultUserIconBox,
       color: defaultIconColor,
     };
 
     updateActiveSide({ ...side, icons: [...side.icons, nextIcon] });
     setSelectedItem({ type: "icon", iconId: nextIcon.id });
+  };
+
+  const addUserIcon = (iconId: BusinessCardTemplateIconId) => {
+    addIcon(iconId);
+    setShowIconPicker(false);
+  };
+
+  const toggleIcon = (iconId: BusinessCardTemplateIconId) => {
+    const matchingIcons = side.icons.filter((icon) => icon.icon === iconId);
+    const visibleIcon = matchingIcons.find((icon) => icon.visible);
+
+    if (visibleIcon) {
+      setSelectedItem(selectedItem?.type === "icon" && selectedItem.iconId === visibleIcon.id ? undefined : { type: "icon", iconId: visibleIcon.id });
+      return;
+    }
+
+    const hiddenIcon = matchingIcons[0];
+
+    if (hiddenIcon) {
+      updateIcon(hiddenIcon.id, (icon) => ({ ...icon, visible: true }));
+      setSelectedItem({ type: "icon", iconId: hiddenIcon.id });
+      return;
+    }
+
+    addIcon(iconId);
   };
 
   const toggleUserField = (fieldId: BusinessCardTemplateTextFieldId) => {
@@ -1056,10 +1106,7 @@ export function BusinessCardLayoutBuilder({ layout, orientation, managedBackgrou
     <div className="mb-4">
       <CanvasEditorElementPanel placement={elementAddPlacement} actions={[
         ...canvasEditorBackgroundGridActions({ backgroundColor: activeBackgroundColor || "#ffffff", showGrid, onBackgroundColorChange: updateActiveBackgroundColor, onShowGridChange: setShowGrid }),
-        ...canvasEditorCoreElementActions({ logoActive: selectedItem?.type === "logo", onLogoAdd: () => {
-          updateActiveSide({ ...side, logo: { ...side.logo, visible: true } });
-          setSelectedItem({ type: "logo" });
-        }, onHeadlineAdd: () => addDynamicField("headline"), onBodyAdd: () => addDynamicField("body") }),
+        ...canvasEditorCoreElementActions({ logoActive: selectedItem?.type === "logo", onLogoAdd: activateLogo, onHeadlineAdd: () => addDynamicField("headline"), onBodyAdd: () => addDynamicField("body") }),
         ...canvasEditorMappedElementActions(businessCardTemplateFieldIds, (fieldId) => {
           const field = getField(layout, activeSide, fieldId);
           const isExpandable = userExpandableFieldIds.includes(fieldId as UserExpandableFieldId);
@@ -1073,13 +1120,13 @@ export function BusinessCardLayoutBuilder({ layout, orientation, managedBackgrou
         } })),
       ]} />
       {expandedUserField && isExpandedUserFieldVisible && expandedUserField.id !== "qrCode" ? (
-        <div className="mt-3 grid gap-3 rounded-md border border-line bg-surface-blue p-3">
+        <div className="mt-3 grid gap-3 rounded-md bg-surface-blue p-3">
           <label className="block">
             <span className="mb-1 block text-xs font-black text-primary-strong">{fieldLabel(expandedUserField.id)}</span>
             {isMultilineBusinessCardTextFieldId(expandedUserField.id) ? (
-              <textarea className="min-h-20 w-full resize-y rounded-md border border-line bg-white px-3 py-2 text-sm font-bold text-ink outline-none transition focus:border-primary focus:shadow-soft" placeholder={`${fieldLabel(expandedUserField.id)}을 입력해 주세요.`} value={expandedUserField.customValue ?? userFieldValues?.[expandedUserField.id] ?? ""} onChange={(event) => onUserFieldValueChange?.(expandedUserField.id, event.currentTarget.value)} />
+              <textarea className="min-h-20 w-full resize-y rounded-md border border-line bg-white px-3 py-2 text-sm font-bold text-ink outline-none transition focus:border-primary focus:shadow-soft" placeholder={`${fieldLabel(expandedUserField.id)}을 입력해 주세요.`} value={userFieldValues?.[expandedUserField.id] ?? expandedUserField.customValue ?? ""} onChange={(event) => onUserFieldValueChange?.(expandedUserField.id, event.currentTarget.value)} />
             ) : (
-              <input className="h-11 w-full rounded-md border border-line bg-white px-3 text-sm font-bold text-ink outline-none transition focus:border-primary focus:shadow-soft" placeholder={`${fieldLabel(expandedUserField.id)}을 입력해 주세요.`} value={expandedUserField.customValue ?? userFieldValues?.[expandedUserField.id] ?? ""} onChange={(event) => onUserFieldValueChange?.(expandedUserField.id, event.currentTarget.value)} />
+              <input className="h-11 w-full rounded-md border border-line bg-white px-3 text-sm font-bold text-ink outline-none transition focus:border-primary focus:shadow-soft" placeholder={`${fieldLabel(expandedUserField.id)}을 입력해 주세요.`} value={userFieldValues?.[expandedUserField.id] ?? expandedUserField.customValue ?? ""} onChange={(event) => onUserFieldValueChange?.(expandedUserField.id, event.currentTarget.value)} />
             )}
           </label>
         </div>
@@ -1090,15 +1137,29 @@ export function BusinessCardLayoutBuilder({ layout, orientation, managedBackgrou
   const basicIconActions = canvasEditorBasicIconActions((option) => {
     const iconId = readIconId(option.id);
 
-    return { icon: iconMarkup(iconId), active: side.icons.some((icon) => icon.icon === iconId && icon.visible), onClick: () => toggleIcon(iconId) };
+    const visibleIcon = side.icons.find((icon) => icon.icon === iconId && icon.visible);
+
+    return { label: "아이콘", icon: iconMarkup(iconId), active: Boolean(visibleIcon && selectedItem?.type === "icon" && selectedItem.iconId === visibleIcon.id), onClick: () => isUserMode ? addUserIcon(iconId) : toggleIcon(iconId) };
   });
-  const userIconSection = <CanvasEditorElementPanel title="기본 아이콘" placement="bottom" actions={basicIconActions} collapsible defaultCollapsed />;
+  const userIconSection = isUserMode ? null : <CanvasEditorElementPanel title="요소 추가" placement="bottom" actions={basicIconActions} collapsible defaultCollapsed />;
+  const iconPickerPanel = isUserMode && showIconPicker ? (
+    <div data-canvas-floating-panel="true" className="absolute z-40 w-[min(15rem,calc(100vw-2rem))] rounded-lg border border-line bg-surface/95 p-2 shadow-floating backdrop-blur" style={{ left: `${iconPickerPosition.x}%`, top: `${iconPickerPosition.y}%` }}>
+      <div className="mb-2 flex cursor-move touch-none items-center justify-between gap-2 rounded-sm px-1" onPointerDown={iconPickerDrag.startPanelDrag} onPointerMove={iconPickerDrag.movePanelDrag} onPointerUp={iconPickerDrag.stopPanelDrag} onPointerCancel={iconPickerDrag.stopPanelDrag}>
+        <p className="text-xs font-black text-primary-strong">아이콘 요소추가</p>
+        <button className="rounded-sm bg-surface-blue px-2 py-1 text-[10px] font-black text-primary-strong" type="button" onClick={() => setShowIconPicker(false)}>닫기</button>
+      </div>
+      <div className="grid max-h-36 grid-cols-[repeat(auto-fill,minmax(2rem,1fr))] gap-1 overflow-y-auto pr-1">
+        {basicIconActions.map((action) => (
+          <button key={action.id} className="grid h-8 w-full place-items-center rounded-md bg-surface-blue text-primary-strong transition hover:bg-primary-soft" type="button" aria-label={action.id} title={action.id} onClick={action.onClick}>
+            {action.icon ? <span className="grid h-6 w-6 place-items-center">{action.icon}</span> : null}
+          </button>
+        ))}
+      </div>
+    </div>
+  ) : null;
   const elementAddSection = isUserMode ? userTextFieldSection : <CanvasEditorElementPanel placement={elementAddPlacement} actions={[
     ...canvasEditorBackgroundGridActions({ backgroundColor: activeBackgroundColor || "#ffffff", showGrid, onBackgroundColorChange: updateActiveBackgroundColor, onShowGridChange: setShowGrid }),
-    ...canvasEditorCoreElementActions({ logoActive: selectedItem?.type === "logo", onLogoAdd: () => {
-      updateActiveSide({ ...side, logo: { ...side.logo, visible: true } });
-      setSelectedItem({ type: "logo" });
-    }, onHeadlineAdd: () => addDynamicField("headline"), onBodyAdd: () => addDynamicField("body") }),
+    ...canvasEditorCoreElementActions({ logoActive: selectedItem?.type === "logo", onLogoAdd: activateLogo, onHeadlineAdd: () => addDynamicField("headline"), onBodyAdd: () => addDynamicField("body") }),
     ...canvasEditorMappedElementActions(businessCardTemplateFieldIds, (fieldId) => {
       const field = getField(layout, activeSide, fieldId);
 
@@ -1117,7 +1178,7 @@ export function BusinessCardLayoutBuilder({ layout, orientation, managedBackgrou
   const previewSection = <BusinessCardReadOnlyPreview layout={layout} sideId={activeSide} contactLayout={contactLayout} activeLogoUrl={activeLogoUrl} activeBackgroundColor={activeBackgroundColor} activeBackgroundImageUrl={activeBackgroundImageUrl} cleanPreviewBackgroundStyle={cleanPreviewBackgroundStyle} readFieldValue={readFieldValue} renderPixelScale={renderPixelScale} trimWidthScale={trimWidthScale} />;
 
   return (
-    <section className={`rounded-lg border border-line bg-[linear-gradient(180deg,var(--color-surface)_0%,var(--color-surface-blue)_100%)] shadow-card ${isUserMode ? "p-2 sm:p-3" : "p-4"}`}>
+    <section className={`rounded-lg ${isUserMode ? "bg-transparent p-0" : "bg-[linear-gradient(180deg,var(--color-surface)_0%,var(--color-surface-blue)_100%)] p-4"}`}>
       {!isUserMode ? <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="text-xs font-black text-primary-strong">양면 레이아웃 빌더</p>
@@ -1125,17 +1186,17 @@ export function BusinessCardLayoutBuilder({ layout, orientation, managedBackgrou
         </div>
         <div className="flex flex-wrap gap-2">
           {onOrientationChange ? (
-            <div className="flex rounded-md bg-surface p-1 shadow-soft">
+            <div className="flex rounded-md bg-surface p-1">
               {(["horizontal", "vertical"] as const).map((orientationId) => (
-                <button key={orientationId} className={`rounded-sm px-2 py-1 text-[10px] font-black transition ${orientation === orientationId ? "bg-primary text-white shadow-soft" : "text-primary-strong hover:bg-surface-blue"}`} type="button" onClick={() => onOrientationChange(orientationId)}>
+                <button key={orientationId} className={`rounded-sm px-2 py-1 text-[10px] font-black transition ${orientation === orientationId ? "bg-primary text-white" : "text-primary-strong hover:bg-surface-blue"}`} type="button" onClick={() => onOrientationChange(orientationId)}>
                   {orientationId === "horizontal" ? "가로" : "세로"}
                 </button>
               ))}
             </div>
           ) : null}
-          <div className="flex rounded-md bg-surface p-1 shadow-soft">
+          <div className="flex rounded-md bg-surface p-1">
             {sideIds.map((sideId) => (
-              <button key={sideId} className={`rounded-sm px-2 py-1 text-[10px] font-black transition ${activeSide === sideId ? "bg-primary text-white shadow-soft" : "text-primary-strong hover:bg-surface-blue"}`} type="button" onClick={() => {
+              <button key={sideId} className={`rounded-sm px-2 py-1 text-[10px] font-black transition ${activeSide === sideId ? "bg-primary text-white" : "text-primary-strong hover:bg-surface-blue"}`} type="button" onClick={() => {
                 changeActiveSide(sideId);
               }}>
                 {sideLabels[sideId]}
@@ -1146,16 +1207,16 @@ export function BusinessCardLayoutBuilder({ layout, orientation, managedBackgrou
       </div> : null}
 
       <SharedCanvasEditorModule elementAdd={elementAddSection} elementAddPlacement={elementAddPlacement} basicIcons={basicIconsSection} editPreview={previewSection} editCanvas={
-        <div className={`rounded-lg border border-line bg-surface shadow-soft ${isUserMode ? "overflow-hidden p-0" : "p-4 sm:p-5"}`}>
+        <div className={`rounded-lg bg-surface ${isUserMode ? "overflow-hidden p-0" : "p-4 sm:p-5"}`}>
           <div className={`${isUserMode ? "px-2 pb-3 pt-2 sm:px-3 sm:pt-3" : "mb-3"} flex items-center justify-between gap-3`}>
             <span className="rounded-md bg-surface-blue px-3 py-1 text-xs font-black text-primary-strong">{sideLabels[activeSide]} · {orientationLabel}</span>
             <div className="flex flex-wrap items-center justify-end gap-2">
               <CheckboxPill label="격자 보기" checked={showGrid} onChange={setShowGrid} />
             </div>
           </div>
-          {selectedItem && (selectedItem.type !== "logo" || side.logo.visible) ? <QuickControls portal hideLogoVisibility={isUserMode} selectedItem={selectedItem} position={selectedControlsPosition} field={selectedItem.type === "field" ? selectedField : undefined} icon={selectedIcon} line={selectedLine} logo={selectedItem.type === "logo" ? side.logo : undefined} infoBlock={selectedInfoBlock} userQrCodeImageUrl={userQrCodeImageUrl} onUserQrCodeImageChange={onUserQrCodeImageChange} onUserQrCodeImageClear={onUserQrCodeImageClear} onPositionChange={updateSelectedControlsPosition} onFieldChange={(updater) => updateField(selectedFieldId, updater)} onIconChange={(updater) => selectedIcon ? updateIcon(selectedIcon.id, updater) : undefined} onLineChange={(updater) => selectedLine ? updateLine(selectedLine.id, updater) : undefined} onLogoChange={(updater) => updateActiveSide({ ...side, logo: updater(side.logo) })} onInfoBlockChange={(updater) => selectedInfoBlock ? updateInfoBlock(selectedInfoBlock, updater) : undefined} onInfoBlockFieldsChange={(updater) => selectedInfoBlock ? updateInfoBlockFields(selectedInfoBlock, updater) : undefined} onInfoBlockFieldChange={updateInfoBlockField} onInfoBlockIconChange={(updater) => selectedInfoBlock ? updateInfoBlockIcon(selectedInfoBlock, updater) : undefined} /> : null}
+          {selectedItem && (selectedItem.type !== "logo" || side.logo.visible) ? <QuickControls portal selectedItem={selectedItem} position={selectedControlsPosition} field={selectedItem.type === "field" ? selectedField : undefined} icon={selectedIcon} line={selectedLine} logo={selectedItem.type === "logo" ? side.logo : undefined} infoBlock={selectedInfoBlock} userQrCodeImageUrl={userQrCodeImageUrl} onUserQrCodeImageChange={onUserQrCodeImageChange} onUserQrCodeImageClear={onUserQrCodeImageClear} onPositionChange={updateSelectedControlsPosition} onFieldChange={(updater) => updateField(selectedFieldId, updater)} onIconChange={(updater) => selectedIcon ? updateIcon(selectedIcon.id, updater) : undefined} onLineChange={(updater) => selectedLine ? updateLine(selectedLine.id, updater) : undefined} onLogoChange={(updater) => updateActiveSide({ ...side, logo: updater(side.logo) })} onInfoBlockChange={(updater) => selectedInfoBlock ? updateInfoBlock(selectedInfoBlock, updater) : undefined} onInfoBlockFieldsChange={(updater) => selectedInfoBlock ? updateInfoBlockFields(selectedInfoBlock, updater) : undefined} onInfoBlockFieldChange={updateInfoBlockField} onInfoBlockIconChange={(updater) => selectedInfoBlock ? updateInfoBlockIcon(selectedInfoBlock, updater) : undefined} /> : null}
           <div className="relative overflow-visible">
-          <CanvasEditorZoomFrame contentClassName="pb-4 pr-4">
+          <CanvasEditorZoomFrame contentClassName="pb-4 pr-4" toolbarActions={isUserMode ? <button className={`grid h-7 w-7 place-items-center rounded-sm ${showIconPicker ? "bg-primary text-white" : "bg-surface-blue text-primary-strong"}`} type="button" aria-label="아이콘" title="아이콘" aria-expanded={showIconPicker} onClick={() => setShowIconPicker((current) => !current)}>{iconMarkup(defaultUserIconId, "block h-3.5 w-3.5")}</button> : null}>
           <div className={`grid place-items-center rounded-lg ${isUserMode ? "bg-transparent p-0" : "bg-[radial-gradient(circle_at_20%_20%,var(--color-primary-soft)_0%,transparent_28%),linear-gradient(135deg,var(--color-surface)_0%,var(--color-surface-blue)_100%)] p-4 sm:p-6 lg:p-8"}`}>
             <div ref={canvasRef} className="relative overflow-visible rounded-md border border-line bg-surface shadow-floating" style={{ ...canvasSizeStyle, aspectRatio: canvasAspect, backgroundColor: activeBackgroundColor || undefined, ...cleanPreviewBackgroundStyle }} onPointerDown={(event) => {
               if (event.currentTarget !== event.target) {
@@ -1167,6 +1228,7 @@ export function BusinessCardLayoutBuilder({ layout, orientation, managedBackgrou
               }
             }}>
               {hasActiveBackgroundImage && !hasCleanPreviewImage ? <div className="pointer-events-none absolute inset-0 bg-cover bg-center" style={{ backgroundImage: cssUrl(activeBackgroundImageUrl) }} /> : null}
+              {iconPickerPanel}
               {showGrid ? <div className="pointer-events-none absolute inset-0 opacity-70" style={{ backgroundImage: "linear-gradient(to right, rgba(7, 93, 203, 0.22) 1px, transparent 1px), linear-gradient(to bottom, rgba(7, 93, 203, 0.22) 1px, transparent 1px), linear-gradient(to right, rgba(7, 93, 203, 0.34) 1px, transparent 1px), linear-gradient(to bottom, rgba(7, 93, 203, 0.34) 1px, transparent 1px)", backgroundSize: "2.5% 2.5%, 2.5% 2.5%, 10% 10%, 10% 10%" }} aria-hidden="true" /> : null}
               <GuideBox box={layout.canvas.edit} label="EDIT" tone="edit" />
               <GuideBox box={layout.canvas.safe} label="SAFE" tone="safe" />
@@ -1178,7 +1240,7 @@ export function BusinessCardLayoutBuilder({ layout, orientation, managedBackgrou
               {side.logo.visible ? (
                 <CanvasEditorSelectableBox className="overflow-hidden bg-transparent" selectedClassName="border-primary shadow-soft ring-2 ring-primary-soft" idleClassName="border-transparent hover:border-primary-soft/60" box={side.logo.box} selected={selectedItem?.type === "logo"} ariaLabel="브랜드 로고" onPointerDown={handleLogoMovePointerDown} onResizePointerDown={handleLogoResizePointerDown} onPointerMove={handlePointerMove} onPointerUp={stopPointerDrag} onPointerCancel={stopPointerDrag}>
                   <span className="absolute" style={{ inset: `${100 / layout.canvas.trim.widthMm}%` }}>
-                    {activeLogoUrl ? <img className="h-full w-full object-contain" src={activeLogoUrl} alt="브랜드 로고" draggable={false} /> : <Image className="object-contain" src="/printy_logo.svg" alt="Printy" fill sizes="220px" draggable={false} />}
+                    {activeLogoUrl ? <img className="h-full w-full object-contain" src={activeLogoUrl} alt="브랜드 로고" draggable={false} style={logoFilterStyle(side.logo.imageFilter)} /> : <Image className="object-contain" src="/printy_logo.svg" alt="Printy" fill sizes="220px" draggable={false} style={logoFilterStyle(side.logo.imageFilter)} />}
                   </span>
                 </CanvasEditorSelectableBox>
               ) : null}
@@ -1190,27 +1252,27 @@ export function BusinessCardLayoutBuilder({ layout, orientation, managedBackgrou
       } />
 
       {!isUserMode ? <div className="mt-4 grid content-start gap-4">
-          <section className="rounded-lg border border-line bg-surface p-4 shadow-soft">
+          <section className="rounded-lg bg-surface p-4">
             <div className="mb-4">
               <p className="text-xs font-black text-primary-strong">라인</p>
               <p className="mt-1 text-xs font-bold text-muted">가로/세로 라인을 추가하고, 세부 값은 편집 화면의 라인 설정창에서 조정해요.</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <button className="rounded-md bg-surface-blue px-3 py-2 text-xs font-black text-primary-strong shadow-soft transition hover:-translate-y-0.5" type="button" onClick={() => addLine("horizontal")}>가로 라인 추가</button>
-              <button className="rounded-md bg-surface-blue px-3 py-2 text-xs font-black text-primary-strong shadow-soft transition hover:-translate-y-0.5" type="button" onClick={() => addLine("vertical")}>세로 라인 추가</button>
+              <button className="rounded-md bg-surface-blue px-3 py-2 text-xs font-black text-primary-strong transition hover:-translate-y-0.5" type="button" onClick={() => addLine("horizontal")}>가로 라인 추가</button>
+              <button className="rounded-md bg-surface-blue px-3 py-2 text-xs font-black text-primary-strong transition hover:-translate-y-0.5" type="button" onClick={() => addLine("vertical")}>세로 라인 추가</button>
             </div>
           </section>
 
-          <section className="rounded-lg border border-line bg-surface p-4 shadow-soft">
+          <section className="rounded-lg bg-surface p-4">
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
                 <p className="text-xs font-black text-primary-strong">등록 배경</p>
                 <p className="mt-1 text-xs font-bold leading-5 text-muted">공통 설정에 등록한 배경만 선택해요. 배경색은 요소 추가에서 조정해요.</p>
               </div>
-              {side.background.enabled ? <span className="rounded-md bg-primary px-3 py-2 text-xs font-black text-white shadow-soft">사용 중</span> : <span className="rounded-md bg-surface-blue px-3 py-2 text-xs font-black text-primary-strong">미사용</span>}
+              {side.background.enabled ? <span className="rounded-md bg-primary px-3 py-2 text-xs font-black text-white">사용 중</span> : <span className="rounded-md bg-surface-blue px-3 py-2 text-xs font-black text-primary-strong">미사용</span>}
             </div>
             <div className="grid gap-4">
-              <label className="block rounded-md border border-line bg-surface-blue p-3">
+              <label className="block rounded-md bg-surface-blue p-3">
                 <span className="mb-2 block text-xs font-extrabold text-primary-strong">배경 선택</span>
                 <select className="w-full rounded-md border border-line bg-surface px-4 py-3 text-sm font-bold text-ink outline-none transition disabled:cursor-not-allowed disabled:text-soft focus:border-primary focus:shadow-soft" value={activeManagedBackground?.id ?? (hasUnregisteredBackgroundImage ? "__legacy" : "")} disabled={managedBackgrounds.length === 0} onChange={(event) => applyManagedBackground(event.target.value)}>
                   <option value="">등록 배경 선택</option>
@@ -1284,7 +1346,7 @@ function BusinessCardReadOnlyPreview({ layout, sideId, contactLayout, activeLogo
         {side.logo.visible ? (
           <div className="absolute overflow-hidden rounded-sm bg-transparent" style={boxStyle(side.logo.box)}>
             <span className="absolute" style={{ inset: `${100 / layout.canvas.trim.widthMm}%` }}>
-              {activeLogoUrl ? <img className="h-full w-full object-contain" src={activeLogoUrl} alt="브랜드 로고" draggable={false} /> : <Image className="object-contain" src="/printy_logo.svg" alt="Printy" fill sizes="220px" draggable={false} />}
+              {activeLogoUrl ? <img className="h-full w-full object-contain" src={activeLogoUrl} alt="브랜드 로고" draggable={false} style={logoFilterStyle(side.logo.imageFilter)} /> : <Image className="object-contain" src="/printy_logo.svg" alt="Printy" fill sizes="220px" draggable={false} style={logoFilterStyle(side.logo.imageFilter)} />}
             </span>
           </div>
         ) : null}
