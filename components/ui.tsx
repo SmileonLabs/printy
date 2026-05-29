@@ -14,7 +14,7 @@ export function PhoneShell({ children, topLeftAction, topRightAction, onLogoClic
   return (
     <main className="h-screen overflow-hidden bg-surface text-ink">
       <section className="relative flex h-screen w-full flex-col overflow-hidden bg-surface">
-        <header className="z-30 grid h-16 shrink-0 grid-cols-[minmax(0,auto)_1fr_minmax(0,auto)] items-center border-b border-line bg-white/92 px-3 backdrop-blur-xl sm:px-5">
+        <header className="z-30 grid h-16 shrink-0 grid-cols-3 items-center border-b border-line bg-white/92 px-3 backdrop-blur-xl sm:px-5">
           <div className="flex min-w-0 items-center justify-start">{topLeftAction}</div>
           <div className="flex min-w-0 items-center justify-center">
             <button className="rounded-md transition active:scale-95" type="button" onClick={onLogoClick} aria-label="홈으로 이동">
