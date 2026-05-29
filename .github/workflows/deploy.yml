@@ -41,7 +41,20 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Paths filter
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            native:
+              - 'Dockerfile'
+              - 'wrangler.native.jsonc'
+              - 'workers/**'
+              - 'package.json'
+              - 'package-lock.json'
+
       - name: Deploy native PDF worker
+        if: steps.filter.outputs.native == 'true' || github.event_name == 'workflow_dispatch'
         run: npm run deploy:native
 
       - name: Deploy main worker
