@@ -11,7 +11,7 @@ import type { PrintyState } from "@/store/printy-store-types";
 type PrintyStoreSet = Parameters<StateCreator<PrintyState, [], [], PrintyState>>[0];
 type PrintyStoreGet = Parameters<StateCreator<PrintyState, [], [], PrintyState>>[1];
 
-type PrintyOnboardingActions = Pick<PrintyState, "setStep" | "saveBrandShell" | "ensureBusinessCardDraft" | "deleteBusinessCardDraft" | "beginAiBusinessCardMockupGeneration" | "setActiveAiBusinessCardMockupJob" | "syncAiBusinessCardMockups" | "finishAiBusinessCardMockupGeneration" | "completeAiBusinessCardDesign" | "failAiBusinessCardMockupGeneration" | "dismissAiBusinessCardMockupNotice" | "selectAiBusinessCardMockup" | "deleteAiBusinessCardMockup" | "beginAiBusinessCardPdfGeneration" | "finishAiBusinessCardPdfGeneration" | "failAiBusinessCardPdfGeneration" | "dismissAiBusinessCardPdfNotice" | "completeCheckout" | "startNewBrand">;
+type PrintyOnboardingActions = Pick<PrintyState, "setStep" | "saveBrandShell" | "ensureBusinessCardDraft" | "deleteBusinessCardDraft" | "copyCompletedBusinessCardDraft" | "selectBusinessCardMemberForPreview" | "beginAiBusinessCardMockupGeneration" | "setActiveAiBusinessCardMockupJob" | "syncAiBusinessCardMockups" | "finishAiBusinessCardMockupGeneration" | "completeAiBusinessCardDesign" | "failAiBusinessCardMockupGeneration" | "dismissAiBusinessCardMockupNotice" | "selectAiBusinessCardMockup" | "deleteAiBusinessCardMockup" | "beginAiBusinessCardPdfGeneration" | "finishAiBusinessCardPdfGeneration" | "failAiBusinessCardPdfGeneration" | "dismissAiBusinessCardPdfNotice" | "completeCheckout" | "startNewBrand">;
 
 export function createPrintyOnboardingActions(set: PrintyStoreSet, get: PrintyStoreGet): PrintyOnboardingActions {
   return {
@@ -91,6 +91,48 @@ export function createPrintyOnboardingActions(set: PrintyStoreSet, get: PrintySt
       }));
 
       return nextDraft;
+    },
+    copyCompletedBusinessCardDraft: (draftId, nextMemberName) => {
+      const state = get();
+      const sourceDraft = state.businessCardDrafts.find((draft) => draft.id === draftId);
+      const brand = sourceDraft?.brandId ? state.brands.find((item) => item.id === sourceDraft.brandId) : undefined;
+
+      if (!sourceDraft || !brand) {
+        return undefined;
+      }
+
+      const nextId = makeId("card", state.businessCardDrafts.length);
+      const safeName = nextMemberName.trim();
+      const nextDraft: BusinessCardDraft = {
+        ...sourceDraft,
+        id: nextId,
+        createdAt: getCreatedDate(),
+        completedMockupAt: new Date().toISOString(),
+        member: { ...sourceDraft.member, name: safeName || sourceDraft.member.name },
+      };
+
+      set((current) => ({
+        businessCardDrafts: [nextDraft, ...current.businessCardDrafts],
+        activeBusinessCardDraftId: nextDraft.id,
+        brandWorkspaceHasPendingLocalChanges: true,
+        brandWorkspaceOwnerUserId: current.isAuthenticated ? current.brandWorkspaceOwnerUserId : undefined,
+      }));
+
+      return nextDraft;
+    },
+    selectBusinessCardMemberForPreview: (memberId) => {
+      const state = get();
+      const brand = state.brands.find((item) => item.id === state.selectedBrandId);
+      const member = brand?.members.find((item) => item.id === memberId);
+
+      if (!member) {
+        return;
+      }
+
+      set({
+        memberDraft: member,
+        selectedBusinessCardMemberIds: [member.id],
+      });
     },
     deleteBusinessCardDraft: (draftId) => set((state) => {
       const draft = state.businessCardDrafts.find((item) => item.id === draftId);

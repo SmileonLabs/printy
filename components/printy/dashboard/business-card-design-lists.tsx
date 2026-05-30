@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { toPng } from "html-to-image";
 import { useRef, useState } from "react";
+import { usePrintyStore } from "@/store/use-printy-store";
 import { BusinessCardUserPreview } from "@/components/admin/business-card-layout-builder";
 import { CompletedDesignCard, completedBusinessCardMockupImageSize, completedDesignPreviewImageSizes } from "@/components/design-production/completed-design-card";
 import { SavedDesignDraftList } from "@/components/design-production/saved-design-draft-list";
@@ -55,6 +56,7 @@ function CompletedBusinessCardListItem({ entry, logo, rendererVersion, pdfRecord
   onDelete: (entry: CompletedBusinessCardEntry) => void;
   onDownloadPdf: (entry: CompletedBusinessCardEntry, member: Member | undefined, layout: BusinessCardTemplateLayout | undefined) => void;
 }) {
+  const copyCompletedBusinessCardDraft = usePrintyStore((state) => state.copyCompletedBusinessCardDraft);
   const { mockup } = entry;
   const matchedMember = resolveMember(entry);
   const completedLayout = resolveLayout(entry);
@@ -81,6 +83,28 @@ function CompletedBusinessCardListItem({ entry, logo, rendererVersion, pdfRecord
         <AppButton className="whitespace-nowrap px-2 py-2 !bg-emerald-600/60 backdrop-blur disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0" variant="success" onClick={() => onEdit(entry, matchedMember, completedLayout)}>디자인 수정하기</AppButton>
         <AppButton className="whitespace-nowrap px-2 py-2 !bg-primary/60 backdrop-blur disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0" variant="primary" onClick={() => onDownloadPdf(entry, matchedMember, completedLayout)} disabled={runningMockupPdfId === mockup.id || !mockup.cleanImageUrl}>
           {runningMockupPdfId === mockup.id ? "PDF 만드는 중" : pdfRecords[pdfRecordKey] ? "PDF 다운 받기" : "인쇄용 PDF 만들기"}
+        </AppButton>
+        <AppButton
+          variant="secondary"
+          className="whitespace-nowrap px-2 py-2 !bg-surface/80 text-ink backdrop-blur disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+          onClick={() => {
+            if (!entry.draft) {
+              window.alert("서버에서 불러온 완료 시안은 이 화면에서 복사할 수 없어요.");
+              return;
+            }
+
+            const defaultName = `${entry.draft.member.name || "이름 미입력"} 복사본`;
+            const nextName = window.prompt("복사본 이름을 입력해 주세요.", defaultName);
+
+            if (nextName === null) {
+              return;
+            }
+
+            copyCompletedBusinessCardDraft(entry.draft.id, nextName);
+          }}
+          disabled={!entry.draft}
+        >
+          복사하기
         </AppButton>
         <AppButton
           variant="secondary"

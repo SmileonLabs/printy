@@ -318,6 +318,7 @@ async function pollAiBusinessCardJob(jobId: string, onStatus?: (message: string)
 
 export function BusinessCardPreviewScreen() {
   const { brandDraft, memberDraft, selectedLogoId, selectedBusinessCardMemberIds, aiBusinessCardMockups, aiBusinessCardMockupStatus, aiBusinessCardMockupMessage, aiBusinessCardMockupSignature, activeAiBusinessCardMockupJobId, selectedAiBusinessCardMockupUrl, beginAiBusinessCardMockupGeneration, setActiveAiBusinessCardMockupJob, syncAiBusinessCardMockups, finishAiBusinessCardMockupGeneration, completeAiBusinessCardDesign, failAiBusinessCardMockupGeneration, selectAiBusinessCardMockup, deleteAiBusinessCardMockup, dismissAiBusinessCardPdfNotice, updateMemberDraft, updateBusinessCardProductionOptions, ensureBusinessCardDraft, syncBrandWorkspace, setGeneratedLogoImageUrl, setGeneratedLogoBackgroundRemovedImageUrl, enterDashboard, openBrandDetail, setBrandSection } = usePrintyStore();
+  const selectBusinessCardMemberForPreview = usePrintyStore((state) => state.selectBusinessCardMemberForPreview);
   const isAuthenticated = usePrintyStore((state) => state.isAuthenticated);
   const authUserId = usePrintyStore((state) => state.authSession?.userId);
   const brandWorkspaceHasPendingLocalChanges = usePrintyStore((state) => state.brandWorkspaceHasPendingLocalChanges);
@@ -1051,6 +1052,25 @@ export function BusinessCardPreviewScreen() {
         </ToastNoticeViewport>
       ) : null}
       <ProgressHeader eyebrow="AI 명함 생성" title="앞면과 뒷면을 AI로 구성해요" description="먼저 대표 로고와 입력 정보를 기준으로 정면 양면 목업을 만들어요." step={stepNumbers.businessCardPreview} total={onboardingTotalSteps} action={<HomeExitAction />} />
+      {selectedBrand?.members && selectedBrand.members.length > 1 ? (
+        <SoftCard className="grid gap-3">
+          <div>
+            <p className="text-sm font-black text-ink">팀/구성원</p>
+            <p className="mt-1 text-xs font-bold leading-5 text-muted">선택한 구성원 정보로 명함 내용을 적용해요.</p>
+          </div>
+          <select
+            className="h-11 w-full rounded-md border border-line bg-white px-3 text-sm font-black text-ink outline-none focus:border-primary"
+            value={selectedMemberId}
+            onChange={(event) => selectBusinessCardMemberForPreview(event.target.value)}
+          >
+            {selectedBrand.members.map((member) => (
+              <option key={member.id} value={member.id}>
+                {member.name || "이름 미입력"} · {member.role || "직함 미입력"}
+              </option>
+            ))}
+          </select>
+        </SoftCard>
+      ) : null}
       <ProductionSizeCard title="명함 사이즈" description="이 제작 화면에서 인쇄 사이즈를 정해요. 사이즈를 바꾸면 현재 레이아웃 비율과 PDF 크기도 함께 바뀝니다." value={selectedBusinessCardSize.id} options={businessCardSizeOptions} onChange={updateBusinessCardSize} sideValue={activeBusinessCardSide} sideOptions={businessCardSideOptions} onSideChange={(value) => setActiveBusinessCardSide(value as BusinessCardTemplateSideId)} />
       {editableLayout ? (
         <div className="-mx-5">
