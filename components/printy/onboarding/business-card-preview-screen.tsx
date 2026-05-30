@@ -156,14 +156,21 @@ function createSaveTrace(): SaveTrace {
 }
 
 async function saveAiBusinessCardMockupsToServer(signature: string, mockups: AiBusinessCardMockup[], trace?: SaveTrace) {
-  const response = await fetch("/api/ai-business-cards/mockups/saved", {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-      ...(trace ? { "x-printy-request-id": trace.requestId, "x-printy-client-action-id": trace.clientActionId } : {}),
-    },
-    body: JSON.stringify({ signature, mockups }),
-  });
+  let response: Response;
+
+  try {
+    response = await fetchWithTimeout("/api/ai-business-cards/mockups/saved", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        ...(trace ? { "x-printy-request-id": trace.requestId, "x-printy-client-action-id": trace.clientActionId } : {}),
+      },
+      body: JSON.stringify({ signature, mockups }),
+    });
+  } catch (error) {
+    const errorName = error instanceof Error ? error.name : "UnknownError";
+    throw new Error(errorName === "AbortError" ? "완료 목업 저장 요청 시간이 초과됐어요. 네트워크 상태를 확인한 뒤 다시 시도해 주세요." : "완료 목업 저장 중 네트워크 오류가 발생했어요. 잠시 후 다시 시도해 주세요.");
+  }
 
   if (!response.ok) {
     throw new Error("완료 목업 저장에 실패했어요. 잠시 후 다시 시도해 주세요.");
@@ -180,14 +187,21 @@ async function saveCurrentBrandWorkspacePatch(ownerUserId: string, patch: Partia
     printProductDrafts: state.printProductDrafts,
     orders: state.orders,
   });
-  const response = await fetch("/api/brand-workspace", {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-      ...(trace ? { "x-printy-request-id": trace.requestId, "x-printy-client-action-id": trace.clientActionId } : {}),
-    },
-    body: JSON.stringify({ mode: "patch", patch }),
-  });
+  let response: Response;
+
+  try {
+    response = await fetchWithTimeout("/api/brand-workspace", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        ...(trace ? { "x-printy-request-id": trace.requestId, "x-printy-client-action-id": trace.clientActionId } : {}),
+      },
+      body: JSON.stringify({ mode: "patch", patch }),
+    });
+  } catch (error) {
+    const errorName = error instanceof Error ? error.name : "UnknownError";
+    throw new Error(errorName === "AbortError" ? "완료 디자인 저장 요청 시간이 초과됐어요. 네트워크 상태를 확인한 뒤 다시 시도해 주세요." : "완료 디자인 저장 중 네트워크 오류가 발생했어요. 잠시 후 다시 시도해 주세요.");
+  }
 
   if (!response.ok) {
     throw new Error("완료 디자인을 서버에 저장하지 못했어요. 다시 저장해 주세요.");
