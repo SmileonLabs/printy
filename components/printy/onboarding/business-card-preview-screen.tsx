@@ -334,6 +334,7 @@ export function BusinessCardPreviewScreen() {
   const [referenceImageDataUrl, setReferenceImageDataUrl] = useState<string>();
   const [referenceImageName, setReferenceImageName] = useState("");
   const [cleanBackgroundEditStatus, setCleanBackgroundEditStatus] = useState("");
+  const [activeBackgroundEditJobId, setActiveBackgroundEditJobId] = useState<string>();
   const [layoutSuggestionMessage, setLayoutSuggestionMessage] = useState("");
   const [isEditingCleanBackground, setIsEditingCleanBackground] = useState(false);
   const [isSuggestingLayout, setIsSuggestingLayout] = useState(false);
@@ -560,6 +561,8 @@ export function BusinessCardPreviewScreen() {
 
       const queuedJob = await readAiBusinessCardJob(response);
 
+      setActiveBackgroundEditJobId(queuedJob.jobId);
+
       if (queuedJob.status === "queued" || queuedJob.status === "running") {
         setActiveAiBusinessCardMockupJob(queuedJob.jobId);
       }
@@ -605,6 +608,7 @@ export function BusinessCardPreviewScreen() {
 
     setIsEditingCleanBackground(true);
     setCleanBackgroundEditStatus("이전에 요청한 배경 이미지 수정 결과를 확인하고 있어요.");
+    setActiveBackgroundEditJobId(pendingJob.jobId);
 
     async function recoverBackgroundEditJob() {
       const job = await pollAiBusinessCardJob(pendingJob.jobId, (message) => setCleanBackgroundEditStatus(message.replace("명함 AI 디자인 요청은", "배경 이미지 수정 요청은")));
@@ -640,6 +644,7 @@ export function BusinessCardPreviewScreen() {
       .finally(() => {
         if (isActive) {
           setIsEditingCleanBackground(false);
+          setActiveBackgroundEditJobId(undefined);
         }
       });
 
@@ -1005,6 +1010,7 @@ export function BusinessCardPreviewScreen() {
       setCleanBackgroundEditStatus(message);
     } finally {
       setIsEditingCleanBackground(false);
+      setActiveBackgroundEditJobId(undefined);
     }
   };
 
@@ -1012,7 +1018,32 @@ export function BusinessCardPreviewScreen() {
     <Screen>
       {cleanBackgroundEditStatus || layoutSuggestionMessage || downloadState.error || savedLayoutMessage ? (
         <ToastNoticeViewport>
-          {cleanBackgroundEditStatus ? <ToastNotice eyebrow="디자인 수정" message={cleanBackgroundEditStatus} tone={cleanBackgroundEditTone} loading={isEditingCleanBackground} onDismiss={() => setCleanBackgroundEditStatus("")} /> : null}
+          {cleanBackgroundEditStatus ? (
+            <ToastNotice
+              eyebrow="디자인 수정"
+              message={cleanBackgroundEditStatus}
+              tone={cleanBackgroundEditTone}
+              loading={isEditingCleanBackground}
+              onDismiss={() => setCleanBackgroundEditStatus("")}
+              action={activeBackgroundEditJobId ? (
+                <div className="grid grid-cols-2 gap-2">
+                  <button className="rounded-md bg-primary px-3 py-2 text-xs font-black text-white shadow-soft" type="button" onClick={() => window.open(`/api/ai-business-cards/jobs/${encodeURIComponent(activeBackgroundEditJobId)}`, "_blank", "noopener,noreferrer")}>
+                    서버 상태 보기
+                  </button>
+                  <button className="rounded-md bg-surface-blue px-3 py-2 text-xs font-black text-primary-strong shadow-soft" type="button" onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(activeBackgroundEditJobId);
+                      setCleanBackgroundEditStatus("작업 ID를 복사했어요.");
+                    } catch {
+                      setCleanBackgroundEditStatus(`작업 ID: ${activeBackgroundEditJobId}`);
+                    }
+                  }}>
+                    작업 ID 복사
+                  </button>
+                </div>
+              ) : null}
+            />
+          ) : null}
           {layoutSuggestionMessage ? <ToastNotice eyebrow="레이아웃 제안" message={layoutSuggestionMessage} tone={layoutSuggestionTone} loading={isSuggestingLayout} onDismiss={() => setLayoutSuggestionMessage("")} /> : null}
           {savedLayoutMessage ? <ToastNotice eyebrow="명함 저장" message={savedLayoutMessage} tone={savedLayoutTone} loading={isSavingDesign} onDismiss={() => setSavedLayoutMessage("")} /> : null}
           {downloadState.error ? <ToastNotice eyebrow="작업 실패" message={downloadState.error} tone="danger" onDismiss={() => setDownloadState({})} /> : null}
