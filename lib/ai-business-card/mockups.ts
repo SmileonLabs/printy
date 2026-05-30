@@ -52,6 +52,147 @@ export class AiBusinessCardMockupGenerationError extends Error {
 const mockupSheetWidth = 920;
 const mockupSideHeight = 520;
 
+type Rgb = { r: number; g: number; b: number };
+
+function clampByte(value: number) {
+  return Math.max(0, Math.min(255, Math.round(value)));
+}
+
+function rgbDistance(a: Rgb, b: Rgb) {
+  const dr = a.r - b.r;
+  const dg = a.g - b.g;
+  const db = a.b - b.b;
+  return Math.sqrt(dr * dr + dg * dg + db * db);
+}
+
+function averageRgb(pixels: Uint8Array) {
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  let count = 0;
+
+  for (let i = 0; i + 3 < pixels.length; i += 4) {
+    const a = pixels[i + 3];
+
+    if (a < 200) {
+      continue;
+    }
+
+    r += pixels[i];
+    g += pixels[i + 1];
+    b += pixels[i + 2];
+    count += 1;
+  }
+
+  if (count === 0) {
+    return { r: 255, g: 255, b: 255 };
+  }
+
+  return { r: r / count, g: g / count, b: b / count };
+}
+
+async function sanitizeCleanBackgroundBackPanel(bytes: Buffer) {
+  const image = sharp(bytes).ensureAlpha();
+  const metadata = await image.metadata();
+
+  if (!metadata.width || !metadata.height) {
+    return bytes;
+  }
+
+  const width = metadata.width;
+  const height = metadata.height;
+  const sideHeight = Math.floor(height / 2);
+
+  if (sideHeight <= 0) {
+    return bytes;
+  }
+
+  const backTop = sideHeight;
+  const backHeight = height - backTop;
+
+  // Sample a border around the back panel to estimate its background color.
+  const border = Math.max(6, Math.min(18, Math.floor(Math.min(width, backHeight) * 0.02)));
+  const backExtract = await sharp(bytes)
+    .ensureAlpha()
+    .extract({ left: 0, top: backTop, width, height: backHeight })
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const backPixels = new Uint8Array(backExtract.data);
+  const borderPixels: number[] = [];
+  const stride = width * 4;
+
+  for (let y = 0; y < backHeight; y += 1) {
+    const rowStart = y * stride;
+
+    if (y < border || y >= backHeight - border) {
+      for (let x = 0; x < width; x += 1) {
+        const i = rowStart + x * 4;
+        borderPixels.push(backPixels[i], backPixels[i + 1], backPixels[i + 2], backPixels[i + 3]);
+      }
+      continue;
+    }
+
+    for (let x = 0; x < border; x += 1) {
+      const i = rowStart + x * 4;
+      borderPixels.push(backPixels[i], backPixels[i + 1], backPixels[i + 2], backPixels[i + 3]);
+    }
+
+    for (let x = width - border; x < width; x += 1) {
+      const i = rowStart + x * 4;
+      borderPixels.push(backPixels[i], backPixels[i + 1], backPixels[i + 2], backPixels[i + 3]);
+    }
+  }
+
+  const backBackground = averageRgb(Uint8Array.from(borderPixels));
+
+  // Detect contamination near the top of the back panel (front bleed).
+  const inspectHeight = Math.max(24, Math.floor(backHeight * 0.25));
+  const inspect = await sharp(bytes)
+    .ensureAlpha()
+    .extract({ left: 0, top: backTop, width, height: inspectHeight })
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const inspectPixels = new Uint8Array(inspect.data);
+
+  let contaminated = 0;
+  let solid = 0;
+
+  for (let i = 0; i + 3 < inspectPixels.length; i += 4) {
+    const a = inspectPixels[i + 3];
+
+    if (a < 200) {
+      continue;
+    }
+
+    solid += 1;
+
+    const pixel = { r: inspectPixels[i], g: inspectPixels[i + 1], b: inspectPixels[i + 2] };
+    if (rgbDistance(pixel, backBackground) > 42) {
+      contaminated += 1;
+    }
+  }
+
+  const contaminationRatio = solid > 0 ? contaminated / solid : 0;
+
+  if (contaminationRatio < 0.03) {
+    return bytes;
+  }
+
+  // Replace the entire back panel with the estimated background color.
+  const fill = {
+    r: clampByte(backBackground.r),
+    g: clampByte(backBackground.g),
+    b: clampByte(backBackground.b),
+    alpha: 255,
+  };
+  const backPanel = await sharp({ create: { width, height: backHeight, channels: 4, background: fill } }).png().toBuffer();
+  return sharp(bytes)
+    .ensureAlpha()
+    .composite([{ input: backPanel, top: backTop, left: 0 }])
+    .png()
+    .toBuffer();
+}
+
 export function readAiBusinessCardReferenceImageDataUrl(value: unknown): AiBusinessCardReferenceImage | undefined {
   if (typeof value !== "string") {
     return undefined;
@@ -180,7 +321,7 @@ export async function generateAiBusinessCardMockups(input: AiBusinessCardInput, 
       throw new Error("OpenAI clean business card mockup generation returned no image data.");
     }
 
-    const cleanMockupBytes = Buffer.from(cleanImageData, "base64");
+    const cleanMockupBytes = await sanitizeCleanBackgroundBackPanel(Buffer.from(cleanImageData, "base64"));
     const cleanStored = await saveBrandAssetImageBytes(cleanMockupBytes);
 
     mockups.push({ id: `ai-business-card-mockup-${Date.now()}-${index + 1}`, imageUrl: stored.publicUrl, cleanImageUrl: cleanStored.publicUrl, title: `AI 명함 시안 ${index + 1}` });
@@ -241,7 +382,7 @@ STRICT RULES:
     throw new Error("OpenAI clean background edit returned no image data.");
   }
 
-  const stored = await saveBrandAssetImageBytes(Buffer.from(imageData, "base64"));
+  const stored = await saveBrandAssetImageBytes(await sanitizeCleanBackgroundBackPanel(Buffer.from(imageData, "base64")));
 
   return {
     id: `ai-business-card-background-edit-${Date.now()}`,
