@@ -91,7 +91,7 @@ function averageRgb(pixels: Uint8Array) {
   return { r: r / count, g: g / count, b: b / count };
 }
 
-async function sanitizeCleanBackgroundBackPanel(bytes: Buffer) {
+export async function sanitizeCleanBackgroundBackPanel(bytes: Buffer) {
   const image = sharp(bytes).ensureAlpha();
   const metadata = await image.metadata();
 
