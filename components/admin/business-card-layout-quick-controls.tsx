@@ -274,11 +274,10 @@ export function QuickControls({ selectedItem, position, fixed = false, portal = 
         <CanvasEditorLogoAssetTypeButtons value={logo.assetType === "svg" ? "svg" : "png"} labels={{ png: "PNG 사용", svg: "SVG 사용" }} className="grid grid-cols-2 gap-1" onChange={(assetType) => onLogoChange((current) => ({ ...current, assetType }))} />
         <div className="grid grid-cols-2 gap-1">
           <CanvasEditorCheckboxPill label="흑백 필터" checked={logo.imageFilter === "grayscale"} compact onChange={(checked) => onLogoChange((current) => ({ ...current, imageFilter: checked ? "grayscale" : undefined }))} />
-          <CanvasEditorCheckboxPill
-            label={isRemovingLogoBackground ? "처리 중" : "배경 지우기"}
-            checked={isBackgroundRemovedActive}
-            compact
-            onChange={async (checked) => {
+          <button
+            className={`inline-flex items-center justify-center rounded-md font-black transition ${"gap-1 px-2 py-1 text-[10px]"} ${isBackgroundRemovedActive ? "bg-primary text-white shadow-soft" : "bg-surface-blue text-primary-strong"} ${isRemovingLogoBackground ? "cursor-not-allowed opacity-60" : ""}`}
+            type="button"
+            onClick={async () => {
               if (isRemovingLogoBackground) {
                 return;
               }
@@ -288,20 +287,12 @@ export function QuickControls({ selectedItem, position, fixed = false, portal = 
                 return;
               }
 
-              console.info("Logo background toggle", {
-                checked,
-                logoId,
-                logoImageUrl,
-                logoOriginalImageUrl,
-                logoBackgroundRemovedImageUrl,
-                assetType: logo.assetType,
-              });
-
-              if (!checked) {
+              if (isBackgroundRemovedActive) {
                 if (logoOriginalImageUrl) {
                   onLogoChange((current) => ({ ...current, assetType: "png" }));
                   onLogoImageUrlChange(logoId, logoOriginalImageUrl);
                 }
+
                 return;
               }
 
@@ -315,7 +306,6 @@ export function QuickControls({ selectedItem, position, fixed = false, portal = 
 
               try {
                 const sourceImageUrl = logoOriginalImageUrl ?? logoImageUrl;
-                console.info("Logo background removal request", { logoId, sourceImageUrl });
                 const response = await fetch("/api/logos/remove-background", {
                   method: "POST",
                   cache: "no-store",
@@ -325,8 +315,6 @@ export function QuickControls({ selectedItem, position, fixed = false, portal = 
                 const data: unknown = await response.json().catch(() => undefined);
                 const nextUrl = typeof data === "object" && data !== null && "imageUrl" in data && typeof (data as { imageUrl?: unknown }).imageUrl === "string" ? (data as { imageUrl: string }).imageUrl : undefined;
 
-                console.info("Logo background removal response", { ok: response.ok, status: response.status, data });
-
                 if (!response.ok || !nextUrl) {
                   const reason = typeof data === "object" && data !== null && "reason" in data && typeof (data as { reason?: unknown }).reason === "string" ? (data as { reason: string }).reason : "배경 지우기에 실패했어요.";
                   throw new Error(reason);
@@ -335,7 +323,6 @@ export function QuickControls({ selectedItem, position, fixed = false, portal = 
                 const originalUrl = logoOriginalImageUrl ?? logoImageUrl;
 
                 onLogoChange((current) => ({ ...current, assetType: "png" }));
-
                 if (onLogoBackgroundRemovedImageUrlChange) {
                   onLogoBackgroundRemovedImageUrlChange(logoId, originalUrl, nextUrl);
                 } else {
@@ -347,7 +334,9 @@ export function QuickControls({ selectedItem, position, fixed = false, portal = 
                 setIsRemovingLogoBackground(false);
               }
             }}
-          />
+          >
+            {isRemovingLogoBackground ? "처리 중" : isBackgroundRemovedActive ? "원본 복원" : "배경 지우기"}
+          </button>
         </div>
       </>
     );
