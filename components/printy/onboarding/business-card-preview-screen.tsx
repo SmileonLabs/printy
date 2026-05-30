@@ -320,6 +320,7 @@ export function BusinessCardPreviewScreen() {
   const { brandDraft, memberDraft, selectedLogoId, selectedBusinessCardMemberIds, aiBusinessCardMockups, aiBusinessCardMockupStatus, aiBusinessCardMockupMessage, aiBusinessCardMockupSignature, activeAiBusinessCardMockupJobId, selectedAiBusinessCardMockupUrl, beginAiBusinessCardMockupGeneration, setActiveAiBusinessCardMockupJob, syncAiBusinessCardMockups, finishAiBusinessCardMockupGeneration, completeAiBusinessCardDesign, failAiBusinessCardMockupGeneration, selectAiBusinessCardMockup, deleteAiBusinessCardMockup, dismissAiBusinessCardPdfNotice, updateMemberDraft, updateBusinessCardProductionOptions, ensureBusinessCardDraft, syncBrandWorkspace, setGeneratedLogoImageUrl, setGeneratedLogoBackgroundRemovedImageUrl, enterDashboard, openBrandDetail, setBrandSection } = usePrintyStore();
   const isAuthenticated = usePrintyStore((state) => state.isAuthenticated);
   const authUserId = usePrintyStore((state) => state.authSession?.userId);
+  const brandWorkspaceHasPendingLocalChanges = usePrintyStore((state) => state.brandWorkspaceHasPendingLocalChanges);
   const effectiveLogoId = usePrintyStore((state) => state.brands.find((brand) => brand.id === state.selectedBrandId)?.selectedLogoId ?? selectedLogoId);
   const selectedTemplateId = usePrintyStore((state) => state.selectedTemplateId);
   const selectedTemplate = usePrintyStore((state) => state.templates.find((template) => template.id === state.selectedTemplateId));
@@ -378,7 +379,7 @@ export function BusinessCardPreviewScreen() {
   }, [selectedTemplate?.id, selectedTemplate?.layout, productionOptions]);
 
   useEffect(() => {
-    if (!isAuthenticated || !authUserId || !logo?.imageUrl || logo.vectorSvgUrl || requestedLogoVectorRefreshIdsRef.current.has(effectiveLogoId)) {
+    if (brandWorkspaceHasPendingLocalChanges || !isAuthenticated || !authUserId || !logo?.imageUrl || logo.vectorSvgUrl || requestedLogoVectorRefreshIdsRef.current.has(effectiveLogoId)) {
       return;
     }
 
@@ -404,7 +405,7 @@ export function BusinessCardPreviewScreen() {
     return () => {
       isActive = false;
     };
-  }, [authUserId, effectiveLogoId, isAuthenticated, logo?.imageUrl, logo?.vectorSvgUrl, syncBrandWorkspace]);
+  }, [authUserId, brandWorkspaceHasPendingLocalChanges, effectiveLogoId, isAuthenticated, logo?.imageUrl, logo?.vectorSvgUrl, syncBrandWorkspace]);
 
   const requestBody = () => createAiBusinessCardRequestBody(input);
   const withCurrentLayoutMockups = (mockups: AiBusinessCardMockup[]) => mockups.map((mockup) => (editableLayout ? { ...mockup, layout: cloneBusinessCardTemplateLayout(editableLayout) } : mockup));
