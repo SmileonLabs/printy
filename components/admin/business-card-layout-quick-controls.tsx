@@ -1,4 +1,6 @@
-import { type CSSProperties, type ReactNode } from "react";
+"use client";
+
+import { type CSSProperties, type ReactNode, useState } from "react";
 import { CanvasEditorCompactBoxNumberControls, CanvasEditorQrImageControl, canvasEditorFontLabels, canvasEditorTextAlignLabels, readCanvasEditorFontFamily, type CanvasEditorTextControlModel } from "@/components/design-production/canvas-editor-control-primitives";
 import { useCanvasEditorFloatingPanelDrag } from "@/components/design-production/canvas-editor-interactions";
 import { CanvasEditorCheckboxPill, CanvasEditorFloatingControls, CanvasEditorFloatingHeader, CanvasEditorFloatingVisibilityHeader, CanvasEditorFontSelect, CanvasEditorLogoAssetTypeButtons, CanvasEditorNumberInput, CanvasEditorSelectInput, CanvasEditorSolidColorInput, CanvasEditorTextColorInput, CanvasEditorTextContentInput, CanvasEditorTextFormatButtons, CanvasEditorTextStyleControls } from "@/components/design-production/canvas-editor-panels";
@@ -22,6 +24,9 @@ type QuickControlsProps = {
   icon?: BusinessCardTemplateIconElement;
   line?: BusinessCardTemplateLineElement;
   logo?: BusinessCardTemplateLogoElement;
+  logoId?: string;
+  logoImageUrl?: string;
+  onLogoImageUrlChange?: (logoId: string, imageUrl: string) => void;
   infoBlock?: BusinessCardInfoBlock;
   userQrCodeImageUrl?: string;
   onUserQrCodeImageChange?: (file: File | undefined) => void;
@@ -148,7 +153,9 @@ function businessCardTextControlModel(field: BusinessCardTemplateTextElement): C
   };
 }
 
-export function QuickControls({ selectedItem, position, fixed = false, portal = false, hideLogoVisibility = false, field, icon, line, logo, infoBlock, userQrCodeImageUrl = "", onUserQrCodeImageChange, onUserQrCodeImageClear, onPositionChange, onFieldChange, onIconChange, onLineChange, onLogoChange, onInfoBlockChange, onInfoBlockFieldsChange, onInfoBlockFieldChange, onInfoBlockIconChange }: QuickControlsProps) {
+export function QuickControls({ selectedItem, position, fixed = false, portal = false, hideLogoVisibility = false, field, icon, line, logo, logoId, logoImageUrl, onLogoImageUrlChange, infoBlock, userQrCodeImageUrl = "", onUserQrCodeImageChange, onUserQrCodeImageClear, onPositionChange, onFieldChange, onIconChange, onLineChange, onLogoChange, onInfoBlockChange, onInfoBlockFieldsChange, onInfoBlockFieldChange, onInfoBlockIconChange }: QuickControlsProps) {
+  const [isRemovingLogoBackground, setIsRemovingLogoBackground] = useState(false);
+  const [logoBackgroundRemoved, setLogoBackgroundRemoved] = useState(false);
   const panelDrag = useCanvasEditorFloatingPanelDrag({ position, onPositionChange, clampToViewport: portal });
   const controlsStyle: CSSProperties | undefined = fixed ? undefined : { left: `${position.x}px`, top: `${position.y}px` };
   const renderHeader = (title: string, actions?: ReactNode) => <CanvasEditorFloatingHeader title={title} actions={actions} onPointerDown={panelDrag.startPanelDrag} onPointerMove={panelDrag.movePanelDrag} onPointerUp={panelDrag.stopPanelDrag} onPointerCancel={panelDrag.stopPanelDrag} />;
@@ -260,7 +267,49 @@ export function QuickControls({ selectedItem, position, fixed = false, portal = 
         {hideLogoVisibility ? renderHeader("로고") : renderVisibilityHeader("로고", logo.visible, (visible) => onLogoChange((current) => ({ ...current, visible })))}
         <CompactBoxControls box={logo.box} onChange={(key, value) => onLogoChange((current) => ({ ...current, box: updateBoxValue(current.box, key, value) }))} />
         <CanvasEditorLogoAssetTypeButtons value={logo.assetType === "svg" ? "svg" : "png"} labels={{ png: "PNG 사용", svg: "SVG 사용" }} className="grid grid-cols-2 gap-1" onChange={(assetType) => onLogoChange((current) => ({ ...current, assetType }))} />
-        <CanvasEditorCheckboxPill label="흑백 필터" checked={logo.imageFilter === "grayscale"} compact onChange={(checked) => onLogoChange((current) => ({ ...current, imageFilter: checked ? "grayscale" : undefined }))} />
+        <div className="grid grid-cols-2 gap-1">
+          <CanvasEditorCheckboxPill label="흑백 필터" checked={logo.imageFilter === "grayscale"} compact onChange={(checked) => onLogoChange((current) => ({ ...current, imageFilter: checked ? "grayscale" : undefined }))} />
+          <CanvasEditorCheckboxPill
+            label={isRemovingLogoBackground ? "처리 중" : "배경 지우기"}
+            checked={logoBackgroundRemoved}
+            compact
+            onChange={async () => {
+              if (isRemovingLogoBackground) {
+                return;
+              }
+
+              if (!logoId || !logoImageUrl || !onLogoImageUrlChange) {
+                window.alert("배경을 지울 로고 정보를 찾을 수 없어요.");
+                return;
+              }
+
+              setIsRemovingLogoBackground(true);
+
+              try {
+                const response = await fetch("/api/logos/remove-background", {
+                  method: "POST",
+                  cache: "no-store",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ imageUrl: logoImageUrl }),
+                });
+                const data: unknown = await response.json().catch(() => undefined);
+                const nextUrl = typeof data === "object" && data !== null && "imageUrl" in data && typeof (data as { imageUrl?: unknown }).imageUrl === "string" ? (data as { imageUrl: string }).imageUrl : undefined;
+
+                if (!response.ok || !nextUrl) {
+                  const reason = typeof data === "object" && data !== null && "reason" in data && typeof (data as { reason?: unknown }).reason === "string" ? (data as { reason: string }).reason : "배경 지우기에 실패했어요.";
+                  throw new Error(reason);
+                }
+
+                onLogoImageUrlChange(logoId, nextUrl);
+                setLogoBackgroundRemoved(true);
+              } catch (error) {
+                window.alert(error instanceof Error ? error.message : "배경 지우기에 실패했어요.");
+              } finally {
+                setIsRemovingLogoBackground(false);
+              }
+            }}
+          />
+        </div>
       </>
     );
   }

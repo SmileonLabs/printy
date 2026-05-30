@@ -32,6 +32,8 @@ type PrintyLogoActions = Pick<
   | "startUploadedLogoForBrand"
   | "startUploadedLogoRegistration"
   | "registerUploadedLogo"
+  | "setGeneratedLogoVectorSvgUrl"
+  | "setGeneratedLogoImageUrl"
 >;
 
 export function createPrintyLogoActions(set: PrintyStoreSet, get: PrintyStoreGet): PrintyLogoActions {
@@ -396,6 +398,40 @@ export function createPrintyLogoActions(set: PrintyStoreSet, get: PrintyStoreGet
               }
             : state.backgroundLogoGenerationNotice,
           logoGenerationIntent: "initial",
+          brandWorkspaceHasPendingLocalChanges: true,
+        };
+      }),
+
+    setGeneratedLogoVectorSvgUrl: (logoId, vectorSvgUrl) =>
+      set((state) => {
+        const targetLogo = findGeneratedLogoInState(state, logoId);
+
+        if (!targetLogo || !vectorSvgUrl.trim()) {
+          return {};
+        }
+
+        const updatedLogo = { ...targetLogo, vectorSvgUrl: vectorSvgUrl.trim() };
+
+        return {
+          generatedLogoOptions: state.generatedLogoOptions.map((logo) => (logo.id === logoId ? updatedLogo : logo)),
+          savedGeneratedLogoOptions: saveGeneratedLogo(state.savedGeneratedLogoOptions, updatedLogo),
+          brandWorkspaceHasPendingLocalChanges: true,
+        };
+      }),
+
+    setGeneratedLogoImageUrl: (logoId, imageUrl) =>
+      set((state) => {
+        const targetLogo = findGeneratedLogoInState(state, logoId);
+
+        if (!targetLogo || !imageUrl.trim()) {
+          return {};
+        }
+
+        const updatedLogo = { ...targetLogo, imageUrl: imageUrl.trim() };
+
+        return {
+          generatedLogoOptions: state.generatedLogoOptions.map((logo) => (logo.id === logoId ? updatedLogo : logo)),
+          savedGeneratedLogoOptions: saveGeneratedLogo(state.savedGeneratedLogoOptions, updatedLogo),
           brandWorkspaceHasPendingLocalChanges: true,
         };
       }),
