@@ -76,6 +76,18 @@ function readApiErrorReason(value: unknown, fallback: string) {
   return typeof value === "object" && value !== null && "reason" in value && typeof value.reason === "string" ? value.reason : fallback;
 }
 
+async function readApiErrorMessage(response: Response, fallback: string) {
+  const statusLabel = response.status ? ` (HTTP ${response.status})` : "";
+
+  try {
+    const data: unknown = await response.json();
+    return readApiErrorReason(data, `${fallback}${statusLabel}`);
+  } catch {
+    // Non-JSON responses can happen (edge/proxy errors). Surface status at least.
+    return `${fallback}${statusLabel}`;
+  }
+}
+
 function mergeAiBusinessCardMockups(current: AiBusinessCardMockup[], incoming: AiBusinessCardMockup[]) {
   const merged = [...current];
 
@@ -204,8 +216,7 @@ async function saveCurrentBrandWorkspacePatch(ownerUserId: string, patch: Partia
   }
 
   if (!response.ok) {
-    const data: unknown = await response.json().catch(() => undefined);
-    throw new Error(readApiErrorReason(data, "완료 디자인을 서버에 저장하지 못했어요. 다시 저장해 주세요."));
+    throw new Error(await readApiErrorMessage(response, "완료 디자인을 서버에 저장하지 못했어요. 다시 저장해 주세요."));
   }
 
   // Patch save is intentionally write-only to avoid an extra workspace round trip.
