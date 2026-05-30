@@ -30,6 +30,19 @@ function buildPrompt() {
   return "Remove the background from this logo. Keep the original colors and shapes. Output a clean transparent-background PNG. Do not add any new text, shadows, gradients, or extra elements. Do not crop the logo tightly; keep comfortable padding.";
 }
 
+function readErrorStatus(error: unknown) {
+  return typeof error === "object" && error !== null && "status" in error && typeof (error as { status?: unknown }).status === "number" ? (error as { status: number }).status : undefined;
+}
+
+function readErrorString(error: unknown, key: "code" | "type") {
+  if (typeof error !== "object" || error === null || !(key in error)) {
+    return undefined;
+  }
+
+  const value = (error as Record<"code" | "type", unknown>)[key];
+  return typeof value === "string" ? value : undefined;
+}
+
 export async function POST(request: Request) {
   const imageUrl = readImageUrl(await request.json().catch(() => undefined));
 
@@ -74,7 +87,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ reason: "배경 지우기가 오래 걸리고 있어요. 잠시 후 다시 시도해 주세요." }, { status: 504 });
     }
 
-    console.warn("Logo background removal failed", { errorName: error instanceof Error ? error.name : "UnknownError", status: typeof error === "object" && error !== null && "status" in error && typeof (error as { status?: unknown }).status === "number" ? (error as { status: number }).status : undefined });
+    const status = readErrorStatus(error);
+    const code = readErrorString(error, "code");
+    const type = readErrorString(error, "type");
+
+    console.warn("Logo background removal failed", { errorName: error instanceof Error ? error.name : "UnknownError", status, code, type });
+
+    if (status === 400) {
+      return NextResponse.json({ reason: "로고 배경을 지울 수 없어요. 더 선명한 로고 이미지로 다시 시도해 주세요." }, { status: 422 });
+    }
+
+    if (status === 401 || status === 403) {
+      return NextResponse.json({ reason: "배경 지우기 권한 설정을 확인해야 해요. 관리자에게 OpenAI 설정을 확인해 달라고 알려주세요." }, { status: 503 });
+    }
+
+    if (status === 429) {
+      return NextResponse.json({ reason: "배경 지우기 요청이 많아요. 잠시 후 다시 시도해 주세요." }, { status: 429 });
+    }
+
     return NextResponse.json({ reason: "배경 지우기에 실패했어요. 잠시 후 다시 시도해 주세요." }, { status: 503 });
   } finally {
     clearTimeout(timeout);
