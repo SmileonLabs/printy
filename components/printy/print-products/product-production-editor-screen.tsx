@@ -1,5 +1,7 @@
 "use client";
 
+import { toPng } from "html-to-image";
+import { useRef, useState } from "react";
 import { ProductionAiDesignRequestCard, ProductionPromptCard, ProductionSizeCard } from "@/components/design-production/production-editor-cards";
 import { PrintProductEditor } from "@/components/printy/print-products/print-product-editor";
 import { PrintProductPreviewOverlay } from "@/components/printy/print-products/print-product-preview-overlay";
@@ -37,6 +39,9 @@ type ProductProductionEditorScreenProps = {
 
 export function ProductProductionEditorScreen({ adapter, draft, layout, selectedMockup, mockupPrompt, referenceImageDataUrl, referenceImageName, editorMode, isGeneratingMockup, isGeneratingPdf, canUseLogo, logoImageUrl, logoVectorSvgUrl, onLayoutChange, onSizeChange, onRequestChange, onMockupPromptChange, onReferenceImageChange, onSelectMockup, onDeleteMockup, onSave, onSendMockupPrompt, onCompleteDesign, onGeneratePdf, onDownloadPdf }: ProductProductionEditorScreenProps) {
   const isEditMode = editorMode === "edit";
+  const [isDownloadingImage, setIsDownloadingImage] = useState(false);
+  const downloadPreviewRef = useRef<HTMLDivElement>(null);
+  const activeBackgroundImageUrl = selectedMockup?.cleanImageUrl ?? selectedMockup?.imageUrl;
 
   return (
     <div className="grid w-full gap-4">
@@ -51,7 +56,42 @@ export function ProductProductionEditorScreen({ adapter, draft, layout, selected
       <ProductionAiDesignRequestCard mode={editorMode} title={isEditMode ? "AI 디자인 수정" : "AI 디자인 요청"} description={isEditMode ? "프롬프트와 참고 이미지로 현재 디자인의 배경 후보를 다시 요청해요." : "프롬프트와 참고 이미지를 입력해 배경 후보를 만들고, 완료 저장한 뒤 바로 수정 화면으로 열어요."} promptValue={draft?.request ?? ""} promptPlaceholder="예: 초록색 중심, 멀리서도 잘 보이는 고급스러운 매장 홍보 배경" onPromptChange={onRequestChange} onTemporarySave={onSave} temporarySaveLabel="저장하기" onAiRequest={onSendMockupPrompt} isAiRequestLoading={isGeneratingMockup} aiRequestDisabled={isGeneratingMockup} showSaveDesign={Boolean(draft?.mockups.length)} onSaveDesign={onCompleteDesign} saveDesignLabel="저장하기">
         <ReferenceImageInput value={referenceImageDataUrl} name={referenceImageName} onChange={onReferenceImageChange} />
       </ProductionAiDesignRequestCard>
-      {!isEditMode ? <SoftCard className="grid gap-3"><p className="text-sm font-black text-ink">인쇄용 파일</p><AppButton variant="secondary" onClick={() => draft?.pdfUrl && draft.pdfFileName ? onDownloadPdf(draft.pdfUrl, draft.pdfFileName) : onGeneratePdf()} disabled={isGeneratingPdf}>{isGeneratingPdf ? "PDF 만드는 중" : draft?.pdfUrl ? "PDF 다운 받기" : "인쇄용 PDF 파일 만들기"}</AppButton></SoftCard> : null}
+      {!isEditMode ? (
+        <SoftCard className="grid gap-3">
+          <p className="text-sm font-black text-ink">인쇄용 파일</p>
+          <AppButton variant="secondary" onClick={() => draft?.pdfUrl && draft.pdfFileName ? onDownloadPdf(draft.pdfUrl, draft.pdfFileName) : onGeneratePdf()} disabled={isGeneratingPdf}>
+            {isGeneratingPdf ? "PDF 만드는 중" : draft?.pdfUrl ? "PDF 다운 받기" : "인쇄용 PDF 파일 만들기"}
+          </AppButton>
+          <AppButton
+            variant="secondary"
+            onClick={async () => {
+              if (!downloadPreviewRef.current) {
+                return;
+              }
+
+              setIsDownloadingImage(true);
+
+              try {
+                const dataUrl = await toPng(downloadPreviewRef.current, { cacheBust: true, pixelRatio: 2 });
+                const link = document.createElement("a");
+                link.href = dataUrl;
+                link.download = `${adapter.productType}-preview.png`;
+                link.click();
+              } finally {
+                setIsDownloadingImage(false);
+              }
+            }}
+            disabled={isDownloadingImage || !activeBackgroundImageUrl}
+          >
+            {isDownloadingImage ? "이미지 만드는 중" : "이미지 다운로드"}
+          </AppButton>
+          <div className="sr-only" aria-hidden="true">
+            <div ref={downloadPreviewRef} className="w-[420px] max-w-none">
+              <PrintProductPreviewOverlay layout={layout} backgroundImageUrl={activeBackgroundImageUrl} logoImageUrl={logoImageUrl} logoVectorSvgUrl={logoVectorSvgUrl} />
+            </div>
+          </div>
+        </SoftCard>
+      ) : null}
       {!isEditMode ? <ProductionPromptCard value={mockupPrompt} onChange={onMockupPromptChange} /> : null}
       {draft?.mockups.length ? (
         <SoftCard>
