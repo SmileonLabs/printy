@@ -335,7 +335,7 @@ export function QuickControls({ selectedItem, position, fixed = false, portal = 
               }
             }}
           >
-            {isRemovingLogoBackground ? "처리 중" : isBackgroundRemovedActive ? "원본 복원" : "배경 지우기"}
+            {isRemovingLogoBackground ? "처리 중" : isBackgroundRemovedActive ? "원본 복원" : "배경 지우기"} (v2)
           </button>
         </div>
       </>
