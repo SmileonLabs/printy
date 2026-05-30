@@ -216,6 +216,42 @@ async function saveCurrentBrandWorkspacePatch(ownerUserId: string, patch: Partia
   }
 
   if (!response.ok) {
+    // Retry on transient backend unavailability.
+    if (response.status === 503) {
+      const retryDelaysMs = [500, 1500, 3000];
+      for (const delayMs of retryDelaysMs) {
+        await new Promise((resolve) => window.setTimeout(resolve, delayMs));
+
+        try {
+          const retryResponse = await fetchWithTimeout("/api/brand-workspace", {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              ...(trace ? { "x-printy-request-id": trace.requestId, "x-printy-client-action-id": trace.clientActionId } : {}),
+            },
+            body: JSON.stringify({ mode: "patch", patch }),
+          });
+
+          if (retryResponse.ok) {
+            const store = usePrintyStore.getState();
+            store.acknowledgeBrandWorkspaceSave(currentSignature, ownerUserId);
+            return;
+          }
+
+          // If still failing, keep going to next delay (only for 503).
+          if (retryResponse.status !== 503) {
+            throw new Error(await readApiErrorMessage(retryResponse, "완료 디자인을 서버에 저장하지 못했어요. 다시 저장해 주세요."));
+          }
+        } catch (error) {
+          // Network/timeout or non-503 error.
+          if (error instanceof Error) {
+            throw error;
+          }
+          throw new Error("완료 디자인 저장 중 네트워크 오류가 발생했어요. 잠시 후 다시 시도해 주세요.");
+        }
+      }
+    }
+
     throw new Error(await readApiErrorMessage(response, "완료 디자인을 서버에 저장하지 못했어요. 다시 저장해 주세요."));
   }
 

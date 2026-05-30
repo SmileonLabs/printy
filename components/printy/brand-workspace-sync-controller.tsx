@@ -69,6 +69,10 @@ async function saveBrandWorkspacePatch(patch: Partial<BrandWorkspace>) {
   }
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
 export function BrandWorkspaceSyncController() {
   const isAuthenticated = usePrintyStore((state) => state.isAuthenticated);
   const userId = usePrintyStore((state) => state.authSession?.userId);
@@ -153,7 +157,13 @@ export function BrandWorkspaceSyncController() {
       let workspaceToSave = initialWorkspace;
       let signatureToSave = initialSignature;
 
-      while (lastSavedSignaturesRef.current.get(autosaveUserId) !== signatureToSave) {
+      // Avoid a tight loop that can overwhelm the DB/API when local state churns.
+      // If the workspace changes again while saving, we perform a limited follow-up save.
+      let attempts = 0;
+
+      while (lastSavedSignaturesRef.current.get(autosaveUserId) !== signatureToSave && attempts < 2) {
+        attempts += 1;
+
         try {
           await saveBrandWorkspacePatch(workspaceToSave);
         } catch {
@@ -169,6 +179,7 @@ export function BrandWorkspaceSyncController() {
           return;
         }
 
+        await sleep(1200);
         workspaceToSave = currentWorkspace;
         signatureToSave = currentSignature;
       }
