@@ -63,7 +63,8 @@ export function ProductProductionEditorScreen({ adapter, draft, layout, selected
             {isGeneratingPdf ? "PDF 만드는 중" : draft?.pdfUrl ? "PDF 다운 받기" : "인쇄용 PDF 파일 만들기"}
           </AppButton>
           <AppButton
-            variant="secondary"
+            variant="primary"
+            className="!bg-surface-blue !text-primary-strong"
             onClick={async () => {
               if (!downloadPreviewRef.current) {
                 return;
@@ -72,11 +73,13 @@ export function ProductProductionEditorScreen({ adapter, draft, layout, selected
               setIsDownloadingImage(true);
 
               try {
-                const dataUrl = await toPng(downloadPreviewRef.current, { cacheBust: true, pixelRatio: 2 });
+                const dataUrl = await toPng(downloadPreviewRef.current, { cacheBust: true, pixelRatio: 2, fetchRequestInit: { mode: "cors" } });
                 const link = document.createElement("a");
                 link.href = dataUrl;
                 link.download = `${adapter.productType}-preview.png`;
                 link.click();
+              } catch (error) {
+                window.alert(error instanceof Error ? error.message : "이미지 다운로드에 실패했어요. 잠시 후 다시 시도해 주세요.");
               } finally {
                 setIsDownloadingImage(false);
               }
@@ -85,7 +88,7 @@ export function ProductProductionEditorScreen({ adapter, draft, layout, selected
           >
             {isDownloadingImage ? "이미지 만드는 중" : "이미지 다운로드"}
           </AppButton>
-          <div className="sr-only" aria-hidden="true">
+          <div className="fixed left-[-9999px] top-0 z-[-1] h-0 w-0 overflow-hidden opacity-0" aria-hidden="true">
             <div ref={downloadPreviewRef} className="w-[420px] max-w-none">
               <PrintProductPreviewOverlay layout={layout} backgroundImageUrl={activeBackgroundImageUrl} logoImageUrl={logoImageUrl} logoVectorSvgUrl={logoVectorSvgUrl} />
             </div>

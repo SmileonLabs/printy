@@ -79,7 +79,8 @@ function CompletedBusinessCardListItem({ entry, logo, rendererVersion, pdfRecord
           {runningMockupPdfId === mockup.id ? "PDF 만드는 중" : pdfRecords[pdfRecordKey] ? "PDF 다운 받기" : "인쇄용 PDF 만들기"}
         </AppButton>
         <AppButton
-          className="whitespace-nowrap px-2 py-2 !bg-surface/80 text-primary-strong backdrop-blur disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+          variant="secondary"
+          className="whitespace-nowrap px-2 py-2 !bg-surface-blue !text-primary-strong backdrop-blur disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
           onClick={async () => {
             if (!canDownloadImage || !previewRef.current) {
               return;
@@ -88,11 +89,13 @@ function CompletedBusinessCardListItem({ entry, logo, rendererVersion, pdfRecord
             setRunningMockupImageId(mockup.id);
 
             try {
-              const dataUrl = await toPng(previewRef.current, { cacheBust: true, pixelRatio: 2 });
+              const dataUrl = await toPng(previewRef.current, { cacheBust: true, pixelRatio: 2, fetchRequestInit: { mode: "cors" } });
               const link = document.createElement("a");
               link.href = dataUrl;
               link.download = `printy-business-card-${mockup.id}.png`;
               link.click();
+            } catch (error) {
+              window.alert(error instanceof Error ? error.message : "이미지 다운로드에 실패했어요. 잠시 후 다시 시도해 주세요.");
             } finally {
               setRunningMockupImageId(undefined);
             }
