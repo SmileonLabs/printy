@@ -889,7 +889,13 @@ export function BusinessCardPreviewScreen() {
       if (isAuthenticated && authUserId) {
         const savedDraft = draft ? usePrintyStore.getState().businessCardDrafts.find((item) => item.id === draft.id) : undefined;
         perfMark("workspace_patch_start");
-        await saveCurrentBrandWorkspacePatch(authUserId, { businessCardDrafts: savedDraft ? [savedDraft] : undefined }, trace);
+        try {
+          await saveCurrentBrandWorkspacePatch(authUserId, { businessCardDrafts: savedDraft ? [savedDraft] : undefined }, trace);
+        } catch (error) {
+          // The mockups + local draft are already saved; workspace sync can be retried by autosave later.
+          console.warn("Brand workspace patch save skipped", { errorName: error instanceof Error ? error.name : "UnknownError", errorMessage: error instanceof Error ? error.message : "Unknown error" });
+          setSavedLayoutMessage("디자인은 저장했어요. 서버 동기화가 지연되고 있어요(자동으로 다시 시도해요).");
+        }
         perfMark("workspace_patch_end");
         perfMeasure("workspace_patch", "workspace_patch_start", "workspace_patch_end");
       }
