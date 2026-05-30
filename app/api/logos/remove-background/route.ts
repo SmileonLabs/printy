@@ -43,6 +43,40 @@ function readErrorString(error: unknown, key: "code" | "type") {
   return typeof value === "string" ? value : undefined;
 }
 
+function readErrorMessage(error: unknown) {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message.slice(0, 500);
+  }
+
+  if (!isRecord(error)) {
+    return undefined;
+  }
+
+  const message = error.message;
+  return typeof message === "string" && message.trim().length > 0 ? message.trim().slice(0, 500) : undefined;
+}
+
+function readFailureMarkers(error: unknown) {
+  const name = (error instanceof Error ? error.name : isRecord(error) && typeof error.name === "string" ? error.name : "UnknownError").toLowerCase();
+  const code = readErrorString(error, "code")?.toLowerCase() ?? "";
+  const type = readErrorString(error, "type")?.toLowerCase() ?? "";
+  const message = readErrorMessage(error)?.toLowerCase() ?? "";
+
+  return [name, code, type, message].join(" ");
+}
+
+function hasAuthMarker(markers: string) {
+  return markers.includes("invalid_api_key") || markers.includes("authentication") || markers.includes("incorrect api key") || markers.includes("api key");
+}
+
+function hasPermissionMarker(markers: string) {
+  return markers.includes("permission") || markers.includes("access_denied") || markers.includes("not_authorized") || markers.includes("organization") || markers.includes("verified");
+}
+
+function hasModelUnavailableMarker(markers: string) {
+  return markers.includes("model_not_found") || markers.includes("model_not_available") || markers.includes("model_unavailable");
+}
+
 export async function POST(request: Request) {
   const imageUrl = readImageUrl(await request.json().catch(() => undefined));
 
@@ -90,14 +124,27 @@ export async function POST(request: Request) {
     const status = readErrorStatus(error);
     const code = readErrorString(error, "code");
     const type = readErrorString(error, "type");
+    const markers = readFailureMarkers(error);
 
-    console.warn("Logo background removal failed", { errorName: error instanceof Error ? error.name : "UnknownError", status, code, type });
+    console.warn("Logo background removal failed", { errorName: error instanceof Error ? error.name : "UnknownError", status, code, type, markers: markers.slice(0, 220) });
 
     if (status === 400) {
       return NextResponse.json({ reason: "로고 배경을 지울 수 없어요. 더 선명한 로고 이미지로 다시 시도해 주세요." }, { status: 422 });
     }
 
     if (status === 401 || status === 403) {
+      if (hasAuthMarker(markers)) {
+        return NextResponse.json({ reason: "OpenAI API 키 인증에 실패했어요. Cloudflare 환경변수 OPENAI_API_KEY를 다시 확인해 주세요." }, { status: 503 });
+      }
+
+      if (hasModelUnavailableMarker(markers)) {
+        return NextResponse.json({ reason: "OpenAI 이미지 모델을 사용할 수 없어요. Cloudflare OPENAI_IMAGE_MODEL 또는 모델 접근 권한을 확인해 주세요." }, { status: 503 });
+      }
+
+      if (hasPermissionMarker(markers)) {
+        return NextResponse.json({ reason: "OpenAI 이미지 모델 접근 권한이 막혔어요. 조직 인증/프로젝트 권한/모델 권한을 확인해 주세요." }, { status: 503 });
+      }
+
       return NextResponse.json({ reason: "배경 지우기 권한 설정을 확인해야 해요. 관리자에게 OpenAI 설정을 확인해 달라고 알려주세요." }, { status: 503 });
     }
 
