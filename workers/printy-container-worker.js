@@ -109,7 +109,12 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    if (url.pathname === "/api/ai-business-cards/layout-suggestion" || url.pathname === "/api/print-products/layout-suggestion" || url.pathname === "/api/print-products/drafts") {
+    if (
+      url.pathname === "/api/ai-business-cards/layout-suggestion" ||
+      url.pathname === "/api/ai-business-cards/backgrounds/clean/postprocess" ||
+      url.pathname === "/api/print-products/layout-suggestion" ||
+      url.pathname === "/api/print-products/drafts"
+    ) {
       return proxyToMainWorker(request, env);
     }
 
