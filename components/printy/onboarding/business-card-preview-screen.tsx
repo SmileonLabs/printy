@@ -876,36 +876,44 @@ export function BusinessCardPreviewScreen() {
       };
 
       setIsSavingDesign(true);
-      setSavedLayoutMessage("완료 목업 디자인을 저장하고 있어요.");
+      setSavedLayoutMessage("선택한 명함 디자인을 저장하고 있어요.");
       perfMark("save_start");
-      perfMark("mockups_save_start");
-      await saveServerMockups(layoutMockups, trace);
-      perfMark("mockups_save_end");
-      perfMeasure("mockups_save", "mockups_save_start", "mockups_save_end");
 
       const draft = completeAiBusinessCardDesign(aiBusinessCardMockupSignature ?? currentSignature, layoutMockups, cloneBusinessCardTemplateLayout(editableLayout));
-      usePrintyStore.setState({ aiBusinessCardMockupMessage: "완료 목업 디자인을 서버에 저장하고 있어요." });
+      usePrintyStore.setState({ aiBusinessCardMockupMessage: "선택한 명함 디자인을 저장했어요." });
 
-      if (isAuthenticated && authUserId) {
-        const savedDraft = draft ? usePrintyStore.getState().businessCardDrafts.find((item) => item.id === draft.id) : undefined;
-        perfMark("workspace_patch_start");
-        try {
-          await saveCurrentBrandWorkspacePatch(authUserId, { businessCardDrafts: savedDraft ? [savedDraft] : undefined }, trace);
-        } catch (error) {
-          // The mockups + local draft are already saved; workspace sync can be retried by autosave later.
-          console.warn("Brand workspace patch save skipped", { errorName: error instanceof Error ? error.name : "UnknownError", errorMessage: error instanceof Error ? error.message : "Unknown error" });
-          setSavedLayoutMessage("디자인은 저장했어요. 서버 동기화가 지연되고 있어요(자동으로 다시 시도해요).");
-        }
-        perfMark("workspace_patch_end");
-        perfMeasure("workspace_patch", "workspace_patch_start", "workspace_patch_end");
-      }
+      // Server sync is best-effort and runs in the background so the UI doesn't block.
+      if (isAuthenticated) {
+        void (async () => {
+          try {
+            perfMark("mockups_save_start");
+            await saveServerMockups(layoutMockups, trace);
+            perfMark("mockups_save_end");
+            perfMeasure("mockups_save", "mockups_save_start", "mockups_save_end");
+          } catch (error) {
+            console.warn("AI business card mockups save skipped", { errorName: error instanceof Error ? error.name : "UnknownError", errorMessage: error instanceof Error ? error.message : "Unknown error" });
+          }
 
-      perfMark("save_end");
-      perfMeasure("save_total", "save_start", "save_end");
-      if (perfAvailable) {
-        const entries = performance.getEntriesByType("measure").filter((entry) => entry.name.startsWith(`${trace.clientActionId}:`));
-        const timings = Object.fromEntries(entries.map((entry) => [entry.name.split(":").slice(1).join(":"), Math.round(entry.duration)]));
-        console.info("AI business card save timing", { clientActionId: trace.clientActionId, requestId: trace.requestId, ...timings });
+          if (authUserId) {
+            try {
+              const savedDraft = draft ? usePrintyStore.getState().businessCardDrafts.find((item) => item.id === draft.id) : undefined;
+              perfMark("workspace_patch_start");
+              await saveCurrentBrandWorkspacePatch(authUserId, { businessCardDrafts: savedDraft ? [savedDraft] : undefined }, trace);
+              perfMark("workspace_patch_end");
+              perfMeasure("workspace_patch", "workspace_patch_start", "workspace_patch_end");
+            } catch (error) {
+              console.warn("Brand workspace patch save skipped", { errorName: error instanceof Error ? error.name : "UnknownError", errorMessage: error instanceof Error ? error.message : "Unknown error" });
+            }
+          }
+
+          perfMark("save_end");
+          perfMeasure("save_total", "save_start", "save_end");
+          if (perfAvailable) {
+            const entries = performance.getEntriesByType("measure").filter((entry) => entry.name.startsWith(`${trace.clientActionId}:`));
+            const timings = Object.fromEntries(entries.map((entry) => [entry.name.split(":").slice(1).join(":"), Math.round(entry.duration)]));
+            console.info("AI business card save timing", { clientActionId: trace.clientActionId, requestId: trace.requestId, ...timings });
+          }
+        })();
       }
 
       const successMessage = isDesignEditMode ? "완료 목업 디자인을 업데이트했어요." : "선택한 명함 디자인을 저장했어요. 명함 탭으로 이동해요.";
