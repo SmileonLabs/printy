@@ -288,6 +288,15 @@ export function QuickControls({ selectedItem, position, fixed = false, portal = 
                 return;
               }
 
+              console.info("Logo background toggle", {
+                checked,
+                logoId,
+                logoImageUrl,
+                logoOriginalImageUrl,
+                logoBackgroundRemovedImageUrl,
+                assetType: logo.assetType,
+              });
+
               if (!checked) {
                 if (logoOriginalImageUrl) {
                   onLogoChange((current) => ({ ...current, assetType: "png" }));
@@ -306,6 +315,7 @@ export function QuickControls({ selectedItem, position, fixed = false, portal = 
 
               try {
                 const sourceImageUrl = logoOriginalImageUrl ?? logoImageUrl;
+                console.info("Logo background removal request", { logoId, sourceImageUrl });
                 const response = await fetch("/api/logos/remove-background", {
                   method: "POST",
                   cache: "no-store",
@@ -314,6 +324,8 @@ export function QuickControls({ selectedItem, position, fixed = false, portal = 
                 });
                 const data: unknown = await response.json().catch(() => undefined);
                 const nextUrl = typeof data === "object" && data !== null && "imageUrl" in data && typeof (data as { imageUrl?: unknown }).imageUrl === "string" ? (data as { imageUrl: string }).imageUrl : undefined;
+
+                console.info("Logo background removal response", { ok: response.ok, status: response.status, data });
 
                 if (!response.ok || !nextUrl) {
                   const reason = typeof data === "object" && data !== null && "reason" in data && typeof (data as { reason?: unknown }).reason === "string" ? (data as { reason: string }).reason : "배경 지우기에 실패했어요.";
