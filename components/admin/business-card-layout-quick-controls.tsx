@@ -156,7 +156,7 @@ function businessCardTextControlModel(field: BusinessCardTemplateTextElement): C
   };
 }
 
-export function QuickControls({ selectedItem, position, fixed = false, portal = false, hideLogoVisibility = false, field, icon, line, logo, logoId, logoImageUrl, logoOriginalImageUrl, logoBackgroundRemovedImageUrl, onLogoImageUrlChange, infoBlock, userQrCodeImageUrl = "", onUserQrCodeImageChange, onUserQrCodeImageClear, onPositionChange, onFieldChange, onIconChange, onLineChange, onLogoChange, onInfoBlockChange, onInfoBlockFieldsChange, onInfoBlockFieldChange, onInfoBlockIconChange }: QuickControlsProps) {
+export function QuickControls({ selectedItem, position, fixed = false, portal = false, hideLogoVisibility = false, field, icon, line, logo, logoId, logoImageUrl, logoOriginalImageUrl, logoBackgroundRemovedImageUrl, onLogoImageUrlChange, onLogoBackgroundRemovedImageUrlChange, infoBlock, userQrCodeImageUrl = "", onUserQrCodeImageChange, onUserQrCodeImageClear, onPositionChange, onFieldChange, onIconChange, onLineChange, onLogoChange, onInfoBlockChange, onInfoBlockFieldsChange, onInfoBlockFieldChange, onInfoBlockIconChange }: QuickControlsProps) {
   const [isRemovingLogoBackground, setIsRemovingLogoBackground] = useState(false);
   const [logoBackgroundRemoved, setLogoBackgroundRemoved] = useState(false);
   const panelDrag = useCanvasEditorFloatingPanelDrag({ position, onPositionChange, clampToViewport: portal });
@@ -290,12 +290,14 @@ export function QuickControls({ selectedItem, position, fixed = false, portal = 
 
               if (!checked) {
                 if (logoOriginalImageUrl) {
+                  onLogoChange((current) => ({ ...current, assetType: "png" }));
                   onLogoImageUrlChange(logoId, logoOriginalImageUrl);
                 }
                 return;
               }
 
               if (logoBackgroundRemovedImageUrl) {
+                onLogoChange((current) => ({ ...current, assetType: "png" }));
                 onLogoImageUrlChange(logoId, logoBackgroundRemovedImageUrl);
                 return;
               }
@@ -318,7 +320,15 @@ export function QuickControls({ selectedItem, position, fixed = false, portal = 
                   throw new Error(reason);
                 }
 
-                onLogoImageUrlChange(logoId, nextUrl);
+                const originalUrl = logoOriginalImageUrl ?? logoImageUrl;
+
+                onLogoChange((current) => ({ ...current, assetType: "png" }));
+
+                if (onLogoBackgroundRemovedImageUrlChange) {
+                  onLogoBackgroundRemovedImageUrlChange(logoId, originalUrl, nextUrl);
+                } else {
+                  onLogoImageUrlChange(logoId, nextUrl);
+                }
               } catch (error) {
                 window.alert(error instanceof Error ? error.message : "배경 지우기에 실패했어요.");
               } finally {
