@@ -58,10 +58,10 @@ export function CanvasEditorSelectableOverlayBox({ label, selected, box, childre
   return <CanvasEditorSelectableBox className={className} selectedClassName={selectedClassName} idleClassName={idleClassName} style={style} resizeHandles={resizeHandles} box={box} selected={selected} ariaLabel={`${label} 위치 이동`} onPointerDown={onPointerDown} onResizePointerDown={onResizePointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel}>{children}</CanvasEditorSelectableBox>;
 }
 
-export function CanvasEditorReadOnlyPreviewFrame({ aspectRatio, className = "", style, children }: { aspectRatio: string; className?: string; style?: CSSProperties; children: ReactNode }) {
+export function CanvasEditorReadOnlyPreviewFrame({ aspectRatio, className = "", frameClassName = "", style, children }: { aspectRatio: string; className?: string; frameClassName?: string; style?: CSSProperties; children: ReactNode }) {
   return (
     <div className={`grid place-items-center overflow-auto rounded-lg bg-surface-blue p-3 ${className}`}>
-      <div className="relative w-full overflow-hidden rounded-md border border-line bg-surface shadow-soft" style={{ aspectRatio, ...style }}>
+      <div className={`relative w-full overflow-hidden rounded-md border border-line bg-surface shadow-soft ${frameClassName}`} style={{ aspectRatio, ...style }}>
         {children}
       </div>
     </div>

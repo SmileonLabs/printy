@@ -1321,7 +1321,7 @@ function readMemberFieldValue(member: Member, field: BusinessCardTemplateTextEle
   return typeof value === "string" && value.trim() ? value.trim() : sampleFieldValue(field.id);
 }
 
-export function BusinessCardUserPreview({ layout, sideId = "front", member, logo, cleanImageUrl, className }: { layout: BusinessCardTemplateLayout; sideId?: BusinessCardTemplateSideId; member: Member; logo?: ResolvedLogoOption; cleanImageUrl?: string; className?: string }) {
+export function BusinessCardUserPreview({ layout, sideId = "front", member, logo, cleanImageUrl, flat = false, className }: { layout: BusinessCardTemplateLayout; sideId?: BusinessCardTemplateSideId; member: Member; logo?: ResolvedLogoOption; cleanImageUrl?: string; flat?: boolean; className?: string }) {
   const side = layout.sides[sideId];
   const { cssPixelScale } = getBusinessCardTrimMetrics(layout.canvas.trim);
   const trimWidthScale = businessCardTrimWidthScale(layout.canvas.trim);
@@ -1331,15 +1331,20 @@ export function BusinessCardUserPreview({ layout, sideId = "front", member, logo
   const activeBackgroundColor = readBackgroundColor(side.background);
   const cleanPreviewBackgroundStyle: CSSProperties | undefined = cleanImageUrl ? { backgroundImage: cssUrl(cleanImageUrl), backgroundSize: "100% 200%", backgroundPosition: sideId === "front" ? "center top" : "center bottom", backgroundRepeat: "no-repeat" } : undefined;
 
-  return <BusinessCardReadOnlyPreview className={className} layout={layout} sideId={sideId} contactLayout={contactLayout} activeLogoUrl={resolvedLogoUrl(logo, side.logo.assetType)} activeBackgroundColor={activeBackgroundColor} activeBackgroundImageUrl={activeBackgroundImageUrl} cleanPreviewBackgroundStyle={cleanPreviewBackgroundStyle} readFieldValue={readFieldValue} renderPixelScale={cssPixelScale} trimWidthScale={trimWidthScale} />;
+  return <BusinessCardReadOnlyPreview className={className} layout={layout} sideId={sideId} contactLayout={contactLayout} activeLogoUrl={resolvedLogoUrl(logo, side.logo.assetType)} activeBackgroundColor={activeBackgroundColor} activeBackgroundImageUrl={activeBackgroundImageUrl} cleanPreviewBackgroundStyle={cleanPreviewBackgroundStyle} readFieldValue={readFieldValue} renderPixelScale={cssPixelScale} trimWidthScale={trimWidthScale} flat={flat} />;
 }
 
-function BusinessCardReadOnlyPreview({ layout, sideId, contactLayout, activeLogoUrl, activeBackgroundColor, activeBackgroundImageUrl, cleanPreviewBackgroundStyle, readFieldValue, renderPixelScale, trimWidthScale, className }: { layout: BusinessCardTemplateLayout; sideId: BusinessCardTemplateSideId; contactLayout: BusinessCardContactLayout; activeLogoUrl?: string; activeBackgroundColor: string; activeBackgroundImageUrl: string; cleanPreviewBackgroundStyle?: CSSProperties; readFieldValue: (field: BusinessCardTemplateTextElement) => string; renderPixelScale: number; trimWidthScale: number; className?: string }) {
+function BusinessCardReadOnlyPreview({ layout, sideId, contactLayout, activeLogoUrl, activeBackgroundColor, activeBackgroundImageUrl, cleanPreviewBackgroundStyle, readFieldValue, renderPixelScale, trimWidthScale, flat = false, className }: { layout: BusinessCardTemplateLayout; sideId: BusinessCardTemplateSideId; contactLayout: BusinessCardContactLayout; activeLogoUrl?: string; activeBackgroundColor: string; activeBackgroundImageUrl: string; cleanPreviewBackgroundStyle?: CSSProperties; readFieldValue: (field: BusinessCardTemplateTextElement) => string; renderPixelScale: number; trimWidthScale: number; flat?: boolean; className?: string }) {
   const side = layout.sides[sideId];
   const canvasAspect = `${layout.canvas.trim.widthMm} / ${layout.canvas.trim.heightMm}`;
 
   return (
-    <CanvasEditorReadOnlyPreviewFrame className={className} aspectRatio={canvasAspect} style={{ backgroundColor: activeBackgroundColor || undefined, ...cleanPreviewBackgroundStyle }}>
+    <CanvasEditorReadOnlyPreviewFrame
+      className={`${flat ? "!bg-transparent !p-0 !rounded-none" : ""} ${className ?? ""}`}
+      frameClassName={flat ? "!rounded-none !border-0 !bg-transparent !shadow-none" : ""}
+      aspectRatio={canvasAspect}
+      style={{ backgroundColor: activeBackgroundColor || undefined, ...cleanPreviewBackgroundStyle }}
+    >
         {activeBackgroundImageUrl && !cleanPreviewBackgroundStyle ? <div className="pointer-events-none absolute inset-0 bg-cover bg-center" style={{ backgroundImage: cssUrl(activeBackgroundImageUrl) }} /> : null}
         {contactLayout.fields.map((field) => field.visible ? <ReadOnlyTextFieldPreview key={field.id} field={field} displayValue={field.id === "qrCode" ? readFieldValue(field) : displayBusinessCardFieldValue(field.id, readFieldValue(field))} renderPixelScale={renderPixelScale} trimWidthScale={trimWidthScale} /> : null)}
         {contactLayout.icons.map((icon) => icon.visible ? <ReadOnlyIconPreview key={icon.id} icon={icon} cssPixelScale={renderPixelScale} /> : null)}
