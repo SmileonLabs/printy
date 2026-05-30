@@ -652,14 +652,14 @@ function removeEnclosedWhiteComponents(data: Buffer, width: number, height: numb
   return removedPixels;
 }
 
-async function makeGeneratedLogoBackgroundTransparent(bytes: Uint8Array) {
+async function makeGeneratedLogoBackgroundTransparent(bytes: Uint8Array, options?: { force?: boolean }) {
   try {
     const sharp = (await import("sharp")).default;
     const { data, info } = await sharp(bytes).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
     const pixelCount = info.width * info.height;
     const backgroundColor = estimateEdgeBackgroundColor(data, info.width, info.height);
 
-    if (!isSafeGeneratedLogoBackgroundForTransparency(backgroundColor)) {
+    if (!options?.force && !isSafeGeneratedLogoBackgroundForTransparency(backgroundColor)) {
       return bytes;
     }
 
@@ -711,6 +711,10 @@ async function makeGeneratedLogoBackgroundTransparent(bytes: Uint8Array) {
     console.warn("Generated logo background transparency skipped", { errorName: error instanceof Error ? error.name : "UnknownError" });
     return bytes;
   }
+}
+
+export async function removeGeneratedLogoBackground(bytes: Uint8Array) {
+  return makeGeneratedLogoBackgroundTransparent(bytes, { force: true });
 }
 
 function readStoredContentType(contentType: string): BusinessCardBackgroundStoredFile["contentType"] {
