@@ -3,7 +3,7 @@ import "server-only";
 import type { PoolClient } from "pg";
 import type { Brand, BrandAsset, BusinessCardDraft, GeneratedLogoOption, OrderRecord, PrintProductDraft } from "@/lib/types";
 import { logoOptions } from "@/lib/mock-data";
-import { hasBrandWorkspaceData, isBrand, isBrandAsset, isBusinessCardDraft, isOrderRecord, isPrintProductDraft, readBrandWorkspace, type BrandWorkspace } from "@/lib/brand-workspace";
+import { hasBrandWorkspaceData, isBrand, isBrandAsset, isBusinessCardDraft, isOrderRecord, isPrintProductDraft, readBrandWorkspace, readBrandWorkspacePatch, type BrandWorkspace, type BrandWorkspacePatch } from "@/lib/brand-workspace";
 import { isGeneratedLogoOption } from "@/lib/logo/logoValidation";
 import { withDbClient } from "@/lib/server/db";
 import { assertGeneratedLogoStorageAvailableForPublicUrls, cleanupUnreferencedGeneratedLogoFiles, isGeneratedLogoPublicUrl } from "@/lib/server/storage";
@@ -485,6 +485,139 @@ export async function saveBrandWorkspace(userId: string, workspace: BrandWorkspa
       }
 
       return savedWorkspace;
+    } catch (error) {
+      await client.query("rollback");
+      throw error;
+    }
+  });
+}
+
+export async function saveBrandWorkspacePatch(userId: string, patch: BrandWorkspacePatch) {
+  const validPatch = readBrandWorkspacePatch(patch);
+
+  if (!validPatch) {
+    throw new Error("Invalid brand workspace patch payload.");
+  }
+
+  return withDbClient(async (client) => {
+    await ensurePrintProductDraftStorage(client);
+    await client.query("begin");
+
+    try {
+      if (validPatch.savedGeneratedLogoOptions) {
+        await assertGeneratedLogoStorageAvailableForPublicUrls(
+          validPatch.savedGeneratedLogoOptions.map((logo) => logo.imageUrl),
+          client,
+        );
+      }
+
+      for (const brand of validPatch.brands ?? []) {
+        await client.query(
+          `
+            insert into brands (user_id, id, name, category, design_request, selected_logo_id, members, assets, created_label)
+            values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9)
+            on conflict (user_id, id)
+            do update set
+              name = excluded.name,
+              category = excluded.category,
+              design_request = excluded.design_request,
+              selected_logo_id = excluded.selected_logo_id,
+              members = excluded.members,
+              assets = excluded.assets,
+              created_label = excluded.created_label,
+              updated_at = now()
+          `,
+          [userId, brand.id, brand.name, brand.category, brand.designRequest, brand.selectedLogoId, JSON.stringify(brand.members), brand.assets, brand.createdAt],
+        );
+      }
+
+      for (const logo of validPatch.savedGeneratedLogoOptions ?? []) {
+        await client.query(
+          `
+            insert into generated_logos (user_id, id, brand_id, payload)
+            values ($1, $2, $3, $4::jsonb)
+            on conflict (user_id, id)
+            do update set
+              brand_id = excluded.brand_id,
+              payload = case
+                when generated_logos.payload ? 'vectorSvgUrl' and not (excluded.payload ? 'vectorSvgUrl')
+                  then excluded.payload || jsonb_build_object('vectorSvgUrl', generated_logos.payload->>'vectorSvgUrl')
+                else excluded.payload
+              end,
+              updated_at = now()
+          `,
+          [userId, logo.id, null, JSON.stringify(logo)],
+        );
+      }
+
+      for (const draft of validPatch.businessCardDrafts ?? []) {
+        await client.query(
+          `
+            insert into business_card_drafts (user_id, id, brand_id, payload)
+            values ($1, $2, $3, $4::jsonb)
+            on conflict (user_id, id)
+            do update set
+              brand_id = excluded.brand_id,
+              payload = excluded.payload,
+              updated_at = now()
+          `,
+          [userId, draft.id, draft.brandId ?? null, JSON.stringify(draft)],
+        );
+      }
+
+      for (const draft of validPatch.printProductDrafts ?? []) {
+        await client.query(
+          `
+            insert into print_product_drafts (user_id, id, brand_id, product_type, payload)
+            values ($1, $2, $3, $4, $5::jsonb)
+            on conflict (user_id, id)
+            do update set
+              brand_id = excluded.brand_id,
+              product_type = excluded.product_type,
+              payload = excluded.payload,
+              updated_at = now()
+          `,
+          [userId, draft.id, draft.brandId, draft.productType, JSON.stringify(draft)],
+        );
+      }
+
+      for (const order of validPatch.orders ?? []) {
+        await client.query(
+          `
+            insert into orders (user_id, id, brand_id, card_draft_id, template_id, payload)
+            values ($1, $2, $3, $4, $5, $6::jsonb)
+            on conflict (user_id, id)
+            do update set
+              brand_id = excluded.brand_id,
+              card_draft_id = excluded.card_draft_id,
+              template_id = excluded.template_id,
+              payload = excluded.payload,
+              updated_at = now()
+          `,
+          [userId, order.id, order.brandId, order.cardDraftId, order.templateId ?? null, JSON.stringify(order)],
+        );
+      }
+
+      for (const asset of validPatch.brandAssets ?? []) {
+        await client.query(
+          `
+            insert into brand_assets (user_id, id, brand_id, section_id, product_id, payload)
+            values ($1, $2, $3, $4, $5, $6::jsonb)
+            on conflict (user_id, id)
+            do update set
+              brand_id = excluded.brand_id,
+              section_id = excluded.section_id,
+              product_id = excluded.product_id,
+              payload = excluded.payload,
+              updated_at = now()
+          `,
+          [userId, asset.id, asset.brandId, asset.sectionId, asset.productId, JSON.stringify(asset)],
+        );
+      }
+
+      await client.query("commit");
+
+      return { ok: true };
     } catch (error) {
       await client.query("rollback");
       throw error;

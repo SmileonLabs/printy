@@ -66,14 +66,30 @@ export async function GET(request: Request) {
 }
 
 export async function PUT(request: Request) {
+  const startedAt = Date.now();
+  const requestId = request.headers.get("x-printy-request-id") ?? undefined;
+  const clientActionId = request.headers.get("x-printy-client-action-id") ?? undefined;
+
   try {
     const session = await getCurrentDbSession();
+    const authenticatedAt = Date.now();
 
     if (!session) {
       return NextResponse.json(unauthorizedResponse, { status: 401 });
     }
 
-    const body: unknown = await request.json().catch(() => undefined);
+    const raw = await request.text().catch(() => "");
+    const payloadBytes = Buffer.byteLength(raw ?? "", "utf8");
+    const body: unknown = raw
+      ? (() => {
+          try {
+            return JSON.parse(raw);
+          } catch {
+            return undefined;
+          }
+        })()
+      : undefined;
+    const parsedAt = Date.now();
     const signature = isRecord(body) ? readSignature(body.signature) : undefined;
     const mockups = isRecord(body) ? readAiBusinessCardMockups(body.mockups) : undefined;
 
@@ -81,8 +97,27 @@ export async function PUT(request: Request) {
       return NextResponse.json(invalidResponse, { status: 400 });
     }
 
-    return NextResponse.json({ mockups: await saveAiBusinessCardMockups(session.user.id, signature, mockups) });
+    const saved = await saveAiBusinessCardMockups(session.user.id, signature, mockups);
+    const completedAt = Date.now();
+
+    console.info("AI business card mockups saved", {
+      requestId,
+      clientActionId,
+      authMs: authenticatedAt - startedAt,
+      parseMs: parsedAt - authenticatedAt,
+      saveMs: completedAt - parsedAt,
+      totalMs: completedAt - startedAt,
+      payloadBytes,
+      mockupCount: saved.length,
+    });
+
+    return NextResponse.json({ mockups: saved });
   } catch {
+    console.error("AI business card mockups save failed", {
+      requestId,
+      clientActionId,
+      totalMs: Date.now() - startedAt,
+    });
     return NextResponse.json(unavailableResponse, { status: 503 });
   }
 }

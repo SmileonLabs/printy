@@ -57,6 +57,18 @@ async function saveBrandWorkspace(workspace: BrandWorkspace) {
   return savedWorkspace;
 }
 
+async function saveBrandWorkspacePatch(patch: Partial<BrandWorkspace>) {
+  const response = await fetch("/api/brand-workspace", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mode: "patch", patch }),
+  });
+
+  if (!response.ok) {
+    throw new Error("Brand workspace patch save failed.");
+  }
+}
+
 export function BrandWorkspaceSyncController() {
   const isAuthenticated = usePrintyStore((state) => state.isAuthenticated);
   const userId = usePrintyStore((state) => state.authSession?.userId);
@@ -143,7 +155,7 @@ export function BrandWorkspaceSyncController() {
 
       while (lastSavedSignaturesRef.current.get(autosaveUserId) !== signatureToSave) {
         try {
-          await saveBrandWorkspace(workspaceToSave);
+          await saveBrandWorkspacePatch(workspaceToSave);
         } catch {
           return;
         }

@@ -33,6 +33,11 @@ type PendingBackgroundEditJob = {
   expiresAt: number;
 };
 
+type SaveTrace = {
+  requestId: string;
+  clientActionId: string;
+};
+
 const clientRequestTimeoutMs = 540_000;
 const backgroundEditRecoveryTtlMs = 15 * 60 * 1000;
 const backgroundEditRecoveryKey = "printy:ai-business-card-background-edit";
@@ -145,10 +150,18 @@ function layoutMemberContext(member: Member) {
   };
 }
 
-async function saveAiBusinessCardMockupsToServer(signature: string, mockups: AiBusinessCardMockup[]) {
+function createSaveTrace(): SaveTrace {
+  const id = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return { requestId: `req_${id}`, clientActionId: `act_${id}` };
+}
+
+async function saveAiBusinessCardMockupsToServer(signature: string, mockups: AiBusinessCardMockup[], trace?: SaveTrace) {
   const response = await fetch("/api/ai-business-cards/mockups/saved", {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(trace ? { "x-printy-request-id": trace.requestId, "x-printy-client-action-id": trace.clientActionId } : {}),
+    },
     body: JSON.stringify({ signature, mockups }),
   });
 
@@ -157,41 +170,32 @@ async function saveAiBusinessCardMockupsToServer(signature: string, mockups: AiB
   }
 }
 
-function readCurrentBrandWorkspaceSnapshot(): BrandWorkspace {
+async function saveCurrentBrandWorkspacePatch(ownerUserId: string, patch: Partial<BrandWorkspace>, trace?: SaveTrace) {
   const state = usePrintyStore.getState();
-
-  return {
+  const currentSignature = createBrandWorkspaceSignature({
     brands: state.brands,
     brandAssets: state.brandAssets,
     savedGeneratedLogoOptions: state.savedGeneratedLogoOptions,
     businessCardDrafts: state.businessCardDrafts,
     printProductDrafts: state.printProductDrafts,
     orders: state.orders,
-  };
-}
-
-async function saveCurrentBrandWorkspaceSnapshot(ownerUserId: string) {
-  const workspaceToSave = readCurrentBrandWorkspaceSnapshot();
-  const savedSignature = createBrandWorkspaceSignature(workspaceToSave);
+  });
   const response = await fetch("/api/brand-workspace", {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(workspaceToSave),
+    headers: {
+      "Content-Type": "application/json",
+      ...(trace ? { "x-printy-request-id": trace.requestId, "x-printy-client-action-id": trace.clientActionId } : {}),
+    },
+    body: JSON.stringify({ mode: "patch", patch }),
   });
 
   if (!response.ok) {
     throw new Error("완료 디자인을 서버에 저장하지 못했어요. 다시 저장해 주세요.");
   }
 
-  const workspace = readBrandWorkspace(await response.json());
-
-  if (!workspace) {
-    throw new Error("완료 디자인 저장 응답이 올바르지 않아요. 다시 저장해 주세요.");
-  }
-
+  // Patch save is intentionally write-only to avoid an extra workspace round trip.
   const store = usePrintyStore.getState();
-  store.syncBrandWorkspace(workspace, ownerUserId);
-  store.acknowledgeBrandWorkspaceSave(savedSignature, ownerUserId);
+  store.acknowledgeBrandWorkspaceSave(currentSignature, ownerUserId);
 }
 
 function createSavedMockupSearchParams(signature: string, input: { brandName: string; logoId?: string; memberName: string; memberPhone: string }) {
@@ -400,12 +404,12 @@ export function BusinessCardPreviewScreen() {
     }
   };
 
-  const saveServerMockups = async (mockups: AiBusinessCardMockup[]) => {
+  const saveServerMockups = async (mockups: AiBusinessCardMockup[], trace?: SaveTrace) => {
     if (!isAuthenticated) {
       return;
     }
 
-    await Promise.all(serverMockupKeys.map((key) => saveAiBusinessCardMockupsToServer(key, mockups)));
+    await Promise.all(serverMockupKeys.map((key) => saveAiBusinessCardMockupsToServer(key, mockups, trace)));
   };
 
   const applyBackgroundEditMockup = (mockup: AiBusinessCardMockup) => {
@@ -796,14 +800,44 @@ export function BusinessCardPreviewScreen() {
     syncProductionOptionsLayout(editableLayout);
 
     try {
+      const trace = createSaveTrace();
+      const perfAvailable = typeof performance !== "undefined" && typeof performance.mark === "function";
+      const perfMark = (name: string) => {
+        if (perfAvailable) {
+          performance.mark(`${trace.clientActionId}:${name}`);
+        }
+      };
+      const perfMeasure = (name: string, start: string, end: string) => {
+        if (perfAvailable) {
+          performance.measure(`${trace.clientActionId}:${name}`, `${trace.clientActionId}:${start}`, `${trace.clientActionId}:${end}`);
+        }
+      };
+
       setIsSavingDesign(true);
       setSavedLayoutMessage("완료 목업 디자인을 저장하고 있어요.");
-      await saveServerMockups(layoutMockups);
+      perfMark("save_start");
+      perfMark("mockups_save_start");
+      await saveServerMockups(layoutMockups, trace);
+      perfMark("mockups_save_end");
+      perfMeasure("mockups_save", "mockups_save_start", "mockups_save_end");
+
       const draft = completeAiBusinessCardDesign(aiBusinessCardMockupSignature ?? currentSignature, layoutMockups, cloneBusinessCardTemplateLayout(editableLayout));
       usePrintyStore.setState({ aiBusinessCardMockupMessage: "완료 목업 디자인을 서버에 저장하고 있어요." });
 
       if (isAuthenticated && authUserId) {
-        await saveCurrentBrandWorkspaceSnapshot(authUserId);
+        const savedDraft = draft ? usePrintyStore.getState().businessCardDrafts.find((item) => item.id === draft.id) : undefined;
+        perfMark("workspace_patch_start");
+        await saveCurrentBrandWorkspacePatch(authUserId, { businessCardDrafts: savedDraft ? [savedDraft] : undefined }, trace);
+        perfMark("workspace_patch_end");
+        perfMeasure("workspace_patch", "workspace_patch_start", "workspace_patch_end");
+      }
+
+      perfMark("save_end");
+      perfMeasure("save_total", "save_start", "save_end");
+      if (perfAvailable) {
+        const entries = performance.getEntriesByType("measure").filter((entry) => entry.name.startsWith(`${trace.clientActionId}:`));
+        const timings = Object.fromEntries(entries.map((entry) => [entry.name.split(":").slice(1).join(":"), Math.round(entry.duration)]));
+        console.info("AI business card save timing", { clientActionId: trace.clientActionId, requestId: trace.requestId, ...timings });
       }
 
       const successMessage = isDesignEditMode ? "완료 목업 디자인을 업데이트했어요." : "선택한 명함 디자인을 저장했어요. 명함 탭으로 이동해요.";

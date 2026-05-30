@@ -14,6 +14,8 @@ export type BrandWorkspace = {
   brandAssets: BrandAsset[];
 };
 
+export type BrandWorkspacePatch = Partial<BrandWorkspace>;
+
 const paymentMethods = new Set<PaymentMethod>(["간편결제", "카드", "계좌이체"]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -184,6 +186,81 @@ export function readBrandWorkspace(value: unknown): BrandWorkspace | undefined {
   }
 
   return { brands, savedGeneratedLogoOptions, businessCardDrafts, printProductDrafts, orders, brandAssets };
+}
+
+function hasUniqueIdsInOptionalArray<T extends { id: string }>(items: T[] | undefined) {
+  if (!items) {
+    return true;
+  }
+
+  return hasUniqueIds(items);
+}
+
+export function readBrandWorkspacePatch(value: unknown): BrandWorkspacePatch | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const rawBrands = Array.isArray(value.brands) ? value.brands : undefined;
+  const rawGeneratedLogos = Array.isArray(value.savedGeneratedLogoOptions) ? value.savedGeneratedLogoOptions : undefined;
+  const rawBusinessCardDrafts = Array.isArray(value.businessCardDrafts) ? value.businessCardDrafts : undefined;
+  const rawPrintProductDrafts = Array.isArray(value.printProductDrafts) ? value.printProductDrafts : undefined;
+  const rawOrders = Array.isArray(value.orders) ? value.orders : undefined;
+  const rawBrandAssets = Array.isArray(value.brandAssets) ? value.brandAssets : undefined;
+
+  const savedGeneratedLogoOptions = rawGeneratedLogos?.filter(isGeneratedLogoOption);
+  if (rawGeneratedLogos && (!savedGeneratedLogoOptions || savedGeneratedLogoOptions.length !== rawGeneratedLogos.length)) {
+    return undefined;
+  }
+
+  const allowedSelectedLogoIds = createAllowedSelectedLogoIds(savedGeneratedLogoOptions ?? []);
+
+  const brands = rawBrands?.filter(isBrand).map((brand) => normalizeBrandContacts({
+    ...brand,
+    logoIds: Array.from(new Set([brand.selectedLogoId, ...(Array.isArray(brand.logoIds) ? brand.logoIds : [])])),
+  }));
+  if (rawBrands && (!brands || brands.length !== rawBrands.length)) {
+    return undefined;
+  }
+  if (brands && brands.some((brand) => !allowedSelectedLogoIds.has(brand.selectedLogoId) || brand.logoIds.some((logoId) => !allowedSelectedLogoIds.has(logoId)))) {
+    return undefined;
+  }
+
+  const businessCardDrafts = rawBusinessCardDrafts?.filter(isBusinessCardDraft).map(normalizeBusinessCardDraftContacts);
+  if (rawBusinessCardDrafts && (!businessCardDrafts || businessCardDrafts.length !== rawBusinessCardDrafts.length)) {
+    return undefined;
+  }
+  if (businessCardDrafts && businessCardDrafts.some((draft) => !allowedSelectedLogoIds.has(draft.selectedLogoId))) {
+    return undefined;
+  }
+
+  const printProductDrafts = rawPrintProductDrafts?.filter(isPrintProductDraft);
+  if (rawPrintProductDrafts && (!printProductDrafts || printProductDrafts.length !== rawPrintProductDrafts.length)) {
+    return undefined;
+  }
+
+  const orders = rawOrders?.filter(isOrderRecord);
+  if (rawOrders && (!orders || orders.length !== rawOrders.length)) {
+    return undefined;
+  }
+
+  const brandAssets = rawBrandAssets?.filter(isBrandAsset);
+  if (rawBrandAssets && (!brandAssets || brandAssets.length !== rawBrandAssets.length)) {
+    return undefined;
+  }
+
+  if (!hasUniqueIdsInOptionalArray(brands) || !hasUniqueIdsInOptionalArray(savedGeneratedLogoOptions) || !hasUniqueIdsInOptionalArray(businessCardDrafts) || !hasUniqueIdsInOptionalArray(printProductDrafts) || !hasUniqueIdsInOptionalArray(orders) || !hasUniqueIdsInOptionalArray(brandAssets)) {
+    return undefined;
+  }
+
+  return {
+    brands,
+    savedGeneratedLogoOptions,
+    businessCardDrafts,
+    printProductDrafts,
+    orders,
+    brandAssets,
+  };
 }
 
 function mergeById<T extends { id: string }>(localItems: T[], serverItems: T[]) {
