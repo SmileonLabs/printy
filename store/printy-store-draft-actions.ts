@@ -7,7 +7,9 @@ type PrintyStoreSet = Parameters<StateCreator<PrintyState, [], [], PrintyState>>
 
 type PrintyDraftActions = Pick<PrintyState, "updateBrandDraft" | "updateMemberDraft" | "updateOrderOption" | "selectPaymentMethod" | "updateShippingInfo" | "addBrandMember" | "updateBrandMember" | "deleteBrandMember" | "cancelOrder">;
 
-export function createPrintyDraftActions(set: PrintyStoreSet): PrintyDraftActions {
+type PrintyDraftActionsWithCompletedMockup = Pick<PrintyState, "setBusinessCardDraftCompletedMockupCleanImageUrl">;
+
+export function createPrintyDraftActions(set: PrintyStoreSet): PrintyDraftActions & PrintyDraftActionsWithCompletedMockup {
   return {
     updateBrandDraft: (field, value) =>
       set((state) => ({
@@ -62,6 +64,12 @@ export function createPrintyDraftActions(set: PrintyStoreSet): PrintyDraftAction
     cancelOrder: (orderId) =>
       set((state) => ({
         orders: state.orders.map((order) => (order.id === orderId && order.status === "pendingDeposit" ? { ...order, status: "cancelled", statusLabel: orderStatusLabel("cancelled") } : order)),
+        brandWorkspaceHasPendingLocalChanges: true,
+      })),
+
+    setBusinessCardDraftCompletedMockupCleanImageUrl: (draftId, cleanImageUrl) =>
+      set((state) => ({
+        businessCardDrafts: state.businessCardDrafts.map((draft) => (draft.id === draftId && draft.completedMockup ? { ...draft, completedMockup: { ...draft.completedMockup, cleanImageUrl } } : draft)),
         brandWorkspaceHasPendingLocalChanges: true,
       })),
   };

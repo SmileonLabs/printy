@@ -57,6 +57,7 @@ function CompletedBusinessCardListItem({ entry, logo, rendererVersion, pdfRecord
   onDownloadPdf: (entry: CompletedBusinessCardEntry, member: Member | undefined, layout: BusinessCardTemplateLayout | undefined) => void;
 }) {
   const copyCompletedBusinessCardDraft = usePrintyStore((state) => state.copyCompletedBusinessCardDraft);
+  const setBusinessCardDraftCompletedMockupCleanImageUrl = usePrintyStore((state) => state.setBusinessCardDraftCompletedMockupCleanImageUrl);
   const { mockup } = entry;
   const matchedMember = resolveMember(entry);
   const completedLayout = resolveLayout(entry);
@@ -83,6 +84,38 @@ function CompletedBusinessCardListItem({ entry, logo, rendererVersion, pdfRecord
         <AppButton className="whitespace-nowrap px-2 py-2 !bg-emerald-600/60 backdrop-blur disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0" variant="success" onClick={() => onEdit(entry, matchedMember, completedLayout)}>디자인 수정하기</AppButton>
         <AppButton className="whitespace-nowrap px-2 py-2 !bg-primary/60 backdrop-blur disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0" variant="primary" onClick={() => onDownloadPdf(entry, matchedMember, completedLayout)} disabled={runningMockupPdfId === mockup.id || !mockup.cleanImageUrl}>
           {runningMockupPdfId === mockup.id ? "PDF 만드는 중" : pdfRecords[pdfRecordKey] ? "PDF 다운 받기" : "인쇄용 PDF 만들기"}
+        </AppButton>
+        <AppButton
+          variant="secondary"
+          className="whitespace-nowrap px-2 py-2 !bg-surface/80 text-ink backdrop-blur disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+          onClick={async () => {
+            if (!entry.draft?.completedMockup?.cleanImageUrl) {
+              return;
+            }
+
+            try {
+              const response = await fetch("/api/ai-business-cards/backgrounds/clean/postprocess", {
+                method: "POST",
+                cache: "no-store",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ cleanImageUrl: entry.draft.completedMockup.cleanImageUrl }),
+              });
+              const data: unknown = await response.json().catch(() => undefined);
+              const nextUrl = typeof data === "object" && data !== null && "cleanImageUrl" in data && typeof (data as { cleanImageUrl?: unknown }).cleanImageUrl === "string" ? (data as { cleanImageUrl: string }).cleanImageUrl : undefined;
+
+              if (!response.ok || !nextUrl) {
+                const reason = typeof data === "object" && data !== null && "reason" in data && typeof (data as { reason?: unknown }).reason === "string" ? (data as { reason: string }).reason : "클린 배경 후보정에 실패했어요.";
+                throw new Error(reason);
+              }
+
+              setBusinessCardDraftCompletedMockupCleanImageUrl(entry.draft.id, nextUrl);
+            } catch (error) {
+              window.alert(error instanceof Error ? error.message : "클린 배경 후보정에 실패했어요.");
+            }
+          }}
+          disabled={!entry.draft?.completedMockup?.cleanImageUrl}
+        >
+          클린 배경 후보정
         </AppButton>
         <AppButton
           variant="secondary"

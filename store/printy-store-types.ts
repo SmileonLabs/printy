@@ -145,6 +145,7 @@ export type PrintyState = {
   ensureBusinessCardDraft: (layout?: BusinessCardTemplateLayout) => BusinessCardDraft;
   copyCompletedBusinessCardDraft: (draftId: string, nextMemberName: string) => BusinessCardDraft | undefined;
   selectBusinessCardMemberForPreview: (memberId: string) => void;
+  setBusinessCardDraftCompletedMockupCleanImageUrl: (draftId: string, cleanImageUrl: string) => void;
   deleteBusinessCardDraft: (draftId: string) => void;
   beginAiBusinessCardMockupGeneration: (signature: string, message?: string) => void;
   setActiveAiBusinessCardMockupJob: (jobId?: string) => void;
