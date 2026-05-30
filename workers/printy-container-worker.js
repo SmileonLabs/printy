@@ -121,7 +121,7 @@ export default {
       return proxyToMainWorker(request, env);
     }
 
-    const container = env.PRINTY_CONTAINER.getByName("printy-main-v83");
+    const container = env.PRINTY_CONTAINER.getByName("printy-main-v84");
     await container.startAndWaitForPorts(3000, {
       instanceGetTimeoutMS: 30_000,
       portReadyTimeoutMS: 90_000,
