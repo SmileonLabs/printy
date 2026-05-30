@@ -56,16 +56,16 @@ export function PrintyApp() {
       <BrandWorkspaceSyncController />
       <PhoneShell
         topLeftAction={<ShellBackButton />}
-        topRightAction={
-          showDashboardTopActions ? (
-            <div className="flex items-center">
+         topRightAction={
+           showDashboardTopActions ? (
+            <div className="flex items-center -space-x-1">
               <IconButton label={`활동 알림 보기${activityCount > 0 ? ` ${activityCount}개` : ""}`} icon="notification" onClick={openNotifications} />
               <IconButton label="새 브랜드 만들기" icon="plus" onClick={startNewBrand} />
             </div>
-          ) : undefined
-        }
-        onLogoClick={handleLogoClick}
-      >
+           ) : undefined
+         }
+         onLogoClick={handleLogoClick}
+       >
         <ToastNoticeViewport>
           <GlobalLogoGenerationNotice />
           <GlobalBrandMockupNotice />
