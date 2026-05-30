@@ -130,6 +130,7 @@ export type PrintyState = {
   registerUploadedLogo: (logo: GeneratedLogoOption) => void;
   setGeneratedLogoVectorSvgUrl: (logoId: string, vectorSvgUrl: string) => void;
   setGeneratedLogoImageUrl: (logoId: string, imageUrl: string) => void;
+  setGeneratedLogoBackgroundRemovedImageUrl: (logoId: string, originalImageUrl: string, backgroundRemovedImageUrl: string) => void;
   updateMemberDraft: (field: keyof Member, value: string) => void;
   updateOrderOption: <K extends keyof OrderOptions>(field: K, value: OrderOptions[K]) => void;
   selectPaymentMethod: (method: PaymentMethod) => void;

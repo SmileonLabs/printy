@@ -129,6 +129,8 @@ export type GeneratedLogoOption = {
   label: string;
   description: string;
   imageUrl: string;
+  originalImageUrl?: string;
+  backgroundRemovedImageUrl?: string;
   vectorSvgUrl?: string;
   source: GeneratedLogoSource;
   prompt?: string;

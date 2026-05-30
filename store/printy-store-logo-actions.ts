@@ -34,6 +34,7 @@ type PrintyLogoActions = Pick<
   | "registerUploadedLogo"
   | "setGeneratedLogoVectorSvgUrl"
   | "setGeneratedLogoImageUrl"
+  | "setGeneratedLogoBackgroundRemovedImageUrl"
 >;
 
 export function createPrintyLogoActions(set: PrintyStoreSet, get: PrintyStoreGet): PrintyLogoActions {
@@ -428,6 +429,28 @@ export function createPrintyLogoActions(set: PrintyStoreSet, get: PrintyStoreGet
         }
 
         const updatedLogo = { ...targetLogo, imageUrl: imageUrl.trim() };
+
+        return {
+          generatedLogoOptions: state.generatedLogoOptions.map((logo) => (logo.id === logoId ? updatedLogo : logo)),
+          savedGeneratedLogoOptions: saveGeneratedLogo(state.savedGeneratedLogoOptions, updatedLogo),
+          brandWorkspaceHasPendingLocalChanges: true,
+        };
+      }),
+
+    setGeneratedLogoBackgroundRemovedImageUrl: (logoId, originalImageUrl, backgroundRemovedImageUrl) =>
+      set((state) => {
+        const targetLogo = findGeneratedLogoInState(state, logoId);
+
+        if (!targetLogo || !originalImageUrl.trim() || !backgroundRemovedImageUrl.trim()) {
+          return {};
+        }
+
+        const updatedLogo = {
+          ...targetLogo,
+          originalImageUrl: targetLogo.originalImageUrl ?? originalImageUrl.trim(),
+          backgroundRemovedImageUrl: backgroundRemovedImageUrl.trim(),
+          imageUrl: backgroundRemovedImageUrl.trim(),
+        };
 
         return {
           generatedLogoOptions: state.generatedLogoOptions.map((logo) => (logo.id === logoId ? updatedLogo : logo)),

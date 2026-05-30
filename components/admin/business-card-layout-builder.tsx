@@ -23,8 +23,11 @@ type BusinessCardLayoutBuilderProps = {
   userQrCodeImageUrl?: string;
   logoId?: string;
   logoImageUrl?: string;
+  logoOriginalImageUrl?: string;
+  logoBackgroundRemovedImageUrl?: string;
   logoVectorSvgUrl?: string;
   onLogoImageUrlChange?: (logoId: string, imageUrl: string) => void;
+  onLogoBackgroundRemovedImageUrlChange?: (logoId: string, originalImageUrl: string, backgroundRemovedImageUrl: string) => void;
   cleanPreviewImageUrl?: string;
   activeSideId?: BusinessCardTemplateSideId;
   onActiveSideChange?: (sideId: BusinessCardTemplateSideId) => void;
@@ -344,7 +347,7 @@ function iconMarkup(iconId: BusinessCardTemplateIconId, className = "block h-ful
   );
 }
 
-export function BusinessCardLayoutBuilder({ layout, orientation, managedBackgrounds, mode = "admin", userFieldValues, userQrCodeImageUrl = "", logoId, logoImageUrl, logoVectorSvgUrl, onLogoImageUrlChange, cleanPreviewImageUrl, activeSideId, onActiveSideChange, onOrientationChange, onUserFieldValueChange, onUserQrCodeImageChange, onUserQrCodeImageClear, onChange }: BusinessCardLayoutBuilderProps) {
+export function BusinessCardLayoutBuilder({ layout, orientation, managedBackgrounds, mode = "admin", userFieldValues, userQrCodeImageUrl = "", logoId, logoImageUrl, logoOriginalImageUrl, logoBackgroundRemovedImageUrl, logoVectorSvgUrl, onLogoImageUrlChange, onLogoBackgroundRemovedImageUrlChange, cleanPreviewImageUrl, activeSideId, onActiveSideChange, onOrientationChange, onUserFieldValueChange, onUserQrCodeImageChange, onUserQrCodeImageClear, onChange }: BusinessCardLayoutBuilderProps) {
   const [activeSideState, setActiveSideState] = useState<BusinessCardTemplateSideId>("front");
   const [selectedItem, setSelectedItem] = useState<SelectedItem | undefined>({ type: "field", fieldId: "name" });
   const [controlsPosition, setControlsPosition] = useState<ControlsPosition>({ x: 24, y: 132 });
@@ -1216,7 +1219,7 @@ export function BusinessCardLayoutBuilder({ layout, orientation, managedBackgrou
               <CheckboxPill label="격자 보기" checked={showGrid} onChange={setShowGrid} />
             </div>
           </div>
-          {selectedItem && (selectedItem.type !== "logo" || side.logo.visible) ? <QuickControls portal selectedItem={selectedItem} position={selectedControlsPosition} field={selectedItem.type === "field" ? selectedField : undefined} icon={selectedIcon} line={selectedLine} logo={selectedItem.type === "logo" ? side.logo : undefined} infoBlock={selectedInfoBlock} userQrCodeImageUrl={userQrCodeImageUrl} logoId={logoId} logoImageUrl={logoImageUrl} onLogoImageUrlChange={onLogoImageUrlChange} onUserQrCodeImageChange={onUserQrCodeImageChange} onUserQrCodeImageClear={onUserQrCodeImageClear} onPositionChange={updateSelectedControlsPosition} onFieldChange={(updater) => updateField(selectedFieldId, updater)} onIconChange={(updater) => selectedIcon ? updateIcon(selectedIcon.id, updater) : undefined} onLineChange={(updater) => selectedLine ? updateLine(selectedLine.id, updater) : undefined} onLogoChange={(updater) => updateActiveSide({ ...side, logo: updater(side.logo) })} onInfoBlockChange={(updater) => selectedInfoBlock ? updateInfoBlock(selectedInfoBlock, updater) : undefined} onInfoBlockFieldsChange={(updater) => selectedInfoBlock ? updateInfoBlockFields(selectedInfoBlock, updater) : undefined} onInfoBlockFieldChange={updateInfoBlockField} onInfoBlockIconChange={(updater) => selectedInfoBlock ? updateInfoBlockIcon(selectedInfoBlock, updater) : undefined} /> : null}
+          {selectedItem && (selectedItem.type !== "logo" || side.logo.visible) ? <QuickControls portal selectedItem={selectedItem} position={selectedControlsPosition} field={selectedItem.type === "field" ? selectedField : undefined} icon={selectedIcon} line={selectedLine} logo={selectedItem.type === "logo" ? side.logo : undefined} infoBlock={selectedInfoBlock} userQrCodeImageUrl={userQrCodeImageUrl} logoId={logoId} logoImageUrl={logoImageUrl} logoOriginalImageUrl={logoOriginalImageUrl} logoBackgroundRemovedImageUrl={logoBackgroundRemovedImageUrl} onLogoImageUrlChange={onLogoImageUrlChange} onLogoBackgroundRemovedImageUrlChange={onLogoBackgroundRemovedImageUrlChange} onUserQrCodeImageChange={onUserQrCodeImageChange} onUserQrCodeImageClear={onUserQrCodeImageClear} onPositionChange={updateSelectedControlsPosition} onFieldChange={(updater) => updateField(selectedFieldId, updater)} onIconChange={(updater) => selectedIcon ? updateIcon(selectedIcon.id, updater) : undefined} onLineChange={(updater) => selectedLine ? updateLine(selectedLine.id, updater) : undefined} onLogoChange={(updater) => updateActiveSide({ ...side, logo: updater(side.logo) })} onInfoBlockChange={(updater) => selectedInfoBlock ? updateInfoBlock(selectedInfoBlock, updater) : undefined} onInfoBlockFieldsChange={(updater) => selectedInfoBlock ? updateInfoBlockFields(selectedInfoBlock, updater) : undefined} onInfoBlockFieldChange={updateInfoBlockField} onInfoBlockIconChange={(updater) => selectedInfoBlock ? updateInfoBlockIcon(selectedInfoBlock, updater) : undefined} /> : null}
           <div className="relative overflow-visible">
           <CanvasEditorZoomFrame contentClassName="pb-4 pr-4" toolbarActions={isUserMode ? <button className={`grid h-7 w-7 place-items-center rounded-sm ${showIconPicker ? "bg-primary text-white" : "bg-surface-blue text-primary-strong"}`} type="button" aria-label="아이콘" title="아이콘" aria-expanded={showIconPicker} onClick={() => setShowIconPicker((current) => !current)}>{iconMarkup(defaultUserIconId, "block h-3.5 w-3.5")}</button> : null}>
           <div className={`grid place-items-center rounded-lg ${isUserMode ? "bg-transparent p-0" : "bg-[radial-gradient(circle_at_20%_20%,var(--color-primary-soft)_0%,transparent_28%),linear-gradient(135deg,var(--color-surface)_0%,var(--color-surface-blue)_100%)] p-4 sm:p-6 lg:p-8"}`}>

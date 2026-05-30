@@ -26,7 +26,10 @@ type QuickControlsProps = {
   logo?: BusinessCardTemplateLogoElement;
   logoId?: string;
   logoImageUrl?: string;
+  logoOriginalImageUrl?: string;
+  logoBackgroundRemovedImageUrl?: string;
   onLogoImageUrlChange?: (logoId: string, imageUrl: string) => void;
+  onLogoBackgroundRemovedImageUrlChange?: (logoId: string, originalImageUrl: string, backgroundRemovedImageUrl: string) => void;
   infoBlock?: BusinessCardInfoBlock;
   userQrCodeImageUrl?: string;
   onUserQrCodeImageChange?: (file: File | undefined) => void;
@@ -153,7 +156,7 @@ function businessCardTextControlModel(field: BusinessCardTemplateTextElement): C
   };
 }
 
-export function QuickControls({ selectedItem, position, fixed = false, portal = false, hideLogoVisibility = false, field, icon, line, logo, logoId, logoImageUrl, onLogoImageUrlChange, infoBlock, userQrCodeImageUrl = "", onUserQrCodeImageChange, onUserQrCodeImageClear, onPositionChange, onFieldChange, onIconChange, onLineChange, onLogoChange, onInfoBlockChange, onInfoBlockFieldsChange, onInfoBlockFieldChange, onInfoBlockIconChange }: QuickControlsProps) {
+export function QuickControls({ selectedItem, position, fixed = false, portal = false, hideLogoVisibility = false, field, icon, line, logo, logoId, logoImageUrl, logoOriginalImageUrl, logoBackgroundRemovedImageUrl, onLogoImageUrlChange, infoBlock, userQrCodeImageUrl = "", onUserQrCodeImageChange, onUserQrCodeImageClear, onPositionChange, onFieldChange, onIconChange, onLineChange, onLogoChange, onInfoBlockChange, onInfoBlockFieldsChange, onInfoBlockFieldChange, onInfoBlockIconChange }: QuickControlsProps) {
   const [isRemovingLogoBackground, setIsRemovingLogoBackground] = useState(false);
   const [logoBackgroundRemoved, setLogoBackgroundRemoved] = useState(false);
   const panelDrag = useCanvasEditorFloatingPanelDrag({ position, onPositionChange, clampToViewport: portal });
@@ -262,6 +265,8 @@ export function QuickControls({ selectedItem, position, fixed = false, portal = 
   }
 
   if (selectedItem.type === "logo" && logo) {
+    const isBackgroundRemovedActive = Boolean(logoBackgroundRemovedImageUrl && logoImageUrl && logoBackgroundRemovedImageUrl === logoImageUrl);
+
     return renderPanel(
       <>
         {hideLogoVisibility ? renderHeader("로고") : renderVisibilityHeader("로고", logo.visible, (visible) => onLogoChange((current) => ({ ...current, visible })))}
@@ -271,9 +276,9 @@ export function QuickControls({ selectedItem, position, fixed = false, portal = 
           <CanvasEditorCheckboxPill label="흑백 필터" checked={logo.imageFilter === "grayscale"} compact onChange={(checked) => onLogoChange((current) => ({ ...current, imageFilter: checked ? "grayscale" : undefined }))} />
           <CanvasEditorCheckboxPill
             label={isRemovingLogoBackground ? "처리 중" : "배경 지우기"}
-            checked={logoBackgroundRemoved}
+            checked={isBackgroundRemovedActive}
             compact
-            onChange={async () => {
+            onChange={async (checked) => {
               if (isRemovingLogoBackground) {
                 return;
               }
@@ -283,14 +288,27 @@ export function QuickControls({ selectedItem, position, fixed = false, portal = 
                 return;
               }
 
+              if (!checked) {
+                if (logoOriginalImageUrl) {
+                  onLogoImageUrlChange(logoId, logoOriginalImageUrl);
+                }
+                return;
+              }
+
+              if (logoBackgroundRemovedImageUrl) {
+                onLogoImageUrlChange(logoId, logoBackgroundRemovedImageUrl);
+                return;
+              }
+
               setIsRemovingLogoBackground(true);
 
               try {
+                const sourceImageUrl = logoOriginalImageUrl ?? logoImageUrl;
                 const response = await fetch("/api/logos/remove-background", {
                   method: "POST",
                   cache: "no-store",
                   headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ imageUrl: logoImageUrl }),
+                  body: JSON.stringify({ imageUrl: sourceImageUrl }),
                 });
                 const data: unknown = await response.json().catch(() => undefined);
                 const nextUrl = typeof data === "object" && data !== null && "imageUrl" in data && typeof (data as { imageUrl?: unknown }).imageUrl === "string" ? (data as { imageUrl: string }).imageUrl : undefined;
@@ -301,7 +319,6 @@ export function QuickControls({ selectedItem, position, fixed = false, portal = 
                 }
 
                 onLogoImageUrlChange(logoId, nextUrl);
-                setLogoBackgroundRemoved(true);
               } catch (error) {
                 window.alert(error instanceof Error ? error.message : "배경 지우기에 실패했어요.");
               } finally {
