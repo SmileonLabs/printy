@@ -168,6 +168,17 @@ export function createPrintyOnboardingActions(set: PrintyStoreSet, get: PrintySt
         return undefined;
       }
 
+      const latest = get();
+      const hasActiveDraft = Boolean(latest.activeBusinessCardDraftId && latest.businessCardDrafts.some((item) => item.id === latest.activeBusinessCardDraftId));
+
+      if (latest.businessCardEditorMode === "edit" && !hasActiveDraft) {
+        const matchedDraft = latest.businessCardDrafts.find((item) => item.brandId === latest.selectedBrandId && item.completedMockupSignature === signature);
+
+        if (matchedDraft) {
+          set({ activeBusinessCardDraftId: matchedDraft.id });
+        }
+      }
+
       const draft = get().ensureBusinessCardDraft(layout);
 
       set((state) => ({
