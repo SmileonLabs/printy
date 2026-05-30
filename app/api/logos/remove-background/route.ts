@@ -40,9 +40,12 @@ export async function POST(request: Request) {
   try {
     const processed = await removeGeneratedLogoBackground(bytes);
     const stored = await saveGeneratedLogoBytes(processed);
-    return NextResponse.json({ imageUrl: stored.publicUrl }, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({ imageUrl: stored.publicUrl, debug: { size: stored.size } }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
-    console.warn("Logo background removal failed", { errorName: error instanceof Error ? error.name : "UnknownError" });
-    return NextResponse.json({ reason: "배경 지우기에 실패했어요. 더 선명한 로고 이미지로 다시 시도해 주세요." }, { status: 503 });
+    console.warn("Logo background removal failed", {
+      errorName: error instanceof Error ? error.name : "UnknownError",
+      errorMessage: error instanceof Error ? error.message : undefined,
+    });
+    return NextResponse.json({ reason: "배경 지우기에 실패했어요. 잠시 후 다시 시도해 주세요." }, { status: 503 });
   }
 }
