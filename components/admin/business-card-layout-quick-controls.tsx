@@ -291,14 +291,22 @@ export function QuickControls({ selectedItem, position, fixed = false, portal = 
                 if (logoOriginalImageUrl) {
                   onLogoChange((current) => ({ ...current, assetType: "png" }));
                   onLogoImageUrlChange(logoId, logoOriginalImageUrl);
+                } else {
+                  window.alert("원본 로고 경로가 없어서 복원할 수 없어요. 로고를 다시 선택하거나 다시 등록해 주세요.");
                 }
 
                 return;
               }
 
               if (logoBackgroundRemovedImageUrl) {
+                const originalUrl = logoOriginalImageUrl ?? logoImageUrl;
+
                 onLogoChange((current) => ({ ...current, assetType: "png" }));
-                onLogoImageUrlChange(logoId, logoBackgroundRemovedImageUrl);
+                if (onLogoBackgroundRemovedImageUrlChange) {
+                  onLogoBackgroundRemovedImageUrlChange(logoId, originalUrl, logoBackgroundRemovedImageUrl);
+                } else {
+                  onLogoImageUrlChange(logoId, logoBackgroundRemovedImageUrl);
+                }
                 return;
               }
 
