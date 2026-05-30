@@ -8,7 +8,7 @@ import type { PrintyState } from "@/store/printy-store-types";
 
 export const PRINTY_STORE_STORAGE_KEY = "printy-store";
 
-const defaultBusinessCardProductionOptions: BusinessCardProductionOptions = { frontElements: [], backElements: [], color: "black", sizeId: "business-card-90x50", widthMm: 90, heightMm: 50 };
+const defaultBusinessCardProductionOptions: BusinessCardProductionOptions = { frontElements: [], backElements: [], color: "black", sizeId: "business-card-90x50", widthMm: 92, heightMm: 52 };
 const businessCardUserElementIds: readonly BusinessCardUserElementId[] = ["brandName", "category", "name", "role", "phone", "mainPhone", "fax", "email", "website", "address", "account", "instagram", "instagramIcon", "qrCode"];
 const businessCardColorPaletteIds: readonly BusinessCardColorPaletteId[] = ["black", "white", "green", "yellow", "blue", "red"];
 

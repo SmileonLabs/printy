@@ -91,7 +91,56 @@ function averageRgb(pixels: Uint8Array) {
   return { r: r / count, g: g / count, b: b / count };
 }
 
-export async function sanitizeCleanBackgroundBackPanel(bytes: Buffer) {
+function adjacentRowDistance(pixels: Uint8Array, width: number, row: number, step: number) {
+  let total = 0;
+  let count = 0;
+  const currentRowStart = row * width * 4;
+  const previousRowStart = (row - 1) * width * 4;
+
+  for (let x = 0; x < width; x += step) {
+    const currentIndex = currentRowStart + x * 4;
+    const previousIndex = previousRowStart + x * 4;
+    const currentAlpha = pixels[currentIndex + 3];
+    const previousAlpha = pixels[previousIndex + 3];
+
+    if (currentAlpha < 200 || previousAlpha < 200) {
+      continue;
+    }
+
+    total += rgbDistance(
+      { r: pixels[currentIndex], g: pixels[currentIndex + 1], b: pixels[currentIndex + 2] },
+      { r: pixels[previousIndex], g: pixels[previousIndex + 1], b: pixels[previousIndex + 2] },
+    );
+    count += 1;
+  }
+
+  return count > 0 ? total / count : 0;
+}
+
+function detectBackPanelStartOffset(backPixels: Uint8Array, width: number, backHeight: number) {
+  const minOffset = Math.max(8, Math.floor(backHeight * 0.04));
+  const maxOffset = Math.max(minOffset + 1, Math.floor(backHeight * 0.38));
+  const sampleStep = Math.max(1, Math.floor(width / 180));
+  let bestOffset = 0;
+  let bestScore = 0;
+
+  for (let y = minOffset; y < maxOffset; y += 1) {
+    const score = adjacentRowDistance(backPixels, width, y, sampleStep);
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestOffset = y;
+    }
+  }
+
+  if (bestOffset >= minOffset && bestScore > 10) {
+    return bestOffset;
+  }
+
+  return Math.floor(backHeight * 0.18);
+}
+
+export async function sanitizeCleanBackgroundBackPanel(bytes: Buffer, options?: { force?: boolean }) {
   const image = sharp(bytes).ensureAlpha();
   const metadata = await image.metadata();
 
@@ -145,8 +194,8 @@ export async function sanitizeCleanBackgroundBackPanel(bytes: Buffer) {
 
   const backBackground = averageRgb(Uint8Array.from(borderPixels));
 
-  // Detect contamination near the top of the back panel (front bleed).
-  const inspectHeight = Math.max(24, Math.floor(backHeight * 0.25));
+  // Detect front-panel bleed below the exact vertical midpoint.
+  const inspectHeight = Math.min(backHeight, Math.max(24, Math.floor(backHeight * 0.35)));
   const inspect = await sharp(bytes)
     .ensureAlpha()
     .extract({ left: 0, top: backTop, width, height: inspectHeight })
@@ -154,41 +203,68 @@ export async function sanitizeCleanBackgroundBackPanel(bytes: Buffer) {
     .toBuffer({ resolveWithObject: true });
   const inspectPixels = new Uint8Array(inspect.data);
 
-  let contaminated = 0;
-  let solid = 0;
+  const rowContaminationRatios: number[] = [];
 
-  for (let i = 0; i + 3 < inspectPixels.length; i += 4) {
-    const a = inspectPixels[i + 3];
+  for (let y = 0; y < inspectHeight; y += 1) {
+    let contaminated = 0;
+    let solid = 0;
+    const rowStart = y * stride;
 
-    if (a < 200) {
-      continue;
+    for (let x = 0; x < width; x += 1) {
+      const i = rowStart + x * 4;
+      const a = inspectPixels[i + 3];
+
+      if (a < 200) {
+        continue;
+      }
+
+      solid += 1;
+
+      const pixel = { r: inspectPixels[i], g: inspectPixels[i + 1], b: inspectPixels[i + 2] };
+      if (rgbDistance(pixel, backBackground) > 42) {
+        contaminated += 1;
+      }
     }
 
-    solid += 1;
+    rowContaminationRatios.push(solid > 0 ? contaminated / solid : 0);
+  }
 
-    const pixel = { r: inspectPixels[i], g: inspectPixels[i + 1], b: inspectPixels[i + 2] };
-    if (rgbDistance(pixel, backBackground) > 42) {
-      contaminated += 1;
+  let contaminatedEnd = -1;
+  let contaminatedRows = 0;
+
+  for (let y = 0; y < rowContaminationRatios.length; y += 1) {
+    if ((rowContaminationRatios[y] ?? 0) > 0.12) {
+      contaminatedRows += 1;
+      contaminatedEnd = y;
     }
   }
 
-  const contaminationRatio = solid > 0 ? contaminated / solid : 0;
-
-  if (contaminationRatio < 0.03) {
+  if (!options?.force && (contaminatedEnd < 0 || contaminatedRows < 3)) {
     return bytes;
   }
 
-  // Replace the entire back panel with the estimated background color.
+  const repairHeight = options?.force ? detectBackPanelStartOffset(backPixels, width, backHeight) : Math.min(backHeight, contaminatedEnd + Math.max(6, Math.floor(backHeight * 0.025)));
+
+  if (repairHeight <= 0 || repairHeight >= backHeight) {
+    return bytes;
+  }
+
+  // Repair only the bleed strip so the back side starts cleanly at the midpoint.
   const fill = {
     r: clampByte(backBackground.r),
     g: clampByte(backBackground.g),
     b: clampByte(backBackground.b),
     alpha: 255,
   };
-  const backPanel = await sharp({ create: { width, height: backHeight, channels: 4, background: fill } }).png().toBuffer();
+  const shiftedBackPanel = await sharp(bytes)
+    .ensureAlpha()
+    .extract({ left: 0, top: backTop + repairHeight, width, height: backHeight - repairHeight })
+    .extend({ bottom: repairHeight, background: fill })
+    .png()
+    .toBuffer();
   return sharp(bytes)
     .ensureAlpha()
-    .composite([{ input: backPanel, top: backTop, left: 0 }])
+    .composite([{ input: shiftedBackPanel, top: backTop, left: 0 }])
     .png()
     .toBuffer();
 }
@@ -363,11 +439,16 @@ USER BACKGROUND EDIT REQUEST:
 ${referenceImage ? "A user-provided reference image is attached. Use it only as visual inspiration for mood, colors, texture, composition, or material feel. Do not copy any readable text, watermark, logo, QR code, person, or protected artwork from the reference image." : ""}
 
 STRICT RULES:
+- Treat the user request as style/background direction only. It never permits logo redesign, logo lettering changes, text changes, new text, or breaking the two-half structure.
 - Preserve the 92mm x 104mm vertical sheet with two equal 92mm x 52mm panels: front on top, back on bottom.
+- ABSOLUTE HALF-SPLIT RULE: split the vertical sheet by its exact height midpoint only. The top front panel occupies exactly y 0% through 50% of the sheet height, and the bottom back panel occupies exactly y 50% through 100%.
+- No front-side pixel, texture, decoration, logo, text, shadow, or background may extend below the exact 50% midpoint. No back-side pixel may extend above the exact 50% midpoint.
+- Never make the front panel taller than the back panel, never make the back panel start lower than the midpoint, and never let either side overlap or intrude into the other side.
 - Keep the image flat, front-facing, orthographic, rectangular, and unwarped.
 - Edit only background artwork, texture, color, decorative shapes, or ambience requested by the user.
-- Do not add customer text, placeholder text, contact text, icons, QR codes, crop marks, guide lines, hands, desk, shadows, perspective, or 3D mockups.
-- Do not add, move, duplicate, reinterpret, recolor, or redesign any representative logo that remains in the clean background.
+- Do not add, edit, translate, paraphrase, abbreviate, romanize, correct, rewrite, or replace customer text, placeholder text, contact text, brand copy, taglines, icons, QR codes, crop marks, guide lines, hands, desk, shadows, perspective, or 3D mockups.
+- Do not add, move, duplicate, reinterpret, redraw, restyle, simplify, recolor, retypograph, modernize, replace, or redesign any representative logo that remains in the clean background.
+- Never change, fake, paraphrase, or regenerate any letters that are part of the representative logo. Logo lettering must stay exactly as the source artwork shows it.
 - Leave areas intended for text/icons/QR clean and empty so Printy can redraw vectors later.
 - Output one complete edited clean background sheet only.`,
     n: 1,

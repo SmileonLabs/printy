@@ -111,7 +111,6 @@ export default {
 
     if (
       url.pathname === "/api/ai-business-cards/layout-suggestion" ||
-      url.pathname === "/api/ai-business-cards/backgrounds/clean/postprocess" ||
       url.pathname === "/api/print-products/layout-suggestion" ||
       url.pathname === "/api/print-products/drafts"
     ) {
@@ -126,7 +125,7 @@ export default {
       return proxyToMainWorker(request, env);
     }
 
-    const container = env.PRINTY_CONTAINER.getByName("printy-main-v84");
+    const container = env.PRINTY_CONTAINER.getByName("printy-main-v85");
     await container.startAndWaitForPorts(3000, {
       instanceGetTimeoutMS: 30_000,
       portReadyTimeoutMS: 90_000,

@@ -11,8 +11,8 @@ export type BusinessCardSizeOption = {
 };
 
 export const businessCardSizeOptions: BusinessCardSizeOption[] = [
-  { id: "business-card-90x50", label: "일반 명함 90 x 50mm", widthMm: 90, heightMm: 50 },
-  { id: "business-card-50x90", label: "세로 명함 50 x 90mm", widthMm: 50, heightMm: 90 },
+  { id: "business-card-90x50", label: "일반 명함 90 x 50mm (작업 92 x 52mm)", widthMm: 92, heightMm: 52 },
+  { id: "business-card-50x90", label: "세로 명함 50 x 90mm (작업 52 x 92mm)", widthMm: 52, heightMm: 92 },
 ];
 
 export const defaultBusinessCardSizeId = businessCardSizeOptions[0].id;

@@ -130,9 +130,10 @@ export function buildAiBusinessCardMockupPrompt(input: AiBusinessCardInput, conc
 
   return `Create one premium Korean business card sheet for Printy: a vertical 92mm x 104mm image that is made by stacking two complete horizontal 92mm x 52mm business cards.
 
-USER DESIGN REQUEST - HIGHEST PRIORITY STYLE DIRECTION:
+USER DESIGN REQUEST - STYLE ONLY, NEVER CONTENT OR LOGO PERMISSION:
 - ${compact(input.mockupRequest)}
-- Follow this request unless it conflicts with logo preservation, exact user text rules, or the 92:52 card ratio.
+- Follow this request only for visual style, mood, layout feel, texture, and color direction.
+- The user request never gives permission to redesign the representative logo, change logo lettering, add brand copy, rewrite text, translate text, abbreviate text, correct text, invent text, or break the exact two-half sheet structure.
 
 ADMIN PROMPT INSTRUCTIONS:
 ${adminInstructionsText(overrides.mockupInstructions)}
@@ -144,6 +145,9 @@ STRICT IMAGE RULES:
 - The 92mm x 104mm sheet is not a single tall business card. It is only a preview container that holds two separate complete business cards stacked vertically.
 - Treat the top half as one full, independent horizontal 92mm x 52mm business card front.
 - Treat the bottom half as one full, independent horizontal 92mm x 52mm business card back.
+- ABSOLUTE HALF-SPLIT RULE: split the vertical sheet by its exact height midpoint only. The top front panel occupies exactly y 0% through 50% of the sheet height, and the bottom back panel occupies exactly y 50% through 100%.
+- The boundary is exactly the horizontal line at 50% of the sheet height. No front-side pixel, texture, decoration, logo, text, shadow, or background may extend below this midpoint. No back-side pixel may extend above this midpoint.
+- Never make the front panel taller than the back panel, never make the back panel start lower than the midpoint, and never let either side overlap or intrude into the other side.
 - The front card and the back card are two complete cards with full 92mm x 52mm layouts. Do not design one tall card and cut it in half.
 - The provided guide image is the required 92:104 vertical canvas. Replace the two blank halves with finished artwork; do not collapse the result into a single 92mm x 52mm card.
 - The top 92mm x 52mm card must fill the full top half. The bottom 92mm x 52mm card must fill the full bottom half.
@@ -160,7 +164,8 @@ STRICT IMAGE RULES:
 - No perspective, no 3D mockup, no hands, no desk, no shadows, no angled view.
 - Keep cards perfectly rectangular and unwarped.
 - MANDATORY LOGO RULE: ${usesPlacedLogo ? "the layout contains an explicit Printy logo slot, so do not draw, paint, trace, duplicate, watermark, or embed the representative logo anywhere in the AI background/mockup. Leave the reserved logo slot clean; Printy will place the real logo as a separate vector/PNG element later." : "if a source logo image is provided, use that exact representative logo as-is."}
-- Do not reinterpret, redraw, restyle, simplify, recolor, retypograph, or invent a new logo.
+- LOGO LOCK: the representative logo is locked source artwork. Do not reinterpret, redraw, restyle, simplify, recolor, retypograph, vectorize differently, improve, modernize, replace, or invent a new logo.
+- Never change, fake, paraphrase, or regenerate any letters that are part of the representative logo. Logo lettering must stay exactly as the source artwork shows it.
 - ${usesPlacedLogo ? "Do not place the source logo in the generated mockup image at all." : "You may only place, scale, crop-safe fit, or visually composite the provided representative logo onto the card design."}
 - ${usesPlacedLogo ? "The representative logo will appear only through Printy's renderer after background generation." : "The representative logo must appear on the business card design. Do not replace it with text or a similar symbol."}
 - Do not typeset the brand name or category as separate editable text outside the provided logo. Logo lettering belongs to the logo artwork only.
@@ -192,7 +197,7 @@ ADMIN TEMPLATE STRUCTURE TO FOLLOW EXACTLY:
 - Place each selected information field at the same relative position and size as the template box below.
 - Match the listed font size, weight, and alignment as closely as possible in the mockup image.
 - Do not move selected fields to a different side, do not omit selected fields, and do not invent additional customer fields.
-- Do not invent, paraphrase, translate, or autocomplete any customer text.
+- Do not invent, paraphrase, translate, romanize, abbreviate, correct spelling, reorder, autocomplete, or stylistically rewrite any customer text.
 - If a selected title or advertising field is listed as none, keep that area visually blank or decorative only. Never write your own slogans, promotions, offers, descriptors, or advertising copy.
 - The word advertising only describes the field type; it is not permission to create ad copy.
 - The final PDF will use these template coordinates, so the mockup should visually match them.
@@ -202,8 +207,11 @@ CONTENT TO PLACE:
 ${selectedContentText(input)}
 
 TEXT ACCURACY RULES:
-- Use only the exact non-none text values listed above.
+- TEXT LOCK: use only the exact non-none text values listed above, character-for-character.
+- Preserve all Korean, English, numbers, punctuation, spacing, line breaks, capitalization, symbols, hyphens, dots, @ signs, and URL characters exactly as provided.
+- Do not translate Korean to English, English to Korean, or any text to a different script. Do not replace exact text with decorative pseudo-text or similar-looking fake glyphs.
 - Do not add placeholder text such as sample names, made-up phone numbers, fake addresses, taglines, promotion copy, or brand claims.
+- If a requested style would make exact text unreadable or inaccurate, simplify the style around the text instead of changing the text.
 - For QR code, render only a QR-like image area if the user provided a QR image; do not invent a URL or QR content.
 
 Concept variation number: ${conceptNumber}. Make it visually distinct from other possible concepts.`;
@@ -222,6 +230,9 @@ STRICT CLEAN BACKGROUND RULES:
 - Perform a high-fidelity cleanup edit only: preserve the source image composition, card positions, card sizes, logo placement, decorative background, colors, and style as exactly as possible.
 - Keep exactly one flat front design and exactly one flat back design on the same 92mm x 104mm vertical sheet.
 - The sheet is split horizontally into exactly two equal 92mm x 52mm panels: top half front, bottom half back.
+- ABSOLUTE HALF-SPLIT RULE: split the vertical sheet by its exact height midpoint only. The top front panel occupies exactly y 0% through 50% of the sheet height, and the bottom back panel occupies exactly y 50% through 100%.
+- No front-side pixel, texture, decoration, logo, text, shadow, or background may extend below the exact 50% midpoint. No back-side pixel may extend above the exact 50% midpoint.
+- Never make the front panel taller than the back panel, never make the back panel start lower than the midpoint, and never let either side overlap or intrude into the other side.
 - Keep the required two-panel sheet structure, but separate the two halves by placement only, not by drawn lines.
 - The boundary between the top and bottom panels must be invisible and filled with the same surrounding background texture/color.
 - Keep the front and back panels the exact same visible size as the source image. The back side must not become shorter, thinner, cropped, or a different ratio.
@@ -232,6 +243,7 @@ STRICT CLEAN BACKGROUND RULES:
 - Do not move, copy, enlarge, duplicate, or add the representative logo into any removed field area. The logo may remain only where it already existed in the source mockup.
 - Do not remove or alter any text that is part of the representative logo image. Logo lettering must remain exactly as-is.
 - Do not remove or alter brand lettering that is visually embedded inside the logo mark or logo lockup.
+- Never redraw, restyle, recolor, simplify, retypograph, modernize, or replace the representative logo while cleaning the background.
 - Preserve field icons, bullets, dividers, and field markers unless they are embedded inside customer-entered text or QR artwork.
 - Do not erase logo marks, decorative shapes, borders, background patterns, or non-field artwork.
 - Do not draw crop lines, guide outlines, borders, registration marks, separator rules, neon green lines, external frames, visible horizontal divider lines, strokes, bevels, shadow edges, white lines, or black lines around or between the two panels.

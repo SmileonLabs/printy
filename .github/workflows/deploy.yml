@@ -48,6 +48,12 @@ jobs:
           filters: |
             native:
               - 'Dockerfile'
+              - 'app/api/ai-business-cards/**'
+              - 'app/api/print-products/**'
+              - 'lib/ai-business-card/**'
+              - 'lib/print-products/**'
+              - 'lib/server/ai-business-card-jobs.ts'
+              - 'lib/server/storage.ts'
               - 'wrangler.native.jsonc'
               - 'workers/**'
               - 'package.json'

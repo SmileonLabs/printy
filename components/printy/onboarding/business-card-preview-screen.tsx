@@ -339,6 +339,7 @@ export function BusinessCardPreviewScreen() {
   const [activeBackgroundEditJobId, setActiveBackgroundEditJobId] = useState<string>();
   const [layoutSuggestionMessage, setLayoutSuggestionMessage] = useState("");
   const [isEditingCleanBackground, setIsEditingCleanBackground] = useState(false);
+  const [runningCleanPostprocessMockupId, setRunningCleanPostprocessMockupId] = useState<string>();
   const [isSuggestingLayout, setIsSuggestingLayout] = useState(false);
   const [isSavingDesign, setIsSavingDesign] = useState(false);
   const [editableLayout, setEditableLayout] = useState<BusinessCardTemplateLayout>();
@@ -371,12 +372,14 @@ export function BusinessCardPreviewScreen() {
   const selectedAiBusinessCardMockup = useMemo(() => aiBusinessCardMockups.find((mockup) => mockup.imageUrl === selectedAiBusinessCardMockupUrl), [aiBusinessCardMockups, selectedAiBusinessCardMockupUrl]);
   const selectedCleanMockupUrl = selectedAiBusinessCardMockup?.cleanImageUrl;
   const selectedBusinessCardSize = useMemo(() => resolveBusinessCardSize(productionOptions.sizeId, editableLayout ?? productionOptions.layout), [editableLayout, productionOptions.layout, productionOptions.sizeId]);
-  const cleanBackgroundEditTone: ToastNoticeTone = cleanBackgroundEditStatus.includes("못") || cleanBackgroundEditStatus.includes("필요") || cleanBackgroundEditStatus.includes("실패") ? "danger" : cleanBackgroundEditStatus.includes("추가") || cleanBackgroundEditStatus.includes("선택") ? "success" : "info";
+  const cleanBackgroundEditTone: ToastNoticeTone = cleanBackgroundEditStatus.includes("못") || cleanBackgroundEditStatus.includes("필요") || cleanBackgroundEditStatus.includes("실패") ? "danger" : cleanBackgroundEditStatus.includes("추가") || cleanBackgroundEditStatus.includes("선택") || cleanBackgroundEditStatus.includes("적용") ? "success" : "info";
   const layoutSuggestionTone: ToastNoticeTone = layoutSuggestionMessage.includes("못") || layoutSuggestionMessage.includes("실패") || layoutSuggestionMessage.includes("필요") ? "danger" : "success";
   const savedLayoutTone: ToastNoticeTone = savedLayoutMessage.includes("못") || savedLayoutMessage.includes("실패") || savedLayoutMessage.includes("찾지") ? "danger" : "success";
 
   useEffect(() => {
-    setEditableLayout(productionOptions.layout ? cloneBusinessCardTemplateLayout(productionOptions.layout) : selectedTemplate?.layout ? cloneBusinessCardTemplateLayout(selectedTemplate.layout) : createSizedBusinessCardLayout(productionOptions));
+    const baseLayout = productionOptions.layout ? cloneBusinessCardTemplateLayout(productionOptions.layout) : selectedTemplate?.layout ? cloneBusinessCardTemplateLayout(selectedTemplate.layout) : createSizedBusinessCardLayout(productionOptions);
+
+    setEditableLayout(sizeBusinessCardLayout(baseLayout, productionOptions.sizeId));
   }, [selectedTemplate?.id, selectedTemplate?.layout, productionOptions]);
 
   useEffect(() => {
@@ -962,6 +965,62 @@ export function BusinessCardPreviewScreen() {
     }
   };
 
+  const handlePostprocessGeneratedMockup = async (mockup: AiBusinessCardMockup) => {
+    if (!mockup.cleanImageUrl) {
+      setCleanBackgroundEditStatus("후보정할 클린 배경 이미지가 없어요.");
+      return;
+    }
+
+    setRunningCleanPostprocessMockupId(mockup.id);
+    setCleanBackgroundEditStatus("클린 배경 후보정 중이에요. 세로 중앙선을 기준으로 앞면/뒷면 경계를 정리해요.");
+    setDownloadState({});
+
+    try {
+      const response = await fetch("/api/ai-business-cards/backgrounds/clean/postprocess", {
+        method: "POST",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cleanImageUrl: mockup.cleanImageUrl }),
+      });
+      const data: unknown = await response.json().catch(() => undefined);
+      const nextCleanImageUrl = isRecord(data) && typeof data.cleanImageUrl === "string" ? data.cleanImageUrl : undefined;
+
+      if (!response.ok || !nextCleanImageUrl) {
+        throw new Error(readApiErrorReason(data, "클린 배경 후보정에 실패했어요."));
+      }
+
+      const nextMockups = aiBusinessCardMockups.map((item) => {
+        if (item.id !== mockup.id) {
+          return item;
+        }
+
+        return {
+          ...item,
+          cleanImageUrl: nextCleanImageUrl,
+          layout: item.layout ?? (editableLayout ? cloneBusinessCardTemplateLayout(editableLayout) : item.layout),
+        };
+      });
+
+      usePrintyStore.setState((state) => ({
+        aiBusinessCardMockups: state.aiBusinessCardMockups.map((item) => item.id === mockup.id ? { ...item, cleanImageUrl: nextCleanImageUrl } : item),
+        selectedAiBusinessCardMockupUrl: mockup.imageUrl,
+        aiBusinessCardMockupStatus: "ready",
+        aiBusinessCardMockupMessage: "클린 배경 후보정을 적용했어요.",
+      }));
+      selectAiBusinessCardMockup(mockup.imageUrl);
+
+      if (isAuthenticated) {
+        await saveServerMockups(nextMockups);
+      }
+
+      setCleanBackgroundEditStatus("클린 배경 후보정을 해당 이미지에 적용했어요.");
+    } catch (error) {
+      setCleanBackgroundEditStatus(error instanceof Error ? error.message : "클린 배경 후보정에 실패했어요.");
+    } finally {
+      setRunningCleanPostprocessMockupId(undefined);
+    }
+  };
+
   const handleEditCleanBackground = async () => {
     if (!selectedCleanMockupUrl) {
       setCleanBackgroundEditStatus("수정할 클린 배경 목업을 먼저 선택해 주세요.");
@@ -1121,7 +1180,7 @@ export function BusinessCardPreviewScreen() {
           </div>
           <div className={`${showGeneratedMockups ? "grid" : "hidden"} mt-3 gap-3 sm:grid-cols-2 xl:grid-cols-3`}>
             {aiBusinessCardMockups.map((mockup) => {
-              const mockupLayout = mockup.layout ?? editableLayout;
+              const mockupLayout = mockup.layout ? sizeBusinessCardLayout(mockup.layout, productionOptions.sizeId) : editableLayout;
               const isSelected = mockup.imageUrl === selectedAiBusinessCardMockupUrl;
 
               return (
@@ -1140,6 +1199,7 @@ export function BusinessCardPreviewScreen() {
                   <div className="mt-2 grid gap-2">
                     <div className="flex flex-wrap items-center gap-2">
                       <button className={`rounded-sm px-3 py-2 text-xs font-black transition ${isSelected ? "bg-primary text-white" : "bg-white text-primary-strong hover:-translate-y-0.5"}`} type="button" onClick={() => selectAiBusinessCardMockup(mockup.imageUrl)} disabled={isSelected}>{isSelected ? "적용됨" : "선택하기"}</button>
+                      <button className="rounded-sm bg-white px-3 py-2 text-xs font-black text-primary-strong transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0" type="button" onClick={() => handlePostprocessGeneratedMockup(mockup)} disabled={!mockup.cleanImageUrl || Boolean(runningCleanPostprocessMockupId)}>{runningCleanPostprocessMockupId === mockup.id ? "후보정 중" : "후보정"}</button>
                       <button className="rounded-sm bg-white px-3 py-2 text-xs font-black text-danger transition hover:-translate-y-0.5" type="button" onClick={() => handleDeleteGeneratedMockup(mockup)}>삭제</button>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
