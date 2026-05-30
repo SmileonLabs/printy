@@ -93,7 +93,7 @@ function CompletedBusinessCardListItem({ entry, logo, rendererVersion, pdfRecord
             setRunningMockupImageId(mockup.id);
 
             try {
-              const dataUrl = await toPng(downloadRef.current, { cacheBust: true, pixelRatio: 2, fetchRequestInit: { mode: "cors" } });
+              const dataUrl = await toPng(downloadRef.current, { cacheBust: true, pixelRatio: 2, backgroundColor: "transparent", fetchRequestInit: { mode: "cors" } });
               const link = document.createElement("a");
               link.href = dataUrl;
               link.download = `printy-business-card-${mockup.id}.png`;
@@ -116,7 +116,7 @@ function CompletedBusinessCardListItem({ entry, logo, rendererVersion, pdfRecord
         </>}
       />
       {mockup.cleanImageUrl && downloadLayout && downloadMember ? (
-        <div className="fixed left-[-9999px] top-0 z-[-1] h-0 w-0 overflow-hidden opacity-0" aria-hidden="true">
+        <div className="fixed left-[-9999px] top-0 z-[-1] opacity-0 pointer-events-none" aria-hidden="true">
           <div ref={downloadRef} className="grid w-[420px] gap-0 bg-transparent">
             <BusinessCardUserPreview flat className="!bg-transparent !p-0 !rounded-none" cleanImageUrl={mockup.cleanImageUrl} layout={downloadLayout} member={downloadMember} logo={logo} sideId="front" />
             <BusinessCardUserPreview flat className="!bg-transparent !p-0 !rounded-none" cleanImageUrl={mockup.cleanImageUrl} layout={downloadLayout} member={downloadMember} logo={logo} sideId="back" />
