@@ -77,6 +77,7 @@ export type PrintyState = {
   brands: Brand[];
   businessCardDrafts: BusinessCardDraft[];
   deletedBusinessCardDraftIds: string[];
+  hiddenCompletedMockupImageUrls: string[];
   printProductDrafts: PrintProductDraft[];
   activePrintProductDraftId?: string;
   aiBusinessCardMockups: AiBusinessCardMockup[];
@@ -147,6 +148,7 @@ export type PrintyState = {
   selectBusinessCardMemberForPreview: (memberId: string) => void;
   setBusinessCardDraftCompletedMockupCleanImageUrl: (draftId: string, cleanImageUrl: string) => void;
   deleteBusinessCardDraft: (draftId: string) => void;
+  hideCompletedMockupImageUrl: (imageUrl: string) => void;
   beginAiBusinessCardMockupGeneration: (signature: string, message?: string) => void;
   setActiveAiBusinessCardMockupJob: (jobId?: string) => void;
   syncAiBusinessCardMockups: (signature: string, mockups: AiBusinessCardMockup[]) => void;

@@ -11,7 +11,7 @@ import type { PrintyState } from "@/store/printy-store-types";
 type PrintyStoreSet = Parameters<StateCreator<PrintyState, [], [], PrintyState>>[0];
 type PrintyStoreGet = Parameters<StateCreator<PrintyState, [], [], PrintyState>>[1];
 
-type PrintyOnboardingActions = Pick<PrintyState, "setStep" | "saveBrandShell" | "ensureBusinessCardDraft" | "deleteBusinessCardDraft" | "copyCompletedBusinessCardDraft" | "selectBusinessCardMemberForPreview" | "beginAiBusinessCardMockupGeneration" | "setActiveAiBusinessCardMockupJob" | "syncAiBusinessCardMockups" | "finishAiBusinessCardMockupGeneration" | "completeAiBusinessCardDesign" | "failAiBusinessCardMockupGeneration" | "dismissAiBusinessCardMockupNotice" | "selectAiBusinessCardMockup" | "deleteAiBusinessCardMockup" | "beginAiBusinessCardPdfGeneration" | "finishAiBusinessCardPdfGeneration" | "failAiBusinessCardPdfGeneration" | "dismissAiBusinessCardPdfNotice" | "completeCheckout" | "startNewBrand">;
+type PrintyOnboardingActions = Pick<PrintyState, "setStep" | "saveBrandShell" | "ensureBusinessCardDraft" | "deleteBusinessCardDraft" | "hideCompletedMockupImageUrl" | "copyCompletedBusinessCardDraft" | "selectBusinessCardMemberForPreview" | "beginAiBusinessCardMockupGeneration" | "setActiveAiBusinessCardMockupJob" | "syncAiBusinessCardMockups" | "finishAiBusinessCardMockupGeneration" | "completeAiBusinessCardDesign" | "failAiBusinessCardMockupGeneration" | "dismissAiBusinessCardMockupNotice" | "selectAiBusinessCardMockup" | "deleteAiBusinessCardMockup" | "beginAiBusinessCardPdfGeneration" | "finishAiBusinessCardPdfGeneration" | "failAiBusinessCardPdfGeneration" | "dismissAiBusinessCardPdfNotice" | "completeCheckout" | "startNewBrand">;
 
 export function createPrintyOnboardingActions(set: PrintyStoreSet, get: PrintyStoreGet): PrintyOnboardingActions {
   return {
@@ -150,6 +150,22 @@ export function createPrintyOnboardingActions(set: PrintyStoreSet, get: PrintySt
         brandWorkspaceOwnerUserId: state.isAuthenticated ? state.brandWorkspaceOwnerUserId : undefined,
       };
     }),
+    hideCompletedMockupImageUrl: (imageUrl) =>
+      set((state) => {
+        const nextUrl = imageUrl.trim();
+
+        if (!nextUrl) {
+          return {};
+        }
+
+        if (state.hiddenCompletedMockupImageUrls.includes(nextUrl)) {
+          return {};
+        }
+
+        return {
+          hiddenCompletedMockupImageUrls: [...state.hiddenCompletedMockupImageUrls, nextUrl],
+        };
+      }),
     beginAiBusinessCardMockupGeneration: (signature, message = "명함 목업 디자인을 만들고 있어요. 다른 페이지로 이동해도 완료되면 알림으로 알려드릴게요.") =>
       set((state) => ({
         aiBusinessCardMockupStatus: "generating",

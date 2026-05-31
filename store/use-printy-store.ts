@@ -54,6 +54,7 @@ export const usePrintyStore = create<PrintyState>()(
       brands: [],
       businessCardDrafts: [],
       deletedBusinessCardDraftIds: [],
+      hiddenCompletedMockupImageUrls: [],
       printProductDrafts: [],
       activePrintProductDraftId: undefined,
       aiBusinessCardMockups: [],

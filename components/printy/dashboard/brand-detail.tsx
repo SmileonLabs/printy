@@ -1000,6 +1000,7 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
   const selectAiBusinessCardMockup = usePrintyStore((state) => state.selectAiBusinessCardMockup);
   const updateBusinessCardProductionOptions = usePrintyStore((state) => state.updateBusinessCardProductionOptions);
   const deleteBusinessCardDraft = usePrintyStore((state) => state.deleteBusinessCardDraft);
+  const hideCompletedMockupImageUrl = usePrintyStore((state) => state.hideCompletedMockupImageUrl);
   const isAuthenticated = usePrintyStore((state) => state.isAuthenticated);
   const authUserId = usePrintyStore((state) => state.authSession?.userId);
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>(brand.members.map((member) => member.id));
@@ -1045,6 +1046,14 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
   const storeVisibleAiBusinessCardMockups = hasCompletedMockupDraft && (hasExactMockupSignature || hasRelaxedMockupSignature) ? localCompletedAiBusinessCardMockups : [];
   const serverLoadedMockups = useSavedBusinessCardMockups({ isAuthenticated, authUserId, brandId: brand.id, brandName: brand.name, entries: currentBrandMockupSignatureEntries });
   const visibleAiBusinessCardMockups = storeVisibleAiBusinessCardMockups.length > 0 ? storeVisibleAiBusinessCardMockups : serverLoadedMockups?.mockups ?? [];
+  const filteredVisibleAiBusinessCardMockups = useMemo(() => {
+    if (printyState.hiddenCompletedMockupImageUrls.length === 0) {
+      return visibleAiBusinessCardMockups;
+    }
+
+    const hidden = new Set(printyState.hiddenCompletedMockupImageUrls);
+    return visibleAiBusinessCardMockups.filter((mockup) => !hidden.has(mockup.imageUrl));
+  }, [printyState.hiddenCompletedMockupImageUrls, visibleAiBusinessCardMockups]);
   const visibleAiBusinessCardMockupSignature = storeVisibleAiBusinessCardMockups.length > 0 ? aiBusinessCardMockupSignature : serverLoadedMockups?.signature;
   const completedBusinessCardEntries = businessCardDrafts
     .flatMap((draft) => {
@@ -1057,7 +1066,7 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
     .sort((left, right) => (right.draft.completedMockupAt ?? right.draft.createdAt).localeCompare(left.draft.completedMockupAt ?? left.draft.createdAt));
   const visibleBusinessCardEntries: CompletedBusinessCardEntry[] = completedBusinessCardEntries.length > 0
     ? completedBusinessCardEntries
-    : visibleAiBusinessCardMockups.map((mockup) => ({ draft: undefined, mockup, signature: visibleAiBusinessCardMockupSignature }));
+    : filteredVisibleAiBusinessCardMockups.map((mockup) => ({ draft: undefined, mockup, signature: visibleAiBusinessCardMockupSignature }));
   const findDraftByCompletedMockupSignature = (signature: string | undefined) => signature ? businessCardDrafts.find((draft) => draft.brandId === brand.id && draft.completedMockupSignature === signature) : undefined;
   const completedMockupDraftId = currentBrandMockupSignatureEntries.find((entry) => entry.signature === visibleAiBusinessCardMockupSignature)?.draftId ?? businessCardDrafts.find((draft) => draft.brandId === brand.id && draft.completedMockupSignature && draft.completedMockupSignature === visibleAiBusinessCardMockupSignature)?.id ?? (storeVisibleAiBusinessCardMockups.length > 0 ? activeBusinessCardDraftId : undefined);
   const orderedBusinessCardDraftIds = useMemo(() => new Set(orders.map((order) => order.cardDraftId)), [orders]);
@@ -1202,7 +1211,8 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
   };
   const handleDeleteCompletedMockup = (entry: CompletedBusinessCardEntry) => {
     if (!entry.draft) {
-      setProductionNotice("서버에서 불러온 이전 완료 시안은 이 화면에서 삭제할 수 없어요. 새로 저장한 완료 명함만 삭제할 수 있어요.");
+      hideCompletedMockupImageUrl(entry.mockup.imageUrl);
+      setProductionNotice("서버에서 불러온 완료 시안은 삭제할 수 없어서, 이 기기에서만 숨김 처리했어요.");
       return;
     }
 
@@ -1211,6 +1221,7 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
     }
 
     deleteBusinessCardDraft(entry.draft.id);
+    hideCompletedMockupImageUrl(entry.mockup.imageUrl);
     setProductionNotice("완료 명함 디자인을 삭제했어요.");
   };
   const handleEditCompletedMockupLayout = (mockup: AiBusinessCardMockup, member: Member | undefined, completedLayout: BusinessCardTemplateLayout | undefined, signature = visibleAiBusinessCardMockupSignature, mockups = visibleAiBusinessCardMockups, draftId?: string) => {
