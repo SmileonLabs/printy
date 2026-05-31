@@ -254,7 +254,7 @@ export async function saveAiBusinessCardMockups(userId: string, signature: strin
 
 export async function deleteAiBusinessCardMockup(userId: string, signature: string, mockupId: string) {
   const indexedSignature = normalizeIndexedSignature(signature);
-  const existing = await loadAiBusinessCardMockups(userId, indexedSignature);
+  const existing = await loadAiBusinessCardMockups(userId, signature);
 
   if (existing.length === 0) {
     return { ok: true, mockups: [] };
