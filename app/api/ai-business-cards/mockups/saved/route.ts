@@ -52,13 +52,13 @@ export async function GET(request: Request) {
     const exactMockups = signature ? await loadAiBusinessCardMockups(session.user.id, signature) : [];
 
     if (exactMockups.length > 0) {
-      return NextResponse.json({ mockups: exactMockups });
+      return NextResponse.json({ mockups: exactMockups, signature });
     }
 
     const recoveredMockups = signature ? await recoverLatestAiBusinessCardMockup(session.user.id, signature) : [];
 
     if (recoveredMockups.length > 0) {
-      return NextResponse.json({ mockups: recoveredMockups, recovered: true });
+      return NextResponse.json({ mockups: recoveredMockups, signature, recovered: true });
     }
 
     const match = await loadAiBusinessCardMockupMatchByLookup(session.user.id, lookup);
