@@ -251,3 +251,42 @@ export async function saveAiBusinessCardMockups(userId: string, signature: strin
 
   return limitedMockups;
 }
+
+export async function deleteAiBusinessCardMockup(userId: string, signature: string, mockupId: string) {
+  const indexedSignature = normalizeIndexedSignature(signature);
+  const existing = await loadAiBusinessCardMockups(userId, indexedSignature);
+
+  if (existing.length === 0) {
+    return { ok: true, mockups: [] };
+  }
+
+  const nextMockups = existing.filter((mockup) => mockup.id !== mockupId);
+
+  if (nextMockups.length === existing.length) {
+    return { ok: true, mockups: existing };
+  }
+
+  if (nextMockups.length === 0) {
+    await queryDb(
+      `
+        delete from ai_business_card_mockups
+        where user_id = $1 and signature = $2
+      `,
+      [userId, indexedSignature],
+    );
+
+    return { ok: true, mockups: [] };
+  }
+
+  await queryDb(
+    `
+      update ai_business_card_mockups
+      set mockups = $3::jsonb,
+          updated_at = now()
+      where user_id = $1 and signature = $2
+    `,
+    [userId, indexedSignature, JSON.stringify(nextMockups.slice(0, 20))],
+  );
+
+  return { ok: true, mockups: nextMockups };
+}

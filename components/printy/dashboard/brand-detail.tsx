@@ -1211,8 +1211,34 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
   };
   const handleDeleteCompletedMockup = (entry: CompletedBusinessCardEntry) => {
     if (!entry.draft) {
-      hideCompletedMockupImageUrl(entry.mockup.imageUrl);
-      setProductionNotice("서버에서 불러온 완료 시안은 삭제할 수 없어서, 이 기기에서만 숨김 처리했어요.");
+      if (!window.confirm("이 완료 명함 디자인을 삭제할까요?")) {
+        return;
+      }
+
+      const signature = entry.signature;
+      const mockupId = entry.mockup.id;
+
+      if (!signature) {
+        setProductionNotice("삭제 정보를 찾지 못했어요. 새로고침 후 다시 시도해 주세요.");
+        return;
+      }
+
+      void (async () => {
+        try {
+          const response = await fetch(`/api/ai-business-cards/mockups/saved?signature=${encodeURIComponent(signature)}&mockupId=${encodeURIComponent(mockupId)}`, { method: "DELETE", cache: "no-store" });
+          const data: unknown = await response.json().catch(() => undefined);
+
+          if (!response.ok) {
+            const reason = typeof data === "object" && data !== null && "reason" in data && typeof (data as { reason?: unknown }).reason === "string" ? (data as { reason: string }).reason : "완료 시안 삭제에 실패했어요.";
+            throw new Error(reason);
+          }
+
+          hideCompletedMockupImageUrl(entry.mockup.imageUrl);
+          setProductionNotice("완료 명함 디자인을 삭제했어요.");
+        } catch (error) {
+          setProductionNotice(error instanceof Error ? error.message : "완료 시안 삭제에 실패했어요.");
+        }
+      })();
       return;
     }
 

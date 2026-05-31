@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentDbSession } from "@/lib/server/auth/session";
-import { loadAiBusinessCardMockupMatchByLookup, loadAiBusinessCardMockups, readAiBusinessCardMockups, recoverLatestAiBusinessCardMockup, saveAiBusinessCardMockups } from "@/lib/server/ai-business-card-mockups";
+import { deleteAiBusinessCardMockup, loadAiBusinessCardMockupMatchByLookup, loadAiBusinessCardMockups, readAiBusinessCardMockups, recoverLatestAiBusinessCardMockup, saveAiBusinessCardMockups } from "@/lib/server/ai-business-card-mockups";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,6 +21,10 @@ function readOptionalSearchParam(url: URL, name: string) {
   const value = url.searchParams.get(name)?.trim();
 
   return value ? value : undefined;
+}
+
+function readMockupId(value: unknown) {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
 }
 
 export async function GET(request: Request) {
@@ -118,6 +122,28 @@ export async function PUT(request: Request) {
       clientActionId,
       totalMs: Date.now() - startedAt,
     });
+    return NextResponse.json(unavailableResponse, { status: 503 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const session = await getCurrentDbSession();
+
+    if (!session) {
+      return NextResponse.json(unauthorizedResponse, { status: 401 });
+    }
+
+    const url = new URL(request.url);
+    const signature = readSignature(url.searchParams.get("signature"));
+    const mockupId = readMockupId(url.searchParams.get("mockupId"));
+
+    if (!signature || !mockupId) {
+      return NextResponse.json({ reason: "삭제할 목업 정보가 올바르지 않아요." }, { status: 400 });
+    }
+
+    return NextResponse.json(await deleteAiBusinessCardMockup(session.user.id, signature, mockupId), { headers: { "Cache-Control": "no-store" } });
+  } catch {
     return NextResponse.json(unavailableResponse, { status: 503 });
   }
 }
