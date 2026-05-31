@@ -339,13 +339,6 @@ type BackgroundColor = {
   blue: number;
 };
 
-type PixelComponentBounds = {
-  minX: number;
-  minY: number;
-  maxX: number;
-  maxY: number;
-};
-
 function colorDistance(a: BackgroundColor, b: BackgroundColor) {
   return Math.sqrt((a.red - b.red) ** 2 + (a.green - b.green) ** 2 + (a.blue - b.blue) ** 2);
 }
@@ -373,24 +366,6 @@ function isSafeGeneratedLogoBackgroundForTransparency(backgroundColor: Backgroun
   const minChannel = Math.min(backgroundColor.red, backgroundColor.green, backgroundColor.blue);
 
   return pixelLuminance(backgroundColor) >= 150 && maxChannel - minChannel <= 72;
-}
-
-function isNearWhiteOpaquePixel(data: Buffer, pixelIndex: number) {
-  const { red, green, blue, alpha } = readPixel(data, pixelIndex);
-
-  return alpha > 180 && colorDistance({ red, green, blue }, { red: 255, green: 255, blue: 255 }) < 52;
-}
-
-function isDarkLogoPixel(data: Buffer, pixelIndex: number) {
-  const { red, green, blue, alpha } = readPixel(data, pixelIndex);
-
-  return alpha > 180 && pixelLuminance({ red, green, blue }) < 95;
-}
-
-function isNonWhiteOpaquePixel(data: Buffer, pixelIndex: number) {
-  const { red, green, blue, alpha } = readPixel(data, pixelIndex);
-
-  return alpha > 180 && colorDistance({ red, green, blue }, { red: 255, green: 255, blue: 255 }) > 72;
 }
 
 function estimateEdgeBackgroundColor(data: Buffer, width: number, height: number): BackgroundColor {
@@ -526,134 +501,6 @@ function softenPixelsNearTransparentBackground(data: Buffer, width: number, heig
   return changedPixels;
 }
 
-function shouldRemoveEnclosedWhiteComponent(data: Buffer, width: number, height: number, pixels: number[], bounds: PixelComponentBounds) {
-  const area = pixels.length;
-  const boxWidth = bounds.maxX - bounds.minX + 1;
-  const boxHeight = bounds.maxY - bounds.minY + 1;
-  const aspectRatio = boxWidth / Math.max(1, boxHeight);
-
-  if (area < Math.max(2, width * height * 0.000005) || area > width * height * 0.015) {
-    return false;
-  }
-
-  if (boxWidth > width * 0.18 || boxHeight > height * 0.15 || aspectRatio < 0.2 || aspectRatio > 5) {
-    return false;
-  }
-
-  let borderPixels = 0;
-  let darkBorderPixels = 0;
-  let nonWhiteBorderPixels = 0;
-  let transparentBorderPixels = 0;
-  const inspectNeighbor = (neighborIndex: number) => {
-    const alpha = data[neighborIndex * 4 + 3] ?? 0;
-
-    if (alpha === 0) {
-      transparentBorderPixels += 1;
-      return;
-    }
-
-    borderPixels += 1;
-    darkBorderPixels += isDarkLogoPixel(data, neighborIndex) ? 1 : 0;
-    nonWhiteBorderPixels += isNonWhiteOpaquePixel(data, neighborIndex) ? 1 : 0;
-  };
-
-  for (const pixelIndex of pixels) {
-    const x = pixelIndex % width;
-    const y = Math.floor(pixelIndex / width);
-
-    if (x > 0 && !isNearWhiteOpaquePixel(data, pixelIndex - 1)) inspectNeighbor(pixelIndex - 1);
-    if (x < width - 1 && !isNearWhiteOpaquePixel(data, pixelIndex + 1)) inspectNeighbor(pixelIndex + 1);
-    if (y > 0 && !isNearWhiteOpaquePixel(data, pixelIndex - width)) inspectNeighbor(pixelIndex - width);
-    if (y < height - 1 && !isNearWhiteOpaquePixel(data, pixelIndex + width)) inspectNeighbor(pixelIndex + width);
-  }
-
-  if (borderPixels === 0 || transparentBorderPixels > 0 || nonWhiteBorderPixels / borderPixels <= 0.82) {
-    return false;
-  }
-
-  const ringRadius = Math.max(1, Math.round(Math.min(boxWidth, boxHeight) * 0.08));
-  const startX = Math.max(0, bounds.minX - ringRadius);
-  const endX = Math.min(width - 1, bounds.maxX + ringRadius);
-  const startY = Math.max(0, bounds.minY - ringRadius);
-  const endY = Math.min(height - 1, bounds.maxY + ringRadius);
-  let ringPixels = 0;
-  let opaqueRingPixels = 0;
-  let darkRingPixels = 0;
-  let nonWhiteRingPixels = 0;
-
-  for (let y = startY; y <= endY; y += 1) {
-    for (let x = startX; x <= endX; x += 1) {
-      if (x >= bounds.minX && x <= bounds.maxX && y >= bounds.minY && y <= bounds.maxY) {
-        continue;
-      }
-
-      ringPixels += 1;
-      const pixelIndex = y * width + x;
-      const alpha = data[pixelIndex * 4 + 3] ?? 0;
-
-      if (alpha === 0) {
-        continue;
-      }
-
-      opaqueRingPixels += 1;
-      darkRingPixels += isDarkLogoPixel(data, pixelIndex) ? 1 : 0;
-      nonWhiteRingPixels += isNonWhiteOpaquePixel(data, pixelIndex) ? 1 : 0;
-    }
-  }
-
-  return opaqueRingPixels > 0 && nonWhiteRingPixels / opaqueRingPixels > 0.7 && (darkRingPixels / Math.max(1, ringPixels) > 0.08 || nonWhiteRingPixels / Math.max(1, ringPixels) > 0.18);
-}
-
-function removeEnclosedWhiteComponents(data: Buffer, width: number, height: number) {
-  const pixelCount = width * height;
-  const visited = new Uint8Array(pixelCount);
-  let removedPixels = 0;
-
-  for (let startPixel = 0; startPixel < pixelCount; startPixel += 1) {
-    if (visited[startPixel] || !isNearWhiteOpaquePixel(data, startPixel)) {
-      continue;
-    }
-
-    const queue = [startPixel];
-    const pixels: number[] = [];
-    let bounds: PixelComponentBounds = { minX: width, minY: height, maxX: 0, maxY: 0 };
-    visited[startPixel] = 1;
-
-    for (let cursor = 0; cursor < queue.length; cursor += 1) {
-      const pixelIndex = queue[cursor] ?? 0;
-      const x = pixelIndex % width;
-      const y = Math.floor(pixelIndex / width);
-      pixels.push(pixelIndex);
-      bounds = { minX: Math.min(bounds.minX, x), minY: Math.min(bounds.minY, y), maxX: Math.max(bounds.maxX, x), maxY: Math.max(bounds.maxY, y) };
-
-      const enqueue = (neighborIndex: number) => {
-        if (visited[neighborIndex] || !isNearWhiteOpaquePixel(data, neighborIndex)) {
-          return;
-        }
-
-        visited[neighborIndex] = 1;
-        queue.push(neighborIndex);
-      };
-
-      if (x > 0) enqueue(pixelIndex - 1);
-      if (x < width - 1) enqueue(pixelIndex + 1);
-      if (y > 0) enqueue(pixelIndex - width);
-      if (y < height - 1) enqueue(pixelIndex + width);
-    }
-
-    if (!shouldRemoveEnclosedWhiteComponent(data, width, height, pixels, bounds)) {
-      continue;
-    }
-
-    for (const pixelIndex of pixels) {
-      data[pixelIndex * 4 + 3] = 0;
-      removedPixels += 1;
-    }
-  }
-
-  return removedPixels;
-}
-
 async function makeGeneratedLogoBackgroundTransparent(bytes: Uint8Array, options?: { force?: boolean }) {
   try {
     const sharp = (await import("sharp")).default;
@@ -702,9 +549,8 @@ async function makeGeneratedLogoBackgroundTransparent(bytes: Uint8Array, options
     }
 
     const softenedPixels = transparentPixels > 0 ? softenPixelsNearTransparentBackground(data, info.width, info.height, backgroundColor, options) : 0;
-    const enclosedWhitePixels = removeEnclosedWhiteComponents(data, info.width, info.height);
 
-    if (transparentPixels === 0 && softenedPixels === 0 && enclosedWhitePixels === 0) {
+    if (transparentPixels === 0 && softenedPixels === 0) {
       return bytes;
     }
 

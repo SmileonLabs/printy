@@ -10,11 +10,12 @@ import { ToastNotice, ToastNoticeViewport, type ToastNoticeTone } from "@/compon
 import { AppButton, ProgressHeader, Screen, SoftCard } from "@/components/ui";
 import { createAiBusinessCardMockupSignature, createAiBusinessCardRequestBody } from "@/lib/ai-business-card/client";
 import { createBrandWorkspaceSignature, readBrandWorkspace, type BrandWorkspace } from "@/lib/brand-workspace";
+import { applyBusinessCardLogoImageOverride, logoOptionHasImage } from "@/lib/business-card-logo-override";
 import { aiRequestStatusIntervalMs, createAiRequestStatusMessage, startAiRequestStatusTicker } from "@/lib/client/ai-request-status";
 import { businessCardProductionSizeFields, businessCardSizeOptions, createSizedBusinessCardLayout, resolveBusinessCardSize, sizeBusinessCardLayout } from "@/lib/design-session";
 import { getBusinessCardLayoutOrientation, layoutForBusinessCardOrientation } from "@/lib/business-card-layout-generator";
 import { readQrImageFile } from "@/lib/member-qr-image";
-import type { AiBusinessCardMockup, BusinessCardTemplateLayout, BusinessCardTemplateSideId, BusinessCardTemplateTextFieldId, BusinessCardUserElementId, Member } from "@/lib/types";
+import type { AiBusinessCardMockup, BusinessCardLogoImageOverride, BusinessCardTemplateLayout, BusinessCardTemplateSideId, BusinessCardTemplateTextFieldId, BusinessCardUserElementId, Member } from "@/lib/types";
 import { usePrintyStore } from "@/store/use-printy-store";
 
 type DownloadState = {
@@ -317,7 +318,7 @@ async function pollAiBusinessCardJob(jobId: string, onStatus?: (message: string)
 }
 
 export function BusinessCardPreviewScreen() {
-  const { brandDraft, memberDraft, selectedLogoId, selectedBusinessCardMemberIds, aiBusinessCardMockups, aiBusinessCardMockupStatus, aiBusinessCardMockupMessage, aiBusinessCardMockupSignature, activeAiBusinessCardMockupJobId, selectedAiBusinessCardMockupUrl, beginAiBusinessCardMockupGeneration, setActiveAiBusinessCardMockupJob, syncAiBusinessCardMockups, finishAiBusinessCardMockupGeneration, completeAiBusinessCardDesign, failAiBusinessCardMockupGeneration, selectAiBusinessCardMockup, deleteAiBusinessCardMockup, dismissAiBusinessCardPdfNotice, updateMemberDraft, updateBusinessCardProductionOptions, ensureBusinessCardDraft, syncBrandWorkspace, setGeneratedLogoImageUrl, setGeneratedLogoBackgroundRemovedImageUrl, enterDashboard, openBrandDetail, setBrandSection } = usePrintyStore();
+  const { brandDraft, memberDraft, selectedLogoId, selectedBusinessCardMemberIds, aiBusinessCardMockups, aiBusinessCardMockupStatus, aiBusinessCardMockupMessage, aiBusinessCardMockupSignature, activeAiBusinessCardMockupJobId, selectedAiBusinessCardMockupUrl, beginAiBusinessCardMockupGeneration, setActiveAiBusinessCardMockupJob, syncAiBusinessCardMockups, finishAiBusinessCardMockupGeneration, completeAiBusinessCardDesign, failAiBusinessCardMockupGeneration, selectAiBusinessCardMockup, deleteAiBusinessCardMockup, dismissAiBusinessCardPdfNotice, updateMemberDraft, updateBusinessCardProductionOptions, ensureBusinessCardDraft, syncBrandWorkspace, enterDashboard, openBrandDetail, setBrandSection } = usePrintyStore();
   const selectBusinessCardMemberForPreview = usePrintyStore((state) => state.selectBusinessCardMemberForPreview);
   const isAuthenticated = usePrintyStore((state) => state.isAuthenticated);
   const authUserId = usePrintyStore((state) => state.authSession?.userId);
@@ -330,6 +331,11 @@ export function BusinessCardPreviewScreen() {
   const businessCardEditorMode = usePrintyStore((state) => state.businessCardEditorMode);
   const pendingBusinessCardLayoutPrompt = usePrintyStore((state) => state.pendingBusinessCardLayoutPrompt);
   const logo = usePrintyStore((state) => findGeneratedLogoFromState(state, effectiveLogoId));
+  const projectLogo = useMemo(() => applyBusinessCardLogoImageOverride(logo, productionOptions.logoImageOverride), [logo, productionOptions.logoImageOverride]);
+  const projectLogoImageUrl = logoOptionHasImage(projectLogo) ? projectLogo.imageUrl : undefined;
+  const projectLogoOriginalImageUrl = logoOptionHasImage(projectLogo) ? projectLogo.originalImageUrl : undefined;
+  const projectLogoBackgroundRemovedImageUrl = logoOptionHasImage(projectLogo) ? projectLogo.backgroundRemovedImageUrl : undefined;
+  const projectLogoVectorSvgUrl = logoOptionHasImage(projectLogo) ? projectLogo.vectorSvgUrl : undefined;
   const [downloadState, setDownloadState] = useState<DownloadState>({});
   const [mockupRequest, setMockupRequest] = useState("");
   const [cleanBackgroundEditRequest, setCleanBackgroundEditRequest] = useState("");
@@ -360,7 +366,7 @@ export function BusinessCardPreviewScreen() {
     return selectedMembers.length > 0 ? selectedMembers : [layoutMember];
   }, [layoutMember, selectedBrand?.members, selectedBusinessCardMemberIds]);
   const isDesignEditMode = businessCardEditorMode === "edit";
-  const input = { brandName: brandDraft.name, category: brandDraft.category, member: layoutMember, logo, mood: brandDraft.designRequest, mockupRequest, referenceImageDataUrl, templateId: selectedTemplateId, productionOptions: productionOptionsWithLayout };
+  const input = { brandName: brandDraft.name, category: brandDraft.category, member: layoutMember, logo: projectLogo, mood: brandDraft.designRequest, mockupRequest, referenceImageDataUrl, templateId: selectedTemplateId, productionOptions: productionOptionsWithLayout };
   const currentSignature = createAiBusinessCardMockupSignature(input);
   const serverMockupKeys = useMemo(() => [currentSignature], [currentSignature]);
   const serverMockupLoadKey = currentSignature;
@@ -368,7 +374,7 @@ export function BusinessCardPreviewScreen() {
   const hasCurrentMockups = aiBusinessCardMockups.length > 0 && (isDesignEditMode || aiBusinessCardMockupSignature === currentSignature);
   const isGeneratingCurrentMockups = aiBusinessCardMockupSignature === currentSignature && aiBusinessCardMockupStatus === "generating";
   const isAiDesignRequestPending = aiBusinessCardMockupSignature === currentSignature && aiBusinessCardMockupStatus === "generating" && Boolean(activeAiBusinessCardMockupJobId || aiBusinessCardMockupSignature);
-  const canGenerateMockups = Boolean(logo?.imageUrl);
+  const canGenerateMockups = Boolean(projectLogoImageUrl);
   const selectedAiBusinessCardMockup = useMemo(() => aiBusinessCardMockups.find((mockup) => mockup.imageUrl === selectedAiBusinessCardMockupUrl), [aiBusinessCardMockups, selectedAiBusinessCardMockupUrl]);
   const selectedCleanMockupUrl = selectedAiBusinessCardMockup?.cleanImageUrl;
   const selectedBusinessCardSize = useMemo(() => resolveBusinessCardSize(productionOptions.sizeId, editableLayout ?? productionOptions.layout), [editableLayout, productionOptions.layout, productionOptions.sizeId]);
@@ -431,6 +437,62 @@ export function BusinessCardPreviewScreen() {
   };
   const syncProductionOptionsLayout = (layout: BusinessCardTemplateLayout) => {
     updateBusinessCardProductionOptions({ ...productionOptions, frontElements: visibleBusinessCardElements(layout, "front"), backElements: visibleBusinessCardElements(layout, "back"), ...businessCardProductionSizeFields(undefined, layout), layout });
+  };
+  const updateProjectLogoImageOverride = (logoImageOverride: BusinessCardLogoImageOverride | undefined) => {
+    updateBusinessCardProductionOptions({ ...usePrintyStore.getState().businessCardProductionOptions, logoImageOverride });
+
+    const activeDraftId = usePrintyStore.getState().activeBusinessCardDraftId;
+
+    if (!activeDraftId) {
+      return;
+    }
+
+    usePrintyStore.setState((state) => ({
+      businessCardDrafts: state.businessCardDrafts.map((draft) => (draft.id === activeDraftId ? { ...draft, logoImageOverride } : draft)),
+      brandWorkspaceHasPendingLocalChanges: true,
+      brandWorkspaceOwnerUserId: state.isAuthenticated ? state.brandWorkspaceOwnerUserId : undefined,
+    }));
+  };
+  const updateProjectLogoImageUrl = (logoId: string, imageUrl: string) => {
+    if (logoId !== effectiveLogoId) {
+      return;
+    }
+
+    const nextImageUrl = imageUrl.trim();
+    const currentProductionOptions = usePrintyStore.getState().businessCardProductionOptions;
+    const currentOverride = currentProductionOptions.logoImageOverride?.logoId === logoId ? currentProductionOptions.logoImageOverride : undefined;
+    const originalImageUrl = currentOverride?.originalImageUrl ?? logo?.originalImageUrl ?? logo?.imageUrl ?? nextImageUrl;
+    const backgroundRemovedImageUrl = currentOverride?.backgroundRemovedImageUrl;
+
+    if (!nextImageUrl || !originalImageUrl) {
+      return;
+    }
+
+    updateProjectLogoImageOverride({
+      logoId,
+      imageUrl: nextImageUrl,
+      originalImageUrl,
+      backgroundRemovedImageUrl,
+    });
+  };
+  const updateProjectLogoBackgroundRemovedImageUrl = (logoId: string, originalImageUrl: string, backgroundRemovedImageUrl: string) => {
+    if (logoId !== effectiveLogoId) {
+      return;
+    }
+
+    const nextOriginalImageUrl = originalImageUrl.trim();
+    const nextBackgroundRemovedImageUrl = backgroundRemovedImageUrl.trim();
+
+    if (!nextOriginalImageUrl || !nextBackgroundRemovedImageUrl) {
+      return;
+    }
+
+    updateProjectLogoImageOverride({
+      logoId,
+      imageUrl: nextBackgroundRemovedImageUrl,
+      originalImageUrl: nextOriginalImageUrl,
+      backgroundRemovedImageUrl: nextBackgroundRemovedImageUrl,
+    });
   };
   const updateLayoutOrientation = (orientation: "horizontal" | "vertical") => {
     setEditableLayout((current) => {
@@ -805,7 +867,7 @@ export function BusinessCardPreviewScreen() {
         method: "POST",
         cache: "no-store",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: layoutPrompt, logo: { present: Boolean(logo) }, primaryMember: layoutMemberContext(layoutMember), selectedMembers: selectedLayoutMembers.map(layoutMemberContext), baseLayout: editableLayout }),
+        body: JSON.stringify({ prompt: layoutPrompt, logo: { present: Boolean(projectLogo) }, primaryMember: layoutMemberContext(layoutMember), selectedMembers: selectedLayoutMembers.map(layoutMemberContext), baseLayout: editableLayout }),
       });
       const payload = await response.json() as { layout?: BusinessCardTemplateLayout; reason?: string; source?: string };
 
@@ -1133,7 +1195,7 @@ export function BusinessCardPreviewScreen() {
       <ProductionSizeCard title="명함 사이즈" description="이 제작 화면에서 인쇄 사이즈를 정해요. 사이즈를 바꾸면 현재 레이아웃 비율과 PDF 크기도 함께 바뀝니다." value={selectedBusinessCardSize.id} options={businessCardSizeOptions} onChange={updateBusinessCardSize} sideValue={activeBusinessCardSide} sideOptions={businessCardSideOptions} onSideChange={(value) => setActiveBusinessCardSide(value as BusinessCardTemplateSideId)} />
       {editableLayout ? (
         <div className="-mx-5">
-          <BusinessCardLayoutBuilder layout={editableLayout} orientation={getBusinessCardLayoutOrientation(editableLayout)} managedBackgrounds={[]} mode="user" userFieldValues={{ name: layoutMember.name, role: layoutMember.role, phone: layoutMember.phone, mainPhone: layoutMember.mainPhone, fax: layoutMember.fax, email: layoutMember.email, website: layoutMember.website ?? "", address: layoutMember.address, account: layoutMember.account ?? "", instagram: layoutMember.instagram ?? "" }} userQrCodeImageUrl={layoutMember.qrCodeImageUrl ?? ""} logoId={logo?.id} logoImageUrl={logo?.imageUrl} logoOriginalImageUrl={logo?.originalImageUrl} logoBackgroundRemovedImageUrl={logo?.backgroundRemovedImageUrl} logoVectorSvgUrl={logo?.vectorSvgUrl} onLogoImageUrlChange={setGeneratedLogoImageUrl} onLogoBackgroundRemovedImageUrlChange={setGeneratedLogoBackgroundRemovedImageUrl} cleanPreviewImageUrl={selectedCleanMockupUrl} activeSideId={activeBusinessCardSide} onActiveSideChange={setActiveBusinessCardSide} onOrientationChange={updateLayoutOrientation} onUserFieldValueChange={updateUserFieldValue} onUserQrCodeImageChange={updateUserQrCodeImage} onUserQrCodeImageClear={() => updateMemberDraft("qrCodeImageUrl", "")} onChange={updateLayoutAndProductionOptions} />
+          <BusinessCardLayoutBuilder layout={editableLayout} orientation={getBusinessCardLayoutOrientation(editableLayout)} managedBackgrounds={[]} mode="user" userFieldValues={{ name: layoutMember.name, role: layoutMember.role, phone: layoutMember.phone, mainPhone: layoutMember.mainPhone, fax: layoutMember.fax, email: layoutMember.email, website: layoutMember.website ?? "", address: layoutMember.address, account: layoutMember.account ?? "", instagram: layoutMember.instagram ?? "" }} userQrCodeImageUrl={layoutMember.qrCodeImageUrl ?? ""} logoId={projectLogo?.id} logoImageUrl={projectLogoImageUrl} logoOriginalImageUrl={projectLogoOriginalImageUrl} logoBackgroundRemovedImageUrl={projectLogoBackgroundRemovedImageUrl} logoVectorSvgUrl={projectLogoVectorSvgUrl} onLogoImageUrlChange={updateProjectLogoImageUrl} onLogoBackgroundRemovedImageUrlChange={updateProjectLogoBackgroundRemovedImageUrl} cleanPreviewImageUrl={selectedCleanMockupUrl} activeSideId={activeBusinessCardSide} onActiveSideChange={setActiveBusinessCardSide} onOrientationChange={updateLayoutOrientation} onUserFieldValueChange={updateUserFieldValue} onUserQrCodeImageChange={updateUserQrCodeImage} onUserQrCodeImageClear={() => updateMemberDraft("qrCodeImageUrl", "")} onChange={updateLayoutAndProductionOptions} />
         </div>
       ) : null}
       <ProductionAiDesignRequestCard
@@ -1188,8 +1250,8 @@ export function BusinessCardPreviewScreen() {
                   <button className="block w-full text-left" type="button" onClick={() => selectAiBusinessCardMockup(mockup.imageUrl)}>
                     {mockup.cleanImageUrl && mockupLayout ? (
                       <div className="grid gap-2">
-                        <BusinessCardUserPreview className="rounded-md" cleanImageUrl={mockup.cleanImageUrl} layout={mockupLayout} member={layoutMember} logo={logo} sideId="front" />
-                        <BusinessCardUserPreview className="rounded-md" cleanImageUrl={mockup.cleanImageUrl} layout={mockupLayout} member={layoutMember} logo={logo} sideId="back" />
+                        <BusinessCardUserPreview className="rounded-md" cleanImageUrl={mockup.cleanImageUrl} layout={mockupLayout} member={layoutMember} logo={projectLogo} sideId="front" />
+                        <BusinessCardUserPreview className="rounded-md" cleanImageUrl={mockup.cleanImageUrl} layout={mockupLayout} member={layoutMember} logo={projectLogo} sideId="back" />
                       </div>
                     ) : (
                       <div className="grid aspect-[3/2] place-items-center rounded-md bg-surface-blue text-xs font-bold text-muted">미리보기 준비 중</div>

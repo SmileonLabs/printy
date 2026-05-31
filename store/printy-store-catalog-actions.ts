@@ -58,7 +58,7 @@ export function createPrintyCatalogActions(set: PrintyStoreSet, get: PrintyStore
         activeBusinessCardDraftId: draft?.id,
         selectedProductId: product.id,
         selectedTemplateId: undefined,
-        businessCardProductionOptions: draft?.layout ? { ...state.businessCardProductionOptions, ...businessCardProductionSizeFields(undefined, draft.layout), layout: draft.layout } : state.businessCardProductionOptions,
+        businessCardProductionOptions: draft?.layout ? { ...state.businessCardProductionOptions, ...businessCardProductionSizeFields(undefined, draft.layout), layout: draft.layout, logoImageOverride: draft.logoImageOverride?.logoId === draft.selectedLogoId ? draft.logoImageOverride : undefined } : { ...state.businessCardProductionOptions, logoImageOverride: undefined },
         selectedBusinessCardMemberIds: brand.members[0]?.id ? [brand.members[0].id] : [],
       });
     },
@@ -104,11 +104,13 @@ export function createPrintyCatalogActions(set: PrintyStoreSet, get: PrintyStore
       const isEditModeWithMockups = mode === "edit" && Boolean(editMockups?.mockups.length);
       const editDraft = isEditModeWithMockups ? state.businessCardDrafts.find((item) => item.id === editMockups?.draftId && item.brandId === brand.id) ?? state.businessCardDrafts.find((item) => item.brandId === brand.id && item.completedMockupSignature === editMockups?.signature && (!selectedMember || item.member.id === selectedMember.id)) : undefined;
       const selectedLogoId = draft?.selectedLogoId ?? editDraft?.selectedLogoId ?? brand.selectedLogoId;
-      const nextBusinessCardProductionOptions = draft?.layout
-        ? { ...state.businessCardProductionOptions, ...businessCardProductionSizeFields(undefined, draft.layout), layout: draft.layout }
+      const sourceDraft = draft ?? editDraft;
+      const sourceDraftLogoImageOverride = sourceDraft?.logoImageOverride?.logoId === selectedLogoId ? sourceDraft.logoImageOverride : undefined;
+      const nextBusinessCardProductionOptions = sourceDraft?.layout
+        ? { ...state.businessCardProductionOptions, ...businessCardProductionSizeFields(undefined, sourceDraft.layout), layout: sourceDraft.layout, logoImageOverride: sourceDraftLogoImageOverride }
         : mode === "edit"
-          ? state.businessCardProductionOptions
-          : { ...state.businessCardProductionOptions, layout: undefined };
+          ? { ...state.businessCardProductionOptions, logoImageOverride: sourceDraftLogoImageOverride }
+          : { ...state.businessCardProductionOptions, layout: undefined, logoImageOverride: undefined };
 
       set({
         onboardingComplete: false,

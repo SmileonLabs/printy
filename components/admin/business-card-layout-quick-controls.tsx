@@ -91,6 +91,7 @@ export const businessCardInfoBlockLabels: Record<string, string> = {
 
 const iconSelectOptions = businessCardTemplateIconIds.map((iconId) => ({ value: iconId, label: iconLabels[iconId] }));
 const lineOrientationOptions = [{ value: "horizontal", label: "가로" }, { value: "vertical", label: "세로" }];
+const logoBackgroundRemovalTimeoutMs = 150_000;
 
 function fieldLabel(fieldId: BusinessCardTemplateTextFieldId) {
   if (fieldId.startsWith("headline-")) return `문구 ${fieldId.replace("headline-", "")}`;
@@ -266,6 +267,7 @@ export function QuickControls({ selectedItem, position, fixed = false, portal = 
 
   if (selectedItem.type === "logo" && logo) {
     const isBackgroundRemovedActive = Boolean(logoBackgroundRemovedImageUrl && logoImageUrl && logoBackgroundRemovedImageUrl === logoImageUrl);
+    const preservedOriginalLogoImageUrl = logoOriginalImageUrl && logoOriginalImageUrl !== logoBackgroundRemovedImageUrl ? logoOriginalImageUrl : undefined;
 
     return renderPanel(
       <>
@@ -288,9 +290,9 @@ export function QuickControls({ selectedItem, position, fixed = false, portal = 
               }
 
               if (isBackgroundRemovedActive) {
-                if (logoOriginalImageUrl) {
+                if (preservedOriginalLogoImageUrl) {
                   onLogoChange((current) => ({ ...current, assetType: "png" }));
-                  onLogoImageUrlChange(logoId, logoOriginalImageUrl);
+                  onLogoImageUrlChange(logoId, preservedOriginalLogoImageUrl);
                 } else {
                   window.alert("원본 로고 경로가 없어서 복원할 수 없어요. 로고를 다시 선택하거나 다시 등록해 주세요.");
                 }
@@ -298,28 +300,27 @@ export function QuickControls({ selectedItem, position, fixed = false, portal = 
                 return;
               }
 
-              if (logoBackgroundRemovedImageUrl) {
-                const originalUrl = logoOriginalImageUrl ?? logoImageUrl;
-
-                onLogoChange((current) => ({ ...current, assetType: "png" }));
-                if (onLogoBackgroundRemovedImageUrlChange) {
-                  onLogoBackgroundRemovedImageUrlChange(logoId, originalUrl, logoBackgroundRemovedImageUrl);
-                } else {
-                  onLogoImageUrlChange(logoId, logoBackgroundRemovedImageUrl);
-                }
-                return;
-              }
-
               setIsRemovingLogoBackground(true);
 
               try {
-                const sourceImageUrl = logoOriginalImageUrl ?? logoImageUrl;
+                if (!onLogoBackgroundRemovedImageUrlChange) {
+                  throw new Error("원본 로고를 보존할 수 없어서 배경을 지우지 않았어요. 로고를 다시 선택하거나 다시 등록해 주세요.");
+                }
+
+                const sourceImageUrl = preservedOriginalLogoImageUrl ?? logoImageUrl;
+                if (logoBackgroundRemovedImageUrl && sourceImageUrl === logoBackgroundRemovedImageUrl) {
+                  throw new Error("원본 로고 경로가 없어서 배경을 지우지 않았어요. 원본 로고를 다시 선택하거나 다시 등록해 주세요.");
+                }
+
+                const controller = new AbortController();
+                const timeoutId = window.setTimeout(() => controller.abort(), logoBackgroundRemovalTimeoutMs);
                 const response = await fetch("/api/logos/remove-background", {
                   method: "POST",
                   cache: "no-store",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ imageUrl: sourceImageUrl }),
-                });
+                  signal: controller.signal,
+                }).finally(() => window.clearTimeout(timeoutId));
                 const data: unknown = await response.json().catch(() => undefined);
                 const nextUrl = typeof data === "object" && data !== null && "imageUrl" in data && typeof (data as { imageUrl?: unknown }).imageUrl === "string" ? (data as { imageUrl: string }).imageUrl : undefined;
 
@@ -328,22 +329,18 @@ export function QuickControls({ selectedItem, position, fixed = false, portal = 
                   throw new Error(reason);
                 }
 
-                const originalUrl = logoOriginalImageUrl ?? logoImageUrl;
+                const originalUrl = sourceImageUrl;
 
                 onLogoChange((current) => ({ ...current, assetType: "png" }));
-                if (onLogoBackgroundRemovedImageUrlChange) {
-                  onLogoBackgroundRemovedImageUrlChange(logoId, originalUrl, nextUrl);
-                } else {
-                  onLogoImageUrlChange(logoId, nextUrl);
-                }
+                onLogoBackgroundRemovedImageUrlChange(logoId, originalUrl, nextUrl);
               } catch (error) {
-                window.alert(error instanceof Error ? error.message : "배경 지우기에 실패했어요.");
+                window.alert(error instanceof DOMException && error.name === "AbortError" ? "배경 지우기가 너무 오래 걸려 중단했어요. 잠시 후 다시 시도해 주세요." : error instanceof Error ? error.message : "배경 지우기에 실패했어요.");
               } finally {
                 setIsRemovingLogoBackground(false);
               }
             }}
           >
-            {isRemovingLogoBackground ? "처리 중" : isBackgroundRemovedActive ? "원본 복원" : "배경 지우기"} (v2)
+            {isRemovingLogoBackground ? "처리 중" : isBackgroundRemovedActive ? "원본 복원" : "배경 지우기"}
           </button>
         </div>
       </>

@@ -9,6 +9,19 @@ import type { PrintyState } from "@/store/printy-store-types";
 type PrintyStoreSet = Parameters<StateCreator<PrintyState, [], [], PrintyState>>[0];
 type PrintyStoreGet = Parameters<StateCreator<PrintyState, [], [], PrintyState>>[1];
 
+function readPreservedOriginalLogoUrl(targetLogo: { originalImageUrl?: string; backgroundRemovedImageUrl?: string }, originalImageUrl: string, backgroundRemovedImageUrl: string) {
+  const currentOriginalImageUrl = targetLogo.originalImageUrl?.trim();
+  const currentBackgroundRemovedImageUrl = targetLogo.backgroundRemovedImageUrl?.trim();
+  const nextOriginalImageUrl = originalImageUrl.trim();
+  const nextBackgroundRemovedImageUrl = backgroundRemovedImageUrl.trim();
+
+  if (currentOriginalImageUrl && currentOriginalImageUrl !== currentBackgroundRemovedImageUrl && currentOriginalImageUrl !== nextBackgroundRemovedImageUrl) {
+    return currentOriginalImageUrl;
+  }
+
+  return nextOriginalImageUrl && nextOriginalImageUrl !== currentBackgroundRemovedImageUrl && nextOriginalImageUrl !== nextBackgroundRemovedImageUrl ? nextOriginalImageUrl : undefined;
+}
+
 type PrintyLogoActions = Pick<
   PrintyState,
   | "selectLogo"
@@ -79,7 +92,7 @@ export function createPrintyLogoActions(set: PrintyStoreSet, get: PrintyStoreGet
         const nextSelectedLogoId = targetBrand.selectedLogoId === logoId ? remainingLogoIds[0] ?? logoOptions[0].id : targetBrand.selectedLogoId;
         const nextBrandLogoIds = Array.from(new Set([nextSelectedLogoId, ...remainingLogoIds]));
         const brands = state.brands.map((brand) => (brand.id === brandId ? { ...brand, selectedLogoId: nextSelectedLogoId, logoIds: nextBrandLogoIds } : brand));
-        const businessCardDrafts = state.businessCardDrafts.map((draft) => (draft.brandId === brandId && draft.selectedLogoId === logoId ? { ...draft, selectedLogoId: nextSelectedLogoId } : draft));
+        const businessCardDrafts = state.businessCardDrafts.map((draft) => (draft.brandId === brandId && draft.selectedLogoId === logoId ? { ...draft, selectedLogoId: nextSelectedLogoId, logoImageOverride: undefined } : draft));
         const selectedLogoId = state.selectedLogoId === logoId ? nextSelectedLogoId : state.selectedLogoId;
         const isStillReferenced = brands.some((brand) => brand.selectedLogoId === logoId || (Array.isArray(brand.logoIds) && brand.logoIds.includes(logoId))) || businessCardDrafts.some((draft) => draft.selectedLogoId === logoId);
 
@@ -445,9 +458,15 @@ export function createPrintyLogoActions(set: PrintyStoreSet, get: PrintyStoreGet
           return {};
         }
 
+        const preservedOriginalImageUrl = readPreservedOriginalLogoUrl(targetLogo, originalImageUrl, backgroundRemovedImageUrl);
+
+        if (!preservedOriginalImageUrl) {
+          return {};
+        }
+
         const updatedLogo = {
           ...targetLogo,
-          originalImageUrl: targetLogo.originalImageUrl ?? originalImageUrl.trim(),
+          originalImageUrl: preservedOriginalImageUrl,
           backgroundRemovedImageUrl: backgroundRemovedImageUrl.trim(),
           imageUrl: backgroundRemovedImageUrl.trim(),
         };

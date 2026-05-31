@@ -7,7 +7,9 @@ import { usePrintyStore } from "@/store/use-printy-store";
 import { BusinessCardUserPreview } from "@/components/admin/business-card-layout-builder";
 import { CompletedDesignCard, completedBusinessCardMockupImageSize, completedDesignPreviewImageSizes } from "@/components/design-production/completed-design-card";
 import { SavedDesignDraftList } from "@/components/design-production/saved-design-draft-list";
+import { resolveLogoFromState } from "@/components/printy/logo/logo-state";
 import { AppButton } from "@/components/ui";
+import { applyBusinessCardLogoImageOverride } from "@/lib/business-card-logo-override";
 import { getBusinessCardLayoutOrientation } from "@/lib/business-card-layout-generator";
 import type { AiBusinessCardMockup, BusinessCardDraft, BusinessCardTemplateLayout, Member, ResolvedLogoOption } from "@/lib/types";
 
@@ -57,6 +59,7 @@ function CompletedBusinessCardListItem({ entry, logo, rendererVersion, pdfRecord
   onDownloadPdf: (entry: CompletedBusinessCardEntry, member: Member | undefined, layout: BusinessCardTemplateLayout | undefined) => void;
 }) {
   const copyCompletedBusinessCardDraft = usePrintyStore((state) => state.copyCompletedBusinessCardDraft);
+  const baseLogo = usePrintyStore((state) => entry.draft?.selectedLogoId ? resolveLogoFromState(state, entry.draft.selectedLogoId) : logo);
   const { mockup } = entry;
   const matchedMember = resolveMember(entry);
   const completedLayout = resolveLayout(entry);
@@ -66,6 +69,7 @@ function CompletedBusinessCardListItem({ entry, logo, rendererVersion, pdfRecord
   const canDownloadImage = Boolean(mockup.cleanImageUrl && completedLayout && matchedMember);
   const downloadLayout = completedLayout;
   const downloadMember = matchedMember;
+  const previewLogo = applyBusinessCardLogoImageOverride(baseLogo, entry.draft?.logoImageOverride);
 
   return (
     <>
@@ -74,7 +78,7 @@ function CompletedBusinessCardListItem({ entry, logo, rendererVersion, pdfRecord
         layout="overlay"
         preview={mockup.cleanImageUrl && completedLayout && matchedMember ? (
           <div ref={previewRef} className="relative">
-            <BusinessCardUserPreview className={completedBusinessCardPreviewClassName} cleanImageUrl={mockup.cleanImageUrl} layout={completedLayout} member={matchedMember} logo={logo} />
+            <BusinessCardUserPreview className={completedBusinessCardPreviewClassName} cleanImageUrl={mockup.cleanImageUrl} layout={completedLayout} member={matchedMember} logo={previewLogo} />
           </div>
         ) : (
           <Image className="block h-full w-full rounded-lg object-cover" src={mockup.imageUrl} alt={mockup.title} width={completedBusinessCardMockupImageSize.width} height={completedBusinessCardMockupImageSize.height} sizes={completedDesignPreviewImageSizes} unoptimized />
@@ -142,8 +146,8 @@ function CompletedBusinessCardListItem({ entry, logo, rendererVersion, pdfRecord
       {mockup.cleanImageUrl && downloadLayout && downloadMember ? (
         <div className="fixed left-[-9999px] top-0 z-[-1] opacity-0 pointer-events-none" aria-hidden="true">
           <div ref={downloadRef} className="grid w-[420px] gap-0 bg-transparent">
-            <BusinessCardUserPreview flat className="!bg-transparent !p-0 !rounded-none" cleanImageUrl={mockup.cleanImageUrl} layout={downloadLayout} member={downloadMember} logo={logo} sideId="front" />
-            <BusinessCardUserPreview flat className="!bg-transparent !p-0 !rounded-none" cleanImageUrl={mockup.cleanImageUrl} layout={downloadLayout} member={downloadMember} logo={logo} sideId="back" />
+            <BusinessCardUserPreview flat className="!bg-transparent !p-0 !rounded-none" cleanImageUrl={mockup.cleanImageUrl} layout={downloadLayout} member={downloadMember} logo={previewLogo} sideId="front" />
+            <BusinessCardUserPreview flat className="!bg-transparent !p-0 !rounded-none" cleanImageUrl={mockup.cleanImageUrl} layout={downloadLayout} member={downloadMember} logo={previewLogo} sideId="back" />
           </div>
         </div>
       ) : null}

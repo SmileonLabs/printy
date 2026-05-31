@@ -14,6 +14,7 @@ import { AppButton, SoftCard, TextAreaField, TextField } from "@/components/ui";
 import { getLogo, LogoMark } from "@/components/ui/logo";
 import { createAiBusinessCardMockupSignature, createAiBusinessCardRequestBody } from "@/lib/ai-business-card/client";
 import type { AiBusinessCardDesign } from "@/lib/ai-business-card/schema";
+import { applyBusinessCardLogoImageOverride } from "@/lib/business-card-logo-override";
 import { normalizeBusinessCardTemplateLayout } from "@/lib/business-card-templates";
 import { businessCardProductionSizeFields, createSizedBusinessCardLayout, resolveBusinessCardSize } from "@/lib/design-session";
 import { brandDetailSections } from "@/lib/mock-data";
@@ -1025,8 +1026,9 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
     const entries = brand.members.map((member) => ({ member, logoId: logo.id, signature: createAiBusinessCardMockupSignature({ brandName: brand.name, category: brand.category, mood: brand.designRequest, member, logo, templateId: selectedTemplateId, productionOptions }), draftId: undefined as string | undefined }));
 
     for (const draft of businessCardDrafts.filter((item) => item.brandId === brand.id && item.layout)) {
-      const draftLogo = draft.selectedLogoId ? resolveLogoFromState(printyState, draft.selectedLogoId) : logo;
-      const draftProductionOptions = { ...productionOptions, layout: draft.layout };
+      const draftBaseLogo = draft.selectedLogoId ? resolveLogoFromState(printyState, draft.selectedLogoId) : logo;
+      const draftLogo = applyBusinessCardLogoImageOverride(draftBaseLogo, draft.logoImageOverride) ?? draftBaseLogo;
+      const draftProductionOptions = { ...productionOptions, layout: draft.layout, logoImageOverride: draft.logoImageOverride };
       const signature = createAiBusinessCardMockupSignature({ brandName: brand.name, category: brand.category, mood: brand.designRequest, member: draft.member, logo: draftLogo, templateId: draft.templateId ?? selectedTemplateId, productionOptions: draftProductionOptions });
 
       if (!entries.some((entry) => entry.signature === signature)) {
@@ -1164,13 +1166,13 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
 
     setSelectedSavedLayoutDraftId("");
     selectAiBusinessCardMockup(undefined);
-    updateBusinessCardProductionOptions({ frontElements: nextFrontElements, backElements: nextBackElements, color: selectedColor, ...businessCardProductionSizeFields(selectedBusinessCardSize.id, nextLayout), layout: nextLayout });
+    updateBusinessCardProductionOptions({ frontElements: nextFrontElements, backElements: nextBackElements, color: selectedColor, ...businessCardProductionSizeFields(selectedBusinessCardSize.id, nextLayout), layout: nextLayout, logoImageOverride: undefined });
     onStartProduction(nextMemberIds, undefined, "new", undefined, undefined, businessCardLayoutPrompt);
   };
   const handleEditOrderedCardLayout = (draft: BusinessCardDraft, template: PrintTemplate) => {
     const nextLayout = draft.layout ?? template.layout ?? createSizedBusinessCardLayout({ frontElements, backElements, sizeId: selectedBusinessCardSize.id });
 
-    updateBusinessCardProductionOptions({ frontElements, backElements, color: selectedColor, ...businessCardProductionSizeFields(undefined, nextLayout), layout: nextLayout });
+    updateBusinessCardProductionOptions({ frontElements, backElements, color: selectedColor, ...businessCardProductionSizeFields(undefined, nextLayout), layout: nextLayout, logoImageOverride: draft.logoImageOverride });
     onStartProduction([draft.member.id], template.id, "draft");
   };
   const handleLoadSavedLayout = (draft: BusinessCardDraft) => {
@@ -1186,7 +1188,7 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
     setBackElements(nextBackElements);
     setSelectedMemberIds([draft.member.id]);
     setSelectedSavedLayoutDraftId(draft.id);
-    updateBusinessCardProductionOptions({ frontElements: nextFrontElements, backElements: nextBackElements, color: selectedColor, ...businessCardProductionSizeFields(undefined, draft.layout), layout: draft.layout });
+    updateBusinessCardProductionOptions({ frontElements: nextFrontElements, backElements: nextBackElements, color: selectedColor, ...businessCardProductionSizeFields(undefined, draft.layout), layout: draft.layout, logoImageOverride: draft.logoImageOverride });
     onStartProduction([draft.member.id], draft.templateId, "draft", undefined, { draftId: draft.id, mockups: [] });
   };
   const handleDeleteSavedLayout = (draft: BusinessCardDraft) => {
@@ -1233,10 +1235,12 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
     setSelectedMemberIds([member.id]);
     syncAiBusinessCardMockups(signature, mockups.length > 0 ? mockups : [mockup]);
     selectAiBusinessCardMockup(mockup.imageUrl);
-    updateBusinessCardProductionOptions({ frontElements: nextFrontElements, backElements: nextBackElements, color: selectedColor, ...businessCardProductionSizeFields(undefined, nextLayout), layout: nextLayout });
+    const editDraft = draftId ? businessCardDrafts.find((draft) => draft.id === draftId) : undefined;
+
+    updateBusinessCardProductionOptions({ frontElements: nextFrontElements, backElements: nextBackElements, color: selectedColor, ...businessCardProductionSizeFields(undefined, nextLayout), layout: nextLayout, logoImageOverride: editDraft?.logoImageOverride });
     onStartProduction([member.id], selectedTemplateId, "edit", member, { draftId, signature, mockups: mockups.length > 0 ? mockups : [mockup], selectedImageUrl: mockup.imageUrl });
   };
-  const handleDownloadMockupPdf = async (mockup: AiBusinessCardMockup, signature = visibleAiBusinessCardMockupSignature, memberOverride?: Member, layoutOverride?: BusinessCardTemplateLayout) => {
+  const handleDownloadMockupPdf = async (mockup: AiBusinessCardMockup, signature = visibleAiBusinessCardMockupSignature, memberOverride?: Member, layoutOverride?: BusinessCardTemplateLayout, draftOverride?: BusinessCardDraft) => {
     const pdfRecordKey = `${mockup.id}:${aiBusinessCardPdfRendererVersion}`;
     const existingRecord = mockupPdfRecords[pdfRecordKey];
 
@@ -1252,6 +1256,7 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
 
     const matchedMember = memberOverride ?? currentBrandMockupSignatureEntries.find((entry) => entry.signature === signature)?.member ?? memberFromSavedAiBusinessCardMockupSignature(signature, brand.members);
     const completedLayout = layoutOverride ?? mockup.layout ?? layoutFromSavedAiBusinessCardMockupSignature(signature);
+    const matchedDraft = draftOverride ?? findDraftByCompletedMockupSignature(signature);
 
     if (!matchedMember) {
       setMockupPdfErrors((current) => ({ ...current, [pdfRecordKey]: "현재 브랜드/구성원 정보와 맞는 목업을 찾지 못했어요. 목업을 다시 생성해 주세요." }));
@@ -1263,7 +1268,9 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
       return;
     }
 
-    const input = { brandName: brand.name, category: brand.category, mood: brand.designRequest, member: matchedMember, logo, templateId: selectedTemplateId, productionOptions: { ...productionOptions, layout: completedLayout } };
+    const inputBaseLogo = matchedDraft?.selectedLogoId ? resolveLogoFromState(printyState, matchedDraft.selectedLogoId) : logo;
+    const inputLogo = applyBusinessCardLogoImageOverride(inputBaseLogo, matchedDraft?.logoImageOverride) ?? inputBaseLogo;
+    const input = { brandName: brand.name, category: brand.category, mood: brand.designRequest, member: matchedMember, logo: inputLogo, templateId: selectedTemplateId, productionOptions: { ...productionOptions, layout: completedLayout, logoImageOverride: matchedDraft?.logoImageOverride } };
     const body = createAiBusinessCardRequestBody(input);
 
     setRunningMockupPdfId(mockup.id);
@@ -1379,7 +1386,7 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
         draft,
         template,
         member: draft.member ?? previewMember,
-        logo: draft.selectedLogoId ? resolveLogoFromState(printyState, draft.selectedLogoId) : logo,
+        logo: applyBusinessCardLogoImageOverride(draft.selectedLogoId ? resolveLogoFromState(printyState, draft.selectedLogoId) : logo, draft.logoImageOverride) ?? logo,
       };
     })
     .filter((card): card is OrderedBusinessCard => card !== null);
@@ -1418,7 +1425,7 @@ function CardsSection({ brand, logo, businessCardDrafts, orders, templates, onSt
             handleEditCompletedMockupLayout(mockup, matchedMember, completedLayout, signature, matchedDraft ? [mockup] : visibleAiBusinessCardMockups, matchedDraft?.id);
           }}
           onDelete={handleDeleteCompletedMockup}
-          onDownloadPdf={({ mockup, signature }, matchedMember, completedLayout) => handleDownloadMockupPdf(mockup, signature, matchedMember, completedLayout)}
+          onDownloadPdf={({ draft, mockup, signature }, matchedMember, completedLayout) => handleDownloadMockupPdf(mockup, signature, matchedMember, completedLayout, draft)}
         />
         {orderedBusinessCards.length > 0 ? orderedBusinessCards.map(({ order, draft, template, member, logo: cardLogo }) => (
           <div key={order.id} className="grid gap-4 rounded-lg bg-surface-blue p-4">

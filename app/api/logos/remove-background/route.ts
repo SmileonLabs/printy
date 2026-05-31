@@ -6,6 +6,14 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const maxProcessBytes = 12 * 1024 * 1024;
+const processTimeoutMs = 90_000;
+
+class LogoBackgroundRemovalTimeoutError extends Error {
+  constructor() {
+    super("Logo background removal timed out.");
+    this.name = "LogoBackgroundRemovalTimeoutError";
+  }
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -44,6 +52,14 @@ async function readLogoBytesByPublicUrl(imageUrl: string) {
   return await readGeneratedLogoBytesByPublicUrl(imageUrl) ?? await readBrandAssetBytesByPublicUrl(imageUrl);
 }
 
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number) {
+  return await new Promise<T>((resolve, reject) => {
+    const timeoutId = setTimeout(() => reject(new LogoBackgroundRemovalTimeoutError()), timeoutMs);
+
+    promise.then(resolve, reject).finally(() => clearTimeout(timeoutId));
+  });
+}
+
 export async function POST(request: Request) {
   const imageUrl = readImageUrl(await request.json().catch(() => undefined));
 
@@ -62,14 +78,20 @@ export async function POST(request: Request) {
   }
 
   try {
-    const processed = await removeGeneratedLogoBackground(bytes);
-    const stored = await saveGeneratedLogoBytes(processed);
+    const stored = await withTimeout((async () => {
+      const processed = await removeGeneratedLogoBackground(bytes);
+      return await saveGeneratedLogoBytes(processed);
+    })(), processTimeoutMs);
     return NextResponse.json({ imageUrl: stored.publicUrl, debug: { size: stored.size } }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.warn("Logo background removal failed", {
       errorName: error instanceof Error ? error.name : "UnknownError",
       errorMessage: error instanceof Error ? error.message : undefined,
     });
-    return NextResponse.json({ reason: "배경 지우기에 실패했어요. 잠시 후 다시 시도해 주세요." }, { status: 503 });
+    if (error instanceof LogoBackgroundRemovalTimeoutError) {
+      return NextResponse.json({ reason: "배경 지우기가 오래 걸려 중단됐어요. 잠시 후 다시 시도해 주세요." }, { status: 504, headers: { "Cache-Control": "no-store" } });
+    }
+
+    return NextResponse.json({ reason: "배경 지우기에 실패했어요. 잠시 후 다시 시도해 주세요." }, { status: 503, headers: { "Cache-Control": "no-store" } });
   }
 }

@@ -1,7 +1,7 @@
 import { createJSONStorage, type PersistOptions } from "zustand/middleware";
 import { businessCardProductionSizeFields, resolveBusinessCardSize } from "@/lib/design-session";
 import { normalizeBusinessCardTemplateLayout } from "@/lib/business-card-templates";
-import { isSelectableLogoId, normalizeBrandAsset, normalizeBrandWithSelectableLogos, normalizeBusinessCardDraftWithSelectableLogos, normalizeGeneratedLogos, normalizeSelectableLogoId } from "@/store/printy-store-normalizers";
+import { isSelectableLogoId, normalizeBrandAsset, normalizeBrandWithSelectableLogos, normalizeBusinessCardDraftWithSelectableLogos, normalizeBusinessCardLogoImageOverride, normalizeGeneratedLogos, normalizeSelectableLogoId } from "@/store/printy-store-normalizers";
 import { normalizePrintProductLayout } from "@/lib/print-products/adapters";
 import type { BusinessCardColorPaletteId, BusinessCardProductionOptions, BusinessCardUserElementId, MainTab, PrintProductDraft } from "@/lib/types";
 import type { PrintyState } from "@/store/printy-store-types";
@@ -56,7 +56,7 @@ function normalizeBusinessCardProductionOptions(value: unknown, fallback: Busine
     return fallback;
   }
 
-  const record = value as { frontElements?: unknown; backElements?: unknown; color?: unknown; sizeId?: unknown; layout?: unknown };
+  const record = value as { frontElements?: unknown; backElements?: unknown; color?: unknown; sizeId?: unknown; layout?: unknown; logoImageOverride?: unknown };
   const frontElements = Array.isArray(record.frontElements) ? record.frontElements.filter(isBusinessCardUserElementId) : fallback.frontElements;
   const backElements = Array.isArray(record.backElements) ? record.backElements.filter(isBusinessCardUserElementId) : fallback.backElements;
   const layout = normalizeBusinessCardTemplateLayout(record.layout);
@@ -66,6 +66,7 @@ function normalizeBusinessCardProductionOptions(value: unknown, fallback: Busine
     frontElements,
     backElements,
     color: isBusinessCardColorPaletteId(record.color) ? record.color : fallback.color,
+    logoImageOverride: normalizeBusinessCardLogoImageOverride(record.logoImageOverride),
     ...businessCardProductionSizeFields(size.id, layout),
     layout,
   } satisfies BusinessCardProductionOptions;

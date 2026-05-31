@@ -2,7 +2,7 @@ import { isGeneratedLogoOption } from "@/lib/logo/logoValidation";
 import { normalizeBusinessCardTemplateLayout } from "@/lib/business-card-templates";
 import { normalizeMemberContact } from "@/lib/member-contact";
 import { logoOptions } from "@/lib/mock-data";
-import type { AiBusinessCardMockup, Brand, BrandAsset, BusinessCardDraft, GeneratedLogoOption, Member } from "@/lib/types";
+import type { AiBusinessCardMockup, Brand, BrandAsset, BusinessCardDraft, BusinessCardLogoImageOverride, GeneratedLogoOption, Member } from "@/lib/types";
 import { defaultBrandDraft, defaultMember, type BrandDraft } from "@/store/printy-store-defaults";
 import { getCreatedDate, makeId } from "@/store/printy-store-id-date";
 
@@ -125,6 +125,29 @@ export function normalizeBrand(brand: Brand | Record<string, unknown>): Brand {
   return normalizeBrandWithSelectableLogos(brand, []);
 }
 
+export function normalizeBusinessCardLogoImageOverride(value: unknown): BusinessCardLogoImageOverride | undefined {
+  if (typeof value !== "object" || value === null) {
+    return undefined;
+  }
+
+  const record = value as Record<string, unknown>;
+  const logoId = normalizeString(record.logoId);
+  const imageUrl = normalizeString(record.imageUrl);
+  const originalImageUrl = normalizeString(record.originalImageUrl);
+  const backgroundRemovedImageUrl = normalizeString(record.backgroundRemovedImageUrl);
+
+  if (!logoId || !imageUrl || !originalImageUrl) {
+    return undefined;
+  }
+
+  return {
+    logoId,
+    imageUrl,
+    originalImageUrl,
+    backgroundRemovedImageUrl: backgroundRemovedImageUrl || undefined,
+  };
+}
+
 function normalizeBusinessCardDraftMockup(value: unknown): AiBusinessCardMockup | undefined {
   if (typeof value !== "object" || value === null) {
     return undefined;
@@ -146,6 +169,8 @@ function normalizeBusinessCardDraftMockup(value: unknown): AiBusinessCardMockup 
 export function normalizeBusinessCardDraftWithSelectableLogos(draft: BusinessCardDraft | Record<string, unknown>, savedGeneratedLogoOptions: GeneratedLogoOption[]): BusinessCardDraft {
   const record = draft as Record<string, unknown>;
   const completedMockup = normalizeBusinessCardDraftMockup(record.completedMockup);
+  const selectedLogoId = normalizeSelectableLogoId(record.selectedLogoId, savedGeneratedLogoOptions);
+  const logoImageOverride = normalizeBusinessCardLogoImageOverride(record.logoImageOverride);
 
   return {
     id: normalizeOptionalString(record.id, makeId("card", 0)),
@@ -153,7 +178,8 @@ export function normalizeBusinessCardDraftWithSelectableLogos(draft: BusinessCar
     brandName: normalizeOptionalString(record.brandName, defaultBrandDraft.name),
     category: normalizeOptionalString(record.category, defaultBrandDraft.category),
     designRequest: normalizeDesignRequest(record, defaultBrandDraft.designRequest),
-    selectedLogoId: normalizeSelectableLogoId(record.selectedLogoId, savedGeneratedLogoOptions),
+    selectedLogoId,
+    logoImageOverride: logoImageOverride?.logoId === selectedLogoId ? logoImageOverride : undefined,
     templateId: typeof record.templateId === "string" ? record.templateId : undefined,
     layout: normalizeBusinessCardTemplateLayout(record.layout),
     completedMockupSignature: typeof record.completedMockupSignature === "string" && completedMockup ? record.completedMockupSignature : undefined,

@@ -30,6 +30,14 @@ function isString(value: unknown): value is string {
   return typeof value === "string";
 }
 
+function isBusinessCardLogoImageOverride(value: unknown) {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return isNonEmptyString(value.logoId) && isNonEmptyString(value.imageUrl) && isNonEmptyString(value.originalImageUrl) && (value.backgroundRemovedImageUrl === undefined || isString(value.backgroundRemovedImageUrl));
+}
+
 function isShippingInfo(value: unknown): value is ShippingInfo {
   if (!isRecord(value)) {
     return false;
@@ -86,6 +94,7 @@ export function isBusinessCardDraft(value: unknown): value is BusinessCardDraft 
     isString(value.category) &&
     isString(value.designRequest) &&
     isString(value.selectedLogoId) &&
+    (value.logoImageOverride === undefined || isBusinessCardLogoImageOverride(value.logoImageOverride)) &&
     (value.templateId === undefined || isString(value.templateId)) &&
     (value.layout === undefined || Boolean(normalizeBusinessCardTemplateLayout(value.layout))) &&
     (value.completedMockupSignature === undefined || isString(value.completedMockupSignature)) &&

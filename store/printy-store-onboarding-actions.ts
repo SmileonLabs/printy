@@ -76,6 +76,7 @@ export function createPrintyOnboardingActions(set: PrintyStoreSet, get: PrintySt
         category: state.brandDraft.category,
         designRequest: state.brandDraft.designRequest.trim(),
         selectedLogoId: state.selectedLogoId,
+        logoImageOverride: state.businessCardProductionOptions.logoImageOverride?.logoId === state.selectedLogoId ? state.businessCardProductionOptions.logoImageOverride : undefined,
         templateId: state.selectedTemplateId,
         layout: layout ?? state.businessCardProductionOptions.layout,
         member: { ...state.memberDraft },

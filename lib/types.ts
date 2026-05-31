@@ -145,6 +145,13 @@ export type GeneratedLogoOption = {
   revisionRequest?: string;
 };
 
+export type BusinessCardLogoImageOverride = {
+  logoId: string;
+  imageUrl: string;
+  originalImageUrl: string;
+  backgroundRemovedImageUrl?: string;
+};
+
 export type LogoGenerationStatus = "idle" | "generating" | "success" | "error";
 
 export type LogoGenerationResponse = {
@@ -212,6 +219,7 @@ export type BusinessCardDraft = {
   category: string;
   designRequest: string;
   selectedLogoId: string;
+  logoImageOverride?: BusinessCardLogoImageOverride;
   templateId?: string;
   layout?: BusinessCardTemplateLayout;
   completedMockupSignature?: string;
@@ -227,6 +235,7 @@ export type BusinessCardProductionOptions = {
   frontElements: BusinessCardUserElementId[];
   backElements: BusinessCardUserElementId[];
   color: BusinessCardColorPaletteId;
+  logoImageOverride?: BusinessCardLogoImageOverride;
   sizeId?: string;
   widthMm?: number;
   heightMm?: number;
