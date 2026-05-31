@@ -91,53 +91,49 @@ function averageRgb(pixels: Uint8Array) {
   return { r: r / count, g: g / count, b: b / count };
 }
 
-function adjacentRowDistance(pixels: Uint8Array, width: number, row: number, step: number) {
-  let total = 0;
-  let count = 0;
-  const currentRowStart = row * width * 4;
-  const previousRowStart = (row - 1) * width * 4;
+function detectTopBleedRepairHeight(rowContaminationRatios: number[], backHeight: number, force: boolean) {
+  const contaminationThreshold = force ? 0.24 : 0.32;
+  const maxRepairHeight = Math.max(8, Math.floor(backHeight * (force ? 0.08 : 0.05)));
+  const cleanRunTarget = Math.max(3, Math.floor(backHeight * 0.008));
+  const minContaminatedRows = force ? 1 : 2;
+  let contaminatedRows = 0;
+  let lastContaminatedRow = -1;
+  let cleanRowsAfterContamination = 0;
 
-  for (let x = 0; x < width; x += step) {
-    const currentIndex = currentRowStart + x * 4;
-    const previousIndex = previousRowStart + x * 4;
-    const currentAlpha = pixels[currentIndex + 3];
-    const previousAlpha = pixels[previousIndex + 3];
+  for (let y = 0; y < Math.min(rowContaminationRatios.length, maxRepairHeight); y += 1) {
+    const isContaminated = (rowContaminationRatios[y] ?? 0) > contaminationThreshold;
 
-    if (currentAlpha < 200 || previousAlpha < 200) {
+    if (isContaminated) {
+      if (lastContaminatedRow < 0 && y > 2) {
+        return 0;
+      }
+
+      contaminatedRows += 1;
+      lastContaminatedRow = y;
+      cleanRowsAfterContamination = 0;
       continue;
     }
 
-    total += rgbDistance(
-      { r: pixels[currentIndex], g: pixels[currentIndex + 1], b: pixels[currentIndex + 2] },
-      { r: pixels[previousIndex], g: pixels[previousIndex + 1], b: pixels[previousIndex + 2] },
-    );
-    count += 1;
-  }
+    if (lastContaminatedRow < 0) {
+      if (y >= cleanRunTarget) {
+        return 0;
+      }
 
-  return count > 0 ? total / count : 0;
-}
+      continue;
+    }
 
-function detectBackPanelStartOffset(backPixels: Uint8Array, width: number, backHeight: number) {
-  const minOffset = Math.max(8, Math.floor(backHeight * 0.04));
-  const maxOffset = Math.max(minOffset + 1, Math.floor(backHeight * 0.38));
-  const sampleStep = Math.max(1, Math.floor(width / 180));
-  let bestOffset = 0;
-  let bestScore = 0;
+    cleanRowsAfterContamination += 1;
 
-  for (let y = minOffset; y < maxOffset; y += 1) {
-    const score = adjacentRowDistance(backPixels, width, y, sampleStep);
-
-    if (score > bestScore) {
-      bestScore = score;
-      bestOffset = y;
+    if (cleanRowsAfterContamination >= cleanRunTarget) {
+      break;
     }
   }
 
-  if (bestOffset >= minOffset && bestScore > 10) {
-    return bestOffset;
+  if (lastContaminatedRow < 0 || contaminatedRows < minContaminatedRows || cleanRowsAfterContamination < cleanRunTarget) {
+    return 0;
   }
 
-  return Math.floor(backHeight * 0.18);
+  return Math.min(maxRepairHeight, lastContaminatedRow + Math.max(4, Math.floor(backHeight * 0.01)));
 }
 
 export async function sanitizeCleanBackgroundBackPanel(bytes: Buffer, options?: { force?: boolean }) {
@@ -229,42 +225,32 @@ export async function sanitizeCleanBackgroundBackPanel(bytes: Buffer, options?: 
     rowContaminationRatios.push(solid > 0 ? contaminated / solid : 0);
   }
 
-  let contaminatedEnd = -1;
-  let contaminatedRows = 0;
-
-  for (let y = 0; y < rowContaminationRatios.length; y += 1) {
-    if ((rowContaminationRatios[y] ?? 0) > 0.12) {
-      contaminatedRows += 1;
-      contaminatedEnd = y;
-    }
-  }
-
-  if (!options?.force && (contaminatedEnd < 0 || contaminatedRows < 3)) {
-    return bytes;
-  }
-
-  const repairHeight = options?.force ? detectBackPanelStartOffset(backPixels, width, backHeight) : Math.min(backHeight, contaminatedEnd + Math.max(6, Math.floor(backHeight * 0.025)));
+  const repairHeight = detectTopBleedRepairHeight(rowContaminationRatios, backHeight, Boolean(options?.force));
 
   if (repairHeight <= 0 || repairHeight >= backHeight) {
     return bytes;
   }
 
-  // Repair only the bleed strip so the back side starts cleanly at the midpoint.
+  // Mask only a narrow bleed strip; never shift the back panel and risk cropping artwork.
   const fill = {
     r: clampByte(backBackground.r),
     g: clampByte(backBackground.g),
     b: clampByte(backBackground.b),
     alpha: 255,
   };
-  const shiftedBackPanel = await sharp(bytes)
-    .ensureAlpha()
-    .extract({ left: 0, top: backTop + repairHeight, width, height: backHeight - repairHeight })
-    .extend({ bottom: repairHeight, background: fill })
+  const bleedMask = await sharp({
+    create: {
+      width,
+      height: repairHeight,
+      channels: 4,
+      background: fill,
+    },
+  })
     .png()
     .toBuffer();
   return sharp(bytes)
     .ensureAlpha()
-    .composite([{ input: shiftedBackPanel, top: backTop, left: 0 }])
+    .composite([{ input: bleedMask, top: backTop, left: 0 }])
     .png()
     .toBuffer();
 }
@@ -444,6 +430,8 @@ STRICT RULES:
 - ABSOLUTE HALF-SPLIT RULE: split the vertical sheet by its exact height midpoint only. The top front panel occupies exactly y 0% through 50% of the sheet height, and the bottom back panel occupies exactly y 50% through 100%.
 - No front-side pixel, texture, decoration, logo, text, shadow, or background may extend below the exact 50% midpoint. No back-side pixel may extend above the exact 50% midpoint.
 - Never make the front panel taller than the back panel, never make the back panel start lower than the midpoint, and never let either side overlap or intrude into the other side.
+- Preserve both complete card artworks inside their own halves. Do not crop, zoom, squeeze, shift, or cut off either side while enforcing the midpoint rule.
+- If source pixels cross the midpoint, mask only the crossing pixels at the boundary and reconstruct the immediately surrounding background. Never move the other panel upward or downward.
 - Keep the image flat, front-facing, orthographic, rectangular, and unwarped.
 - Edit only background artwork, texture, color, decorative shapes, or ambience requested by the user.
 - Do not add, edit, translate, paraphrase, abbreviate, romanize, correct, rewrite, or replace customer text, placeholder text, contact text, brand copy, taglines, icons, QR codes, crop marks, guide lines, hands, desk, shadows, perspective, or 3D mockups.

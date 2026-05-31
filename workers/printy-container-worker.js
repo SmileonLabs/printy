@@ -41,6 +41,7 @@ function shouldUseNativeContainer(pathname) {
     pathname.startsWith("/api/brand-mockups/jobs/") ||
     pathname === "/api/logos/generate" ||
     pathname === "/api/logos/upload" ||
+    pathname === "/api/logos/remove-background" ||
     pathname.startsWith("/api/logos/generation-jobs/") ||
     pathname === "/api/logos/vectorize" ||
     /^\/uploads\/logo-reference-images\/[^/]+$/.test(pathname) ||
@@ -125,7 +126,7 @@ export default {
       return proxyToMainWorker(request, env);
     }
 
-    const container = env.PRINTY_CONTAINER.getByName("printy-main-v85");
+    const container = env.PRINTY_CONTAINER.getByName("printy-main-v89");
     await container.startAndWaitForPorts(3000, {
       instanceGetTimeoutMS: 30_000,
       portReadyTimeoutMS: 90_000,

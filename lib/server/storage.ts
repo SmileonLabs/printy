@@ -171,11 +171,13 @@ function brandAssetPublicUrlFromObjectKey(objectKey: string) {
 }
 
 function brandAssetObjectKeyFromPublicUrl(publicUrl: string) {
-  if (!publicUrl.startsWith(brandAssetPublicPathPrefix)) {
+  const normalizedPublicUrl = publicUrl.startsWith(brandAssetPublicPathPrefix) ? publicUrl : normalizePublicUploadPath(publicUrl, brandAssetPublicPathPrefix);
+
+  if (!normalizedPublicUrl) {
     return undefined;
   }
 
-  const objectKey = publicUrl.slice(brandAssetPublicPathPrefix.length);
+  const objectKey = normalizedPublicUrl.slice(brandAssetPublicPathPrefix.length);
 
   return isGeneratedLogoObjectKey(objectKey) ? objectKey : undefined;
 }
@@ -432,12 +434,12 @@ function estimateEdgeBackgroundColor(data: Buffer, width: number, height: number
   };
 }
 
-function isNearBackgroundPixel(data: Buffer, pixelIndex: number, backgroundColor: BackgroundColor) {
+function isNearBackgroundPixel(data: Buffer, pixelIndex: number, backgroundColor: BackgroundColor, options?: { force?: boolean }) {
   const { red, green, blue, alpha } = readPixel(data, pixelIndex);
   const maxChannel = Math.max(red, green, blue);
   const minChannel = Math.min(red, green, blue);
 
-  return alpha > 40 && colorDistance({ red, green, blue }, backgroundColor) < 96 && maxChannel - minChannel <= 72;
+  return alpha > 40 && colorDistance({ red, green, blue }, backgroundColor) < 96 && (options?.force || maxChannel - minChannel <= 72);
 }
 
 function removeBackgroundMatteFromPixel(data: Buffer, pixelIndex: number, backgroundColor: BackgroundColor) {
@@ -469,7 +471,7 @@ function removeBackgroundMatteFromPixel(data: Buffer, pixelIndex: number, backgr
   return nextAlpha !== currentAlpha;
 }
 
-function isLikelyBackgroundMattePixel(data: Buffer, pixelIndex: number, backgroundColor: BackgroundColor) {
+function isLikelyBackgroundMattePixel(data: Buffer, pixelIndex: number, backgroundColor: BackgroundColor, options?: { force?: boolean }) {
   const { red, green, blue, alpha } = readPixel(data, pixelIndex);
 
   if (alpha === 0) {
@@ -480,10 +482,10 @@ function isLikelyBackgroundMattePixel(data: Buffer, pixelIndex: number, backgrou
   const maxChannel = Math.max(red, green, blue);
   const minChannel = Math.min(red, green, blue);
 
-  return distanceFromBackground < 185 && maxChannel - minChannel <= 96;
+  return distanceFromBackground < 185 && (options?.force || maxChannel - minChannel <= 96);
 }
 
-function softenPixelsNearTransparentBackground(data: Buffer, width: number, height: number, backgroundColor: BackgroundColor) {
+function softenPixelsNearTransparentBackground(data: Buffer, width: number, height: number, backgroundColor: BackgroundColor, options?: { force?: boolean }) {
   let changedPixels = 0;
   const maxPasses = 3;
 
@@ -500,7 +502,7 @@ function softenPixelsNearTransparentBackground(data: Buffer, width: number, heig
         const pixelIndex = y * width + x;
         const currentAlpha = alphaSnapshot[pixelIndex] ?? 0;
 
-        if (currentAlpha === 0 || !isLikelyBackgroundMattePixel(data, pixelIndex, backgroundColor)) {
+        if (currentAlpha === 0 || !isLikelyBackgroundMattePixel(data, pixelIndex, backgroundColor, options)) {
           continue;
         }
 
@@ -667,7 +669,7 @@ async function makeGeneratedLogoBackgroundTransparent(bytes: Uint8Array, options
     const queue: number[] = [];
     let transparentPixels = 0;
     const enqueue = (pixelIndex: number) => {
-      if (pixelIndex < 0 || pixelIndex >= pixelCount || visited[pixelIndex] || !isNearBackgroundPixel(data, pixelIndex, backgroundColor)) {
+      if (pixelIndex < 0 || pixelIndex >= pixelCount || visited[pixelIndex] || !isNearBackgroundPixel(data, pixelIndex, backgroundColor, options)) {
         return;
       }
 
@@ -699,7 +701,7 @@ async function makeGeneratedLogoBackgroundTransparent(bytes: Uint8Array, options
       if (y < info.height - 1) enqueue(pixelIndex + info.width);
     }
 
-    const softenedPixels = transparentPixels > 0 ? softenPixelsNearTransparentBackground(data, info.width, info.height, backgroundColor) : 0;
+    const softenedPixels = transparentPixels > 0 ? softenPixelsNearTransparentBackground(data, info.width, info.height, backgroundColor, options) : 0;
     const enclosedWhitePixels = removeEnclosedWhiteComponents(data, info.width, info.height);
 
     if (transparentPixels === 0 && softenedPixels === 0 && enclosedWhitePixels === 0) {

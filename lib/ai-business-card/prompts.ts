@@ -149,6 +149,7 @@ STRICT IMAGE RULES:
 - The boundary is exactly the horizontal line at 50% of the sheet height. No front-side pixel, texture, decoration, logo, text, shadow, or background may extend below this midpoint. No back-side pixel may extend above this midpoint.
 - Never make the front panel taller than the back panel, never make the back panel start lower than the midpoint, and never let either side overlap or intrude into the other side.
 - The front card and the back card are two complete cards with full 92mm x 52mm layouts. Do not design one tall card and cut it in half.
+- Enforce the half split by composing each complete side inside its own half from the start. Do not crop, zoom, squeeze, shift, or cut off artwork to satisfy the midpoint rule.
 - The provided guide image is the required 92:104 vertical canvas. Replace the two blank halves with finished artwork; do not collapse the result into a single 92mm x 52mm card.
 - The top 92mm x 52mm card must fill the full top half. The bottom 92mm x 52mm card must fill the full bottom half.
 - Each side's exact horizontal business card artwork size is 92mm x 52mm. This 92mm x 52mm size already includes the cutting margin; do not add extra bleed.
@@ -233,6 +234,8 @@ STRICT CLEAN BACKGROUND RULES:
 - ABSOLUTE HALF-SPLIT RULE: split the vertical sheet by its exact height midpoint only. The top front panel occupies exactly y 0% through 50% of the sheet height, and the bottom back panel occupies exactly y 50% through 100%.
 - No front-side pixel, texture, decoration, logo, text, shadow, or background may extend below the exact 50% midpoint. No back-side pixel may extend above the exact 50% midpoint.
 - Never make the front panel taller than the back panel, never make the back panel start lower than the midpoint, and never let either side overlap or intrude into the other side.
+- Preserve both complete card artworks inside their own halves. Do not crop, zoom, squeeze, shift, or cut off either side while enforcing the midpoint rule.
+- If source pixels cross the midpoint, mask only the crossing pixels at the boundary and reconstruct the immediately surrounding background. Never move the other panel upward or downward.
 - Keep the required two-panel sheet structure, but separate the two halves by placement only, not by drawn lines.
 - The boundary between the top and bottom panels must be invisible and filled with the same surrounding background texture/color.
 - Keep the front and back panels the exact same visible size as the source image. The back side must not become shorter, thinner, cropped, or a different ratio.

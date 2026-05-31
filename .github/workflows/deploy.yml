@@ -49,6 +49,7 @@ jobs:
             native:
               - 'Dockerfile'
               - 'app/api/ai-business-cards/**'
+              - 'app/api/logos/**'
               - 'app/api/print-products/**'
               - 'lib/ai-business-card/**'
               - 'lib/print-products/**'
