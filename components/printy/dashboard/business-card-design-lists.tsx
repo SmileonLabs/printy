@@ -106,7 +106,6 @@ function CompletedBusinessCardListItem({ entry, logo, rendererVersion, pdfRecord
 
             copyCompletedBusinessCardDraft(entry.draft.id, nextName);
           }}
-          disabled={!entry.draft}
         >
           복사하기
         </AppButton>
@@ -136,7 +135,7 @@ function CompletedBusinessCardListItem({ entry, logo, rendererVersion, pdfRecord
         >
           {runningMockupImageId === mockup.id ? "이미지 만드는 중" : "이미지 다운로드"}
         </AppButton>
-        <AppButton className="whitespace-nowrap px-2 py-2 !bg-danger/60 backdrop-blur disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0" variant="danger" onClick={() => onDelete(entry)} disabled={!entry.draft}>삭제하기</AppButton>
+        <AppButton className="whitespace-nowrap px-2 py-2 !bg-danger/60 backdrop-blur disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0" variant="danger" onClick={() => onDelete(entry)}>삭제하기</AppButton>
         </>}
         notices={<>
         {!mockup.cleanImageUrl ? <p className="mt-2 rounded-md bg-danger/10 px-3 py-2 text-[11px] font-bold leading-5 text-danger">클린 배경이 없는 목업이라 PDF를 만들 수 없어요.</p> : null}
