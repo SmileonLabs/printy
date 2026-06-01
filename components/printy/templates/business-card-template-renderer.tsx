@@ -121,12 +121,14 @@ function TextElement({ field, brandName, category, member, cssPixelScale, trimWi
         fontSize: `${fittedBusinessCardFontSizePx(field, value, cssPixelScale, field.box.width, 16 * cssPixelScale, trimWidthScale)}px`,
         fontStyle: field.italic || field.fontFamily === "handwriting" ? "italic" : "normal",
         fontWeight: field.fontWeight === "bold" ? 900 : 400,
-        lineHeight: 1.3,
-        padding: `0 ${formatPercent(8 * cssPixelScale, 4)}px`,
+        // Slightly larger line-height + vertical padding prevents descenders
+        // (g/j/p/q/y) from getting clipped by overflow hidden.
+        lineHeight: 1.38,
+        padding: `${formatPercent(2 * cssPixelScale, 1)}px ${formatPercent(8 * cssPixelScale, 4)}px`,
         textAlign: field.align,
       }}
     >
-        <span className={`block w-full overflow-hidden ${isMultilineBusinessCardTextFieldId(field.id) ? "whitespace-pre-line" : "whitespace-nowrap"}`} style={textColorStyle(field.color)}>{value}</span>
+        <span className={`block w-full ${isMultilineBusinessCardTextFieldId(field.id) ? "whitespace-pre-line" : "whitespace-nowrap"}`} style={textColorStyle(field.color)}>{value}</span>
     </div>
   );
 }
