@@ -58,6 +58,10 @@ type CountRow = {
   count: string;
 };
 
+type TransferLogoIdRow = {
+  logo_id: string | null;
+};
+
 function readCount(value: string | number) {
   const count = typeof value === "number" ? value : Number(value);
 
@@ -169,6 +173,57 @@ async function countIdCollisions(client: { query: <T>(text: string, values?: unk
   return readCount(result.rows[0]?.count ?? "0");
 }
 
+async function readTransferLogoIds(client: { query: <T>(text: string, values?: unknown[]) => Promise<{ rows: T[] }> }, sourceUserId: string, brandId: string, selectedLogoId: string) {
+  const result = await client.query<TransferLogoIdRow>(
+    `
+      select distinct logo_refs.logo_id
+      from (
+        select $3::text as logo_id
+        union all
+        select id as logo_id
+        from generated_logos
+        where user_id = $1 and brand_id = $2
+        union all
+        select payload->>'selectedLogoId' as logo_id
+        from business_card_drafts
+        where user_id = $1 and brand_id = $2
+        union all
+        select payload->'logoImageOverride'->>'logoId' as logo_id
+        from business_card_drafts
+        where user_id = $1 and brand_id = $2
+        union all
+        select payload->>'logoId' as logo_id
+        from brand_assets
+        where user_id = $1 and brand_id = $2 and payload->>'logoId' is not null
+      ) logo_refs
+      join generated_logos source_logo
+        on source_logo.user_id = $1
+        and source_logo.id = logo_refs.logo_id
+      where logo_refs.logo_id is not null and logo_refs.logo_id <> ''
+    `,
+    [sourceUserId, brandId, selectedLogoId],
+  );
+
+  return result.rows.map((row) => row.logo_id).filter((logoId): logoId is string => typeof logoId === "string" && logoId.length > 0);
+}
+
+async function countLogoIdCollisions(client: { query: <T>(text: string, values?: unknown[]) => Promise<{ rows: T[] }> }, targetUserId: string, logoIds: string[]) {
+  if (logoIds.length === 0) {
+    return 0;
+  }
+
+  const result = await client.query<CountRow>(
+    `
+      select count(*)::text as count
+      from generated_logos
+      where user_id = $1 and id = any($2::text[])
+    `,
+    [targetUserId, logoIds],
+  );
+
+  return readCount(result.rows[0]?.count ?? "0");
+}
+
 export async function transferAdminBrand(input: { sourceUserId: string; targetUserId: string; brandId: string }): Promise<AdminBrandTransferResult> {
   const sourceUserId = input.sourceUserId.trim();
   const targetUserId = input.targetUserId.trim();
@@ -183,12 +238,13 @@ export async function transferAdminBrand(input: { sourceUserId: string; targetUs
 
     try {
       const [sourceBrandResult, targetUserResult, targetBrandResult] = await Promise.all([
-        client.query<{ name: string }>("select name from brands where user_id = $1 and id = $2 for update", [sourceUserId, brandId]),
+        client.query<{ name: string; selected_logo_id: string }>("select name, selected_logo_id from brands where user_id = $1 and id = $2 for update", [sourceUserId, brandId]),
         client.query<{ id: string }>("select id::text from users where id = $1 limit 1", [targetUserId]),
         client.query<{ id: string }>("select id from brands where user_id = $1 and id = $2 limit 1", [targetUserId, brandId]),
       ]);
+      const sourceBrand = sourceBrandResult.rows[0];
 
-      if (!sourceBrandResult.rows[0]) {
+      if (!sourceBrand) {
         throw new Error("Source brand not found.");
       }
 
@@ -200,8 +256,9 @@ export async function transferAdminBrand(input: { sourceUserId: string; targetUs
         throw new Error("Target user already has this brand id.");
       }
 
+      const transferLogoIds = await readTransferLogoIds(client, sourceUserId, brandId, sourceBrand.selected_logo_id);
       const [logoCollisions, draftCollisions, orderCollisions, assetCollisions] = await Promise.all([
-        countIdCollisions(client, "generated_logos", sourceUserId, targetUserId, brandId),
+        countLogoIdCollisions(client, targetUserId, transferLogoIds),
         countIdCollisions(client, "business_card_drafts", sourceUserId, targetUserId, brandId),
         countIdCollisions(client, "orders", sourceUserId, targetUserId, brandId),
         countIdCollisions(client, "brand_assets", sourceUserId, targetUserId, brandId),
@@ -211,7 +268,7 @@ export async function transferAdminBrand(input: { sourceUserId: string; targetUs
         throw new Error("Target user has conflicting child ids.");
       }
 
-      const logoResult = await client.query("update generated_logos set user_id = $2, updated_at = now() where user_id = $1 and brand_id = $3", [sourceUserId, targetUserId, brandId]);
+      const logoResult = await client.query("update generated_logos set user_id = $2, brand_id = $3, updated_at = now() where user_id = $1 and id = any($4::text[])", [sourceUserId, targetUserId, brandId, transferLogoIds]);
       const draftResult = await client.query("update business_card_drafts set user_id = $2, updated_at = now() where user_id = $1 and brand_id = $3", [sourceUserId, targetUserId, brandId]);
       const orderResult = await client.query("update orders set user_id = $2, updated_at = now() where user_id = $1 and brand_id = $3", [sourceUserId, targetUserId, brandId]);
       const assetResult = await client.query("update brand_assets set user_id = $2, updated_at = now() where user_id = $1 and brand_id = $3", [sourceUserId, targetUserId, brandId]);
