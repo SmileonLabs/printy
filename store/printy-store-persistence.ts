@@ -123,21 +123,11 @@ function isPersistedMockupAsset(value: unknown) {
 }
 
 export function shouldPersistBrandWorkspaceArrays(state: Partial<PrintyState>) {
-  const authUserId = state.authSession?.userId;
-
-  if (!state.isAuthenticated || !authUserId) {
+  if (!state.isAuthenticated) {
     return true;
   }
 
-  if (state.brandWorkspaceOwnerUserId && state.brandWorkspaceOwnerUserId !== authUserId) {
-    return false;
-  }
-
-  if (state.brandWorkspaceHasPendingLocalChanges) {
-    return true;
-  }
-
-  return state.brandWorkspaceOwnerUserId === undefined && (hasSavedLocalWork(state) || hasSavedBrandWorkspaceArrays(state));
+  return false;
 }
 
 export function shouldShowHomeForPersistedGuest(state: Partial<PrintyState>) {
@@ -307,8 +297,9 @@ export const printyStorePersistOptions = {
     }
 
     const persistedAuthUserId = persistedState.authSession?.userId;
+    const isAuthenticated = Boolean(persistedState.isAuthenticated && persistedAuthUserId);
     const persistedOwnerUserId = typeof persistedState.brandWorkspaceOwnerUserId === "string" ? persistedState.brandWorkspaceOwnerUserId : undefined;
-    const shouldRestoreWorkspaceArrays = !persistedOwnerUserId || !persistedAuthUserId || persistedOwnerUserId === persistedAuthUserId;
+    const shouldRestoreWorkspaceArrays = !isAuthenticated;
     const persistedWorkspaceState = shouldRestoreWorkspaceArrays ? persistedState : currentState;
     const savedGeneratedLogoOptions = shouldRestoreWorkspaceArrays ? normalizeGeneratedLogos(persistedState.savedGeneratedLogoOptions) : currentState.savedGeneratedLogoOptions;
     const brands = (persistedWorkspaceState.brands ?? currentState.brands).filter((brand) => brand.id !== "brand-seed").map((brand) => normalizeBrandWithSelectableLogos(brand, savedGeneratedLogoOptions));
@@ -331,7 +322,7 @@ export const printyStorePersistOptions = {
           ? persistedState.aiBusinessCardMockupMessage
           : undefined
       : currentState.aiBusinessCardMockupMessage;
-    const deletedBusinessCardDraftIds = Array.isArray(persistedState.deletedBusinessCardDraftIds) ? persistedState.deletedBusinessCardDraftIds.filter((id) => typeof id === "string") : currentState.deletedBusinessCardDraftIds;
+    const deletedBusinessCardDraftIds = shouldRestoreWorkspaceArrays && Array.isArray(persistedState.deletedBusinessCardDraftIds) ? persistedState.deletedBusinessCardDraftIds.filter((id) => typeof id === "string") : currentState.deletedBusinessCardDraftIds;
     const deletedBusinessCardDraftIdSet = new Set(deletedBusinessCardDraftIds);
     const businessCardDrafts = (persistedWorkspaceState.businessCardDrafts ?? currentState.businessCardDrafts).map((draft) => normalizeBusinessCardDraftWithSelectableLogos(draft, savedGeneratedLogoOptions)).filter((draft) => !deletedBusinessCardDraftIdSet.has(draft.id));
     const printProductDrafts = ((persistedWorkspaceState.printProductDrafts ?? currentState.printProductDrafts) as unknown[]).map((draft) => normalizePrintProductDraft(draft, brandIds)).filter((draft): draft is PrintProductDraft => draft !== undefined);
@@ -347,8 +338,7 @@ export const printyStorePersistOptions = {
         ? activeDraftLogoId
         : currentStateLogoId;
     const selectedLogoId = normalizeSelectableLogoId(persistedState.selectedLogoId, savedGeneratedLogoOptions, fallbackLogoId);
-    const isAuthenticated = Boolean(persistedState.isAuthenticated && persistedState.authSession);
-    const hasLegacyPersistedWorkspaceArrays = isAuthenticated && shouldRestoreWorkspaceArrays && persistedState.brandWorkspaceHasPendingLocalChanges === undefined && hasSavedBrandWorkspaceArrays(persistedState);
+    const hasLegacyPersistedWorkspaceArrays = !isAuthenticated && shouldRestoreWorkspaceArrays && persistedState.brandWorkspaceHasPendingLocalChanges === undefined && hasSavedBrandWorkspaceArrays(persistedState);
     const activeLogoGenerationJobId = typeof persistedState.activeLogoGenerationJobId === "string" && persistedState.activeLogoGenerationJobId.trim().length > 0 ? persistedState.activeLogoGenerationJobId.trim() : undefined;
     const persistedStep = (persistedState as { currentStep?: unknown }).currentStep;
     const currentStep = shouldShowHomeForPersistedGuest(persistedState) ? "home" : activeLogoGenerationJobId ? "generating" : persistedStep === "logoRevision" ? "logoSelection" : persistedStep === "templateSelection" || persistedStep === "businessCardBatchPreview" ? "businessCardPreview" : persistedState.currentStep ?? currentState.currentStep;
@@ -407,8 +397,9 @@ export const printyStorePersistOptions = {
       selectedTemplateId: persistedState.selectedTemplateId ?? currentState.selectedTemplateId,
       selectedBusinessCardMemberIds: Array.isArray(persistedState.selectedBusinessCardMemberIds) ? persistedState.selectedBusinessCardMemberIds.filter((id) => typeof id === "string") : currentState.selectedBusinessCardMemberIds,
       businessCardProductionOptions: normalizeBusinessCardProductionOptions(persistedState.businessCardProductionOptions, currentState.businessCardProductionOptions),
-      brandWorkspaceHasPendingLocalChanges: Boolean(persistedState.brandWorkspaceHasPendingLocalChanges || hasLegacyPersistedWorkspaceArrays),
-      brandWorkspaceOwnerUserId: persistedOwnerUserId,
+      brandWorkspaceHasPendingLocalChanges: !isAuthenticated && Boolean(persistedState.brandWorkspaceHasPendingLocalChanges || hasLegacyPersistedWorkspaceArrays),
+      brandWorkspaceCanUploadLocalChanges: false,
+      brandWorkspaceOwnerUserId: isAuthenticated && persistedOwnerUserId !== persistedAuthUserId ? undefined : persistedOwnerUserId,
       generatedLogoOptions: restoredGeneratedLogoOptions,
       logoGenerationStatus: activeLogoGenerationJobId ? "generating" : "idle",
       logoGenerationMessage: undefined,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { createBrandWorkspaceSignature, hasBrandWorkspaceData, mergeBrandWorkspaces, readBrandWorkspace, type BrandWorkspace } from "@/lib/brand-workspace";
+import { createBrandWorkspaceSignature, hasBrandWorkspaceData, readBrandWorkspace, type BrandWorkspace } from "@/lib/brand-workspace";
 import { usePrintyStore } from "@/store/use-printy-store";
 
 function readLocalWorkspace(): BrandWorkspace {
@@ -37,26 +37,6 @@ async function fetchBrandWorkspace() {
   return workspace;
 }
 
-async function saveBrandWorkspace(workspace: BrandWorkspace) {
-  const response = await fetch("/api/brand-workspace", {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(workspace),
-  });
-
-  if (!response.ok) {
-    throw new Error("Brand workspace save failed.");
-  }
-
-  const savedWorkspace = readBrandWorkspace(await response.json());
-
-  if (!savedWorkspace) {
-    throw new Error("Brand workspace save returned invalid data.");
-  }
-
-  return savedWorkspace;
-}
-
 async function saveBrandWorkspacePatch(patch: Partial<BrandWorkspace>) {
   const response = await fetch("/api/brand-workspace", {
     method: "PUT",
@@ -85,6 +65,7 @@ export function BrandWorkspaceSyncController() {
   const orders = usePrintyStore((state) => state.orders);
   const brandWorkspaceOwnerUserId = usePrintyStore((state) => state.brandWorkspaceOwnerUserId);
   const brandWorkspaceHasPendingLocalChanges = usePrintyStore((state) => state.brandWorkspaceHasPendingLocalChanges);
+  const brandWorkspaceCanUploadLocalChanges = usePrintyStore((state) => state.brandWorkspaceCanUploadLocalChanges);
   const syncBrandWorkspace = usePrintyStore((state) => state.syncBrandWorkspace);
   const acknowledgeBrandWorkspaceSave = usePrintyStore((state) => state.acknowledgeBrandWorkspaceSave);
   const syncedUserIdsRef = useRef<Set<string>>(new Set());
@@ -110,12 +91,28 @@ export function BrandWorkspaceSyncController() {
         }
 
         const deletedDraftIds = new Set(deletedBusinessCardDraftIds);
-        const filteredServerWorkspace = { ...serverWorkspace, businessCardDrafts: serverWorkspace.businessCardDrafts.filter((draft) => !deletedDraftIds.has(draft.id)) };
+        const filterDeletedDrafts = (workspace: BrandWorkspace): BrandWorkspace => ({ ...workspace, businessCardDrafts: workspace.businessCardDrafts.filter((draft) => !deletedDraftIds.has(draft.id)) });
+        const filteredServerWorkspace = filterDeletedDrafts(serverWorkspace);
         const localWorkspace = readLocalWorkspace();
         const localWorkspaceHasData = hasBrandWorkspaceData(localWorkspace);
-        const localWorkspaceBelongsToUser = brandWorkspaceOwnerUserId === undefined || brandWorkspaceOwnerUserId === syncedUserId;
-        const canUploadLocalWorkspace = localWorkspaceBelongsToUser;
-        const canonicalWorkspace = canUploadLocalWorkspace && localWorkspaceHasData ? await saveBrandWorkspace(mergeBrandWorkspaces(localWorkspace, filteredServerWorkspace)) : filteredServerWorkspace;
+        const canUploadLocalWorkspace = brandWorkspaceCanUploadLocalChanges && brandWorkspaceHasPendingLocalChanges && brandWorkspaceOwnerUserId === syncedUserId && localWorkspaceHasData;
+        let canonicalWorkspace = filteredServerWorkspace;
+
+        if (canUploadLocalWorkspace) {
+          await saveBrandWorkspacePatch(localWorkspace);
+
+          if (!isActive) {
+            return;
+          }
+
+          const refreshedWorkspace = await fetchBrandWorkspace();
+
+          if (!refreshedWorkspace || !isActive) {
+            return;
+          }
+
+          canonicalWorkspace = filterDeletedDrafts(refreshedWorkspace);
+        }
 
         if (isActive) {
           lastSavedSignaturesRef.current.set(syncedUserId, createBrandWorkspaceSignature(canonicalWorkspace));
@@ -136,7 +133,7 @@ export function BrandWorkspaceSyncController() {
     return () => {
       isActive = false;
     };
-  }, [isAuthenticated, userId, brandWorkspaceOwnerUserId, deletedBusinessCardDraftIds, syncBrandWorkspace]);
+  }, [isAuthenticated, userId, brandWorkspaceOwnerUserId, brandWorkspaceHasPendingLocalChanges, brandWorkspaceCanUploadLocalChanges, deletedBusinessCardDraftIds, syncBrandWorkspace]);
 
   useEffect(() => {
     if (!isAuthenticated || !userId || !brandWorkspaceHasPendingLocalChanges || !initialSyncedUserIdsRef.current.has(userId) || savingUserIdsRef.current.has(userId)) {

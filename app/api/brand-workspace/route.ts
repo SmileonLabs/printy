@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
-import { readBrandWorkspace } from "@/lib/brand-workspace";
 import { getCurrentDbSession } from "@/lib/server/auth/session";
-import { loadBrandWorkspace, saveBrandWorkspace, saveBrandWorkspacePatch } from "@/lib/server/brand-workspace";
+import { loadBrandWorkspace, saveBrandWorkspacePatch } from "@/lib/server/brand-workspace";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const unauthorizedResponse = { reason: "로그인이 필요해요." };
-const malformedWorkspaceResponse = { reason: "브랜드 작업 공간 형식이 올바르지 않아요." };
 const malformedPatchResponse = { reason: "브랜드 작업 공간 패치 형식이 올바르지 않아요." };
+const fullSaveDisabledResponse = { reason: "브랜드 작업 공간 전체 저장은 더 이상 지원하지 않아요. 최신 화면으로 다시 시도해 주세요." };
 const unavailableResponse = { reason: "브랜드 작업 공간을 사용할 수 없어요. 잠시 후 다시 시도해 주세요." };
 
 function readHeaderValue(request: Request, name: string) {
@@ -84,32 +83,18 @@ export async function PUT(request: Request) {
       return NextResponse.json(result);
     }
 
-    const workspace = readBrandWorkspace(body);
-
-    if (!workspace) {
-      return NextResponse.json(malformedWorkspaceResponse, { status: 400 });
-    }
-
-    const result = await saveBrandWorkspace(session.user.id, workspace);
     const completedAt = Date.now();
 
-    console.info("Brand workspace saved", {
+    console.warn("Brand workspace full save rejected", {
       requestId,
       clientActionId,
       authMs: authenticatedAt - startedAt,
       parseMs: parsedAt - authenticatedAt,
-      saveMs: completedAt - parsedAt,
       totalMs: completedAt - startedAt,
       payloadBytes,
-      brandCount: workspace.brands.length,
-      draftCount: workspace.businessCardDrafts.length,
-      printProductDraftCount: workspace.printProductDrafts.length,
-      orderCount: workspace.orders.length,
-      assetCount: workspace.brandAssets.length,
-      savedGeneratedLogoCount: workspace.savedGeneratedLogoOptions.length,
     });
 
-    return NextResponse.json(result);
+    return NextResponse.json(fullSaveDisabledResponse, { status: 409 });
   } catch (error) {
     logBrandWorkspaceError("PUT", error);
     console.error("Brand workspace save failed", {

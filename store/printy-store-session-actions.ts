@@ -103,10 +103,12 @@ export function createPrintySessionActions(set: PrintyStoreSet, get: PrintyStore
               activeLogoGenerationJobId: undefined,
               backgroundLogoGenerationNotice: undefined,
               brandWorkspaceHasPendingLocalChanges: false,
+              brandWorkspaceCanUploadLocalChanges: false,
               brandWorkspaceOwnerUserId: nextUser.id,
             }
           : {
               brandWorkspaceHasPendingLocalChanges: true,
+              brandWorkspaceCanUploadLocalChanges: true,
               brandWorkspaceOwnerUserId: nextUser.id,
             };
 
@@ -160,6 +162,7 @@ export function createPrintySessionActions(set: PrintyStoreSet, get: PrintyStore
         activeLogoGenerationJobId: undefined,
         backgroundLogoGenerationNotice: undefined,
         brandWorkspaceHasPendingLocalChanges: false,
+        brandWorkspaceCanUploadLocalChanges: false,
         brandWorkspaceOwnerUserId: undefined,
       }),
     enterDashboard: () => {

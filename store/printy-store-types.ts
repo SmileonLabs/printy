@@ -105,6 +105,7 @@ export type PrintyState = {
   loginRedirectTarget?: LoginRedirectTarget;
   loginBackStep?: OnboardingStep;
   brandWorkspaceHasPendingLocalChanges: boolean;
+  brandWorkspaceCanUploadLocalChanges: boolean;
   brandWorkspaceOwnerUserId?: string;
   setStep: (step: OnboardingStep, loginRedirectTarget?: LoginRedirectTarget) => void;
   updateBrandDraft: <K extends keyof PrintyState["brandDraft"]>(field: K, value: PrintyState["brandDraft"][K]) => void;

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { readBrandWorkspace } from "@/lib/brand-workspace";
 import { clearSessionCookie, createDbSession, createLocalPasswordUser, findLocalPasswordUser, getCurrentDbSession, readLocalLoginInput, revokeCurrentDbSession, setSessionCookie } from "@/lib/server/auth/session";
-import { saveBrandWorkspace } from "@/lib/server/brand-workspace";
+import { saveBrandWorkspacePatch } from "@/lib/server/brand-workspace";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
     const dbSession = await createDbSession(user.id);
 
     if (workspace) {
-      await saveBrandWorkspace(user.id, workspace);
+      await saveBrandWorkspacePatch(user.id, workspace);
     }
 
     const response = NextResponse.json({

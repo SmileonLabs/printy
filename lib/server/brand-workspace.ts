@@ -501,6 +501,9 @@ export async function saveBrandWorkspacePatch(userId: string, patch: BrandWorksp
 
   return withDbClient(async (client) => {
     await ensurePrintProductDraftStorage(client);
+    const currentWorkspace = validPatch.savedGeneratedLogoOptions && !validPatch.brands ? await loadBrandWorkspaceWithClient(client, userId) : undefined;
+    const brandsForLogoMapping = validPatch.brands ?? currentWorkspace?.brands ?? [];
+
     await client.query("begin");
 
     try {
@@ -546,7 +549,7 @@ export async function saveBrandWorkspacePatch(userId: string, patch: BrandWorksp
               end,
               updated_at = now()
           `,
-          [userId, logo.id, null, JSON.stringify(logo)],
+          [userId, logo.id, getBrandIdForLogo(logo, brandsForLogoMapping) ?? null, JSON.stringify(logo)],
         );
       }
 

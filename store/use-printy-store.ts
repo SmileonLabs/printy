@@ -82,6 +82,7 @@ export const usePrintyStore = create<PrintyState>()(
       loginRedirectTarget: undefined,
       loginBackStep: undefined,
       brandWorkspaceHasPendingLocalChanges: false,
+      brandWorkspaceCanUploadLocalChanges: false,
       brandWorkspaceOwnerUserId: undefined,
       ...createPrintyDraftActions(set),
       ...createPrintyLogoActions(set, get),

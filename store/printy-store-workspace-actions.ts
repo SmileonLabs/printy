@@ -1,5 +1,5 @@
 import type { StateCreator } from "zustand";
-import { createBrandWorkspaceSignature, mergeBrandWorkspaces, type BrandWorkspace } from "@/lib/brand-workspace";
+import { createBrandWorkspaceSignature, type BrandWorkspace } from "@/lib/brand-workspace";
 import { normalizeSelectableLogoId } from "@/store/printy-store-normalizers";
 import type { PrintyState } from "@/store/printy-store-types";
 
@@ -11,16 +11,15 @@ export function createPrintyWorkspaceActions(set: PrintyStoreSet): PrintyWorkspa
   return {
     syncBrandWorkspace: (workspace: BrandWorkspace, ownerUserId?: string) =>
       set((state) => {
-        if (workspace.brands.length === 0 && state.brands.length > 0) {
+        if (workspace.brands.length === 0 && state.brands.length > 0 && state.brandWorkspaceCanUploadLocalChanges) {
           return {
             brandWorkspaceHasPendingLocalChanges: true,
+            brandWorkspaceCanUploadLocalChanges: true,
             brandWorkspaceOwnerUserId: ownerUserId ?? state.brandWorkspaceOwnerUserId,
           };
         }
 
-        const localWorkspace = { brands: state.brands, brandAssets: state.brandAssets, savedGeneratedLogoOptions: state.savedGeneratedLogoOptions, businessCardDrafts: state.businessCardDrafts, printProductDrafts: state.printProductDrafts, orders: state.orders };
-        const shouldKeepPendingLocalChanges = state.brandWorkspaceHasPendingLocalChanges && (state.brandWorkspaceOwnerUserId === undefined || state.brandWorkspaceOwnerUserId === ownerUserId);
-        const nextWorkspace = shouldKeepPendingLocalChanges ? mergeBrandWorkspaces(localWorkspace, workspace) : workspace;
+        const nextWorkspace = workspace;
         const deletedBusinessCardDraftIds = new Set(state.deletedBusinessCardDraftIds);
         const businessCardDrafts = nextWorkspace.businessCardDrafts.filter((draft) => !deletedBusinessCardDraftIds.has(draft.id));
         const selectedBrandId = nextWorkspace.brands.some((brand) => brand.id === state.selectedBrandId) ? state.selectedBrandId : undefined;
@@ -46,7 +45,8 @@ export function createPrintyWorkspaceActions(set: PrintyStoreSet): PrintyWorkspa
           activePrintProductDraftId,
           lastOrderId,
           brandView: selectedBrandId ? state.brandView : "list",
-          brandWorkspaceHasPendingLocalChanges: shouldKeepPendingLocalChanges ? true : ownerUserId ? false : state.brandWorkspaceHasPendingLocalChanges,
+          brandWorkspaceHasPendingLocalChanges: ownerUserId ? false : state.brandWorkspaceHasPendingLocalChanges,
+          brandWorkspaceCanUploadLocalChanges: false,
           brandWorkspaceOwnerUserId: ownerUserId,
         };
       }),
@@ -69,6 +69,7 @@ export function createPrintyWorkspaceActions(set: PrintyStoreSet): PrintyWorkspa
 
         return {
           brandWorkspaceHasPendingLocalChanges: false,
+          brandWorkspaceCanUploadLocalChanges: false,
           brandWorkspaceOwnerUserId: ownerUserId,
         };
       }),
