@@ -78,6 +78,7 @@ export function normalizeBrandDraft(brandDraft: Partial<BrandDraft> | Record<str
 
   return {
     name: normalizeOptionalString(record.name, fallback.name),
+    slogan: normalizeString(record.slogan) || fallback.slogan,
     category: normalizeOptionalString(record.category, fallback.category),
     designRequest: normalizeDesignRequest(record, fallback.designRequest),
   };
@@ -111,6 +112,7 @@ export function normalizeBrandWithSelectableLogos(brand: Brand | Record<string, 
   return {
     id: normalizeOptionalString(record.id, makeId("brand", 0)),
     name: normalizeOptionalString(record.name, defaultBrandDraft.name),
+    slogan: normalizeString(record.slogan),
     category: normalizeOptionalString(record.category, defaultBrandDraft.category),
     designRequest: normalizeDesignRequest(record, defaultBrandDraft.designRequest),
     selectedLogoId,
@@ -176,6 +178,7 @@ export function normalizeBusinessCardDraftWithSelectableLogos(draft: BusinessCar
     id: normalizeOptionalString(record.id, makeId("card", 0)),
     brandId: typeof record.brandId === "string" ? record.brandId : undefined,
     brandName: normalizeOptionalString(record.brandName, defaultBrandDraft.name),
+    slogan: normalizeString(record.slogan),
     category: normalizeOptionalString(record.category, defaultBrandDraft.category),
     designRequest: normalizeDesignRequest(record, defaultBrandDraft.designRequest),
     selectedLogoId,

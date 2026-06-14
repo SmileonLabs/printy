@@ -1,7 +1,7 @@
 import { createJSONStorage, type PersistOptions } from "zustand/middleware";
 import { businessCardProductionSizeFields, resolveBusinessCardSize } from "@/lib/design-session";
 import { normalizeBusinessCardTemplateLayout } from "@/lib/business-card-templates";
-import { isSelectableLogoId, normalizeBrandAsset, normalizeBrandWithSelectableLogos, normalizeBusinessCardDraftWithSelectableLogos, normalizeBusinessCardLogoImageOverride, normalizeGeneratedLogos, normalizeSelectableLogoId } from "@/store/printy-store-normalizers";
+import { isSelectableLogoId, normalizeBrandAsset, normalizeBrandDraft, normalizeBrandWithSelectableLogos, normalizeBusinessCardDraftWithSelectableLogos, normalizeBusinessCardLogoImageOverride, normalizeGeneratedLogos, normalizeSelectableLogoId } from "@/store/printy-store-normalizers";
 import { normalizePrintProductLayout } from "@/lib/print-products/adapters";
 import type { BusinessCardColorPaletteId, BusinessCardProductionOptions, BusinessCardUserElementId, MainTab, PrintProductDraft } from "@/lib/types";
 import type { PrintyState } from "@/store/printy-store-types";
@@ -354,7 +354,7 @@ export const printyStorePersistOptions = {
       activeTab,
       brandView: activeTab === "brands" && selectedBrandId && persistedState.brandView === "detail" ? "detail" : "list",
       activeBrandSection: persistedState.activeBrandSection ?? currentState.activeBrandSection,
-      brandDraft: persistedState.brandDraft && typeof persistedState.brandDraft.name === "string" && typeof persistedState.brandDraft.category === "string" && typeof persistedState.brandDraft.designRequest === "string" ? persistedState.brandDraft : currentState.brandDraft,
+      brandDraft: persistedState.brandDraft && typeof persistedState.brandDraft.name === "string" && typeof persistedState.brandDraft.category === "string" && typeof persistedState.brandDraft.designRequest === "string" ? normalizeBrandDraft(persistedState.brandDraft, currentState.brandDraft) : currentState.brandDraft,
       brandLogoSetupMode: persistedState.brandLogoSetupMode === "upload" ? "upload" : currentState.brandLogoSetupMode,
       logoGenerationMode: persistedState.logoGenerationMode === "auto" || persistedState.logoGenerationMode === "reference" ? persistedState.logoGenerationMode : currentState.logoGenerationMode,
       selectedLogoReferenceImageId: typeof persistedState.selectedLogoReferenceImageId === "string" ? persistedState.selectedLogoReferenceImageId : currentState.selectedLogoReferenceImageId,

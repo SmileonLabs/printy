@@ -17,7 +17,7 @@ export type RevisionBrandLogoRequest = LogoRevisionGenerationInput & {
 
 export type BrandLogoRequest = InitialBrandLogoRequest | RevisionBrandLogoRequest;
 
-export const invalidLogoGenerationRequestReason = "브랜드 이름과 업종은 1-100자, 디자인 요청은 1500자 이하, 수정 요청은 1-1000자로 입력해 주세요.";
+export const invalidLogoGenerationRequestReason = "브랜드 이름과 업종은 1-100자, 슬로건은 100자 이하, 디자인 요청은 1500자 이하, 수정 요청은 1-1000자로 입력해 주세요.";
 const missingConfigurationReason = "이미지 생성 설정을 확인해야 해요. 관리자에게 OpenAI API 키 설정을 확인해 달라고 알려주세요.";
 const usageQuotaReason = "이미지 생성 서비스를 일시적으로 사용할 수 없어요. 잠시 후 다시 시도해 주세요.";
 const rateLimitReason = "요청이 너무 많아요. 10분 정도 기다린 뒤 다시 시도해 주세요.";
@@ -363,11 +363,12 @@ export function parseLogoGenerationRequest(value: unknown): BrandLogoRequest {
   }
 
   const brandName = readString(value, "brandName");
+  const slogan = readString(value, "slogan");
   const mode = value.mode === "revision" ? "revision" : "initial";
   const rawIndustry = readString(value, "industry") || readString(value, "category");
   const industry = mode === "revision" && rawIndustry.length === 0 ? "브랜드" : rawIndustry;
 
-  if (!isWithinLength(brandName, 1, 100) || !isWithinLength(industry, 1, 100)) {
+  if (!isWithinLength(brandName, 1, 100) || !isWithinLength(industry, 1, 100) || slogan.length > 100) {
     throw new LogoGenerationRequestValidationError();
   }
 
@@ -382,6 +383,7 @@ export function parseLogoGenerationRequest(value: unknown): BrandLogoRequest {
     return {
       mode,
       brandName,
+      slogan,
       industry,
       revisionRequest,
       sourceLogo,
@@ -399,6 +401,7 @@ export function parseLogoGenerationRequest(value: unknown): BrandLogoRequest {
   return {
     mode,
     brandName,
+    slogan,
     industry,
     designRequest,
     generationMode,

@@ -3,6 +3,7 @@ import { isGeneratedLogoOption } from "@/lib/logo/logoValidation";
 
 type BrandGenerationDraft = {
   name: string;
+  slogan: string;
   category: string;
   designRequest: string;
 };
@@ -12,7 +13,7 @@ export function getBrandGenerationKey(brandDraft: BrandGenerationDraft, generati
   const modeKey = generationIntent === "revision" ? generationIntent : generationMode;
   const sourceKey = generationIntent === "revision" ? revisionSourceLogoId ?? "" : generationMode === "reference" ? referenceImageId ?? "" : "";
 
-  return [brandDraft.name.trim(), brandDraft.category.trim(), requestKey, modeKey, sourceKey].join("|");
+  return [brandDraft.name.trim(), brandDraft.slogan.trim(), brandDraft.category.trim(), requestKey, modeKey, sourceKey].join("|");
 }
 
 export function isLogoGenerationResponse(value: unknown): value is LogoGenerationResponse {

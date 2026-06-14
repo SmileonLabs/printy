@@ -2,6 +2,7 @@ import type { GeneratedLogoOption } from "@/lib/types";
 
 export type GeneratedLogoBrandContext = {
   name?: string;
+  slogan?: string;
   category?: string;
 };
 
@@ -19,9 +20,12 @@ function readContextFromText(value: string | undefined): GeneratedLogoBrandConte
   const initialMatch = value.match(/입력 해석:\s*(.+?)의\s+(.+?)\s+로고를/);
 
   if (initialMatch) {
+    const sloganMatch = value.match(/슬로건:\s*(.+?)\./);
+
     return {
       name: cleanMatch(initialMatch[1]),
       category: cleanMatch(initialMatch[2]),
+      slogan: cleanMatch(sloganMatch?.[1]),
     };
   }
 

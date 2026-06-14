@@ -37,12 +37,14 @@ export function createPrintyOnboardingActions(set: PrintyStoreSet, get: PrintySt
       }
 
       const designRequest = state.brandDraft.designRequest.trim();
+      const slogan = state.brandDraft.slogan.trim();
       const existingBrand = state.logoGenerationTargetBrandId ? state.brands.find((brand) => brand.id === state.logoGenerationTargetBrandId) : undefined;
       const generatedLogoIds = state.generatedLogoOptions.map((logo) => logo.id);
       const logoIds = Array.from(new Set([state.selectedLogoId, ...generatedLogoIds, ...(existingBrand?.logoIds ?? [])]));
       const nextBrand: Brand = {
         id: existingBrand?.id ?? makeId("brand", state.brands.length),
         name: brandName,
+        slogan,
         category: state.brandDraft.category,
         designRequest,
         selectedLogoId: existingBrand?.selectedLogoId ?? state.selectedLogoId,
@@ -73,6 +75,7 @@ export function createPrintyOnboardingActions(set: PrintyStoreSet, get: PrintySt
         id: existingDraft?.id ?? makeId("card", state.businessCardDrafts.length),
         brandId: existingDraft?.brandId ?? state.selectedBrandId,
         brandName: state.brandDraft.name,
+        slogan: state.brandDraft.slogan.trim(),
         category: state.brandDraft.category,
         designRequest: state.brandDraft.designRequest.trim(),
         selectedLogoId: state.selectedLogoId,
@@ -348,6 +351,7 @@ export function createPrintyOnboardingActions(set: PrintyStoreSet, get: PrintySt
       const nextBrand: Brand = {
         id: existingBrand?.id ?? makeId("brand", current.brands.length),
         name: state.brandDraft.name,
+        slogan: state.brandDraft.slogan.trim(),
         category: state.brandDraft.category,
         designRequest: state.brandDraft.designRequest.trim(),
         selectedLogoId: brandSelectedLogoId,

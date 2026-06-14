@@ -42,6 +42,7 @@ export type PrintyState = {
   activeBrandSection: BrandDetailSectionId;
   brandDraft: {
     name: string;
+    slogan: string;
     category: string;
     designRequest: string;
   };

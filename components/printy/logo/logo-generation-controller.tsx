@@ -24,6 +24,7 @@ function getRevisionBrandDraft() {
   if (targetBrand) {
     return {
       name: !isPlaceholderBrandName(targetBrand.name) ? targetBrand.name : logoContext.name ?? targetBrand.name,
+      slogan: targetBrand.slogan ?? logoContext.slogan ?? state.brandDraft.slogan,
       category: targetBrand.category.trim() ? targetBrand.category : logoContext.category ?? state.brandDraft.category,
       designRequest: targetBrand.designRequest.trim() ? targetBrand.designRequest : sourceLogo?.designRequest ?? state.brandDraft.designRequest,
     };
@@ -31,6 +32,7 @@ function getRevisionBrandDraft() {
 
   return {
     name: logoContext.name ?? state.brandDraft.name,
+    slogan: logoContext.slogan ?? state.brandDraft.slogan,
     category: logoContext.category ?? state.brandDraft.category,
     designRequest: sourceLogo?.designRequest ?? state.brandDraft.designRequest,
   };
@@ -65,9 +67,10 @@ export function LogoGenerationController() {
       return;
     }
 
-    const requestBrandDraft = logoGenerationIntent === "revision" ? getRevisionBrandDraft() : brandDraft;
+    const requestState = usePrintyStore.getState();
+    const requestBrandDraft = logoGenerationIntent === "revision" ? getRevisionBrandDraft() : requestState.brandDraft;
     const generationKey = getBrandGenerationKey(requestBrandDraft, logoGenerationMode, logoGenerationIntent, logoRevisionRequest, logoRevisionSourceLogoId, selectedLogoReferenceImageId);
-    const storedLogoGenerationJobId = usePrintyStore.getState().activeLogoGenerationJobId;
+    const storedLogoGenerationJobId = requestState.activeLogoGenerationJobId;
 
     if (activeLogoGenerationKey === generationKey) {
       return;
@@ -167,15 +170,17 @@ export function LogoGenerationController() {
               ? {
                   mode: "revision",
                   brandName: requestBrandDraft.name,
+                  slogan: requestBrandDraft.slogan,
                   industry: requestBrandDraft.category,
                   revisionRequest: logoRevisionRequest.trim(),
                   sourceLogo: makeRevisionSourceLogo(revisionSourceLogo),
                 }
               : {
                   mode: "initial",
-                  brandName: brandDraft.name,
-                  industry: brandDraft.category,
-                  designRequest: logoGenerationMode === "manual" || logoGenerationMode === "reference" ? brandDraft.designRequest : "",
+                  brandName: requestBrandDraft.name,
+                  slogan: requestBrandDraft.slogan,
+                  industry: requestBrandDraft.category,
+                  designRequest: logoGenerationMode === "manual" || logoGenerationMode === "reference" ? requestBrandDraft.designRequest : "",
                   generationMode: logoGenerationMode,
                   referenceImageId: logoGenerationMode === "reference" ? selectedLogoReferenceImageId : undefined,
                 },

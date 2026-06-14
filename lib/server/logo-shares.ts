@@ -10,6 +10,7 @@ import { withDbClient } from "@/lib/server/db";
 export type PublicLogoShare = {
   token: string;
   brandName: string;
+  slogan: string;
   category: string;
   designRequest: string;
   logo: GeneratedLogoOption;
@@ -20,6 +21,7 @@ type ShareRow = {
   user_id: string;
   brand_id: string;
   brand_name: string;
+  slogan: string;
   category: string;
   design_request: string;
   selected_logo_id: string;
@@ -85,6 +87,7 @@ function toPublicLogoShare(row: ShareRow, token: string): PublicLogoShare | unde
   return {
     token,
     brandName: row.brand_name,
+    slogan: row.slogan,
     category: row.category,
     designRequest: row.design_request,
     logo: row.payload,
@@ -98,6 +101,7 @@ async function findShareWithClient(client: PoolClient, token: string, lock = fal
       select g.user_id::text,
         g.brand_id,
         b.name as brand_name,
+        b.slogan,
         b.category,
         b.design_request,
         b.selected_logo_id,
@@ -125,6 +129,7 @@ export async function createLogoShare(userId: string, brandId: string, logoId: s
         select g.user_id::text,
           g.brand_id,
           b.name as brand_name,
+          b.slogan,
           b.category,
           b.design_request,
           b.selected_logo_id,
@@ -166,9 +171,9 @@ export async function createLogoShare(userId: string, brandId: string, logoId: s
         set payload = payload || jsonb_build_object('shareToken', $4::text, 'sharedAt', $5::text),
           updated_at = now()
         where user_id = $1 and brand_id = $2 and id = $3
-        returning user_id::text, brand_id, $6::text as brand_name, $7::text as category, $8::text as design_request, $3::text as selected_logo_id, '[]'::jsonb as members, 1::integer as assets, id as logo_id, payload
+        returning user_id::text, brand_id, $6::text as brand_name, $7::text as slogan, $8::text as category, $9::text as design_request, $3::text as selected_logo_id, '[]'::jsonb as members, 1::integer as assets, id as logo_id, payload
       `,
-      [userId, brandId, logoId, token, sharedAt, row.brand_name, row.category, row.design_request],
+      [userId, brandId, logoId, token, sharedAt, row.brand_name, row.slogan, row.category, row.design_request],
     );
 
     return toPublicLogoShare(updateResult.rows[0], token);
@@ -233,6 +238,7 @@ export async function claimLogoShare(token: string, userId: string) {
       const brand: Brand = {
         id: brandId,
         name: row.brand_name,
+        slogan: row.slogan,
         category: row.category,
         designRequest: row.design_request,
         selectedLogoId,
@@ -261,10 +267,10 @@ export async function claimLogoShare(token: string, userId: string) {
 
       await client.query(
         `
-          insert into brands (user_id, id, name, category, design_request, selected_logo_id, members, assets, created_label)
-          values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9)
+          insert into brands (user_id, id, name, slogan, category, design_request, selected_logo_id, members, assets, created_label)
+          values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10)
         `,
-        [userId, brand.id, brand.name, brand.category, brand.designRequest, brand.selectedLogoId, JSON.stringify(brand.members), brand.assets, brand.createdAt],
+        [userId, brand.id, brand.name, brand.slogan ?? "", brand.category, brand.designRequest, brand.selectedLogoId, JSON.stringify(brand.members), brand.assets, brand.createdAt],
       );
 
       for (const logo of logos) {

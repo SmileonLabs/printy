@@ -11,6 +11,7 @@ import { assertGeneratedLogoStorageAvailableForPublicUrls, cleanupUnreferencedGe
 type BrandRow = {
   id: string;
   name: string;
+  slogan: string;
   category: string;
   design_request: string;
   selected_logo_id: string;
@@ -52,6 +53,7 @@ async function ensurePrintProductDraftStorage(client: PoolClient) {
   `);
   await client.query("create index if not exists print_product_drafts_user_brand_id_idx on print_product_drafts (user_id, brand_id)");
   await client.query("create index if not exists print_product_drafts_user_updated_at_idx on print_product_drafts (user_id, updated_at desc)");
+  await client.query("alter table brands add column if not exists slogan text not null default ''");
   printProductDraftStorageReady = true;
 }
 
@@ -59,6 +61,7 @@ function toBrand(row: BrandRow, logoIds: string[]): Brand | undefined {
   const brand = {
     id: row.id,
     name: row.name,
+    slogan: row.slogan,
     category: row.category,
     designRequest: row.design_request,
     selectedLogoId: row.selected_logo_id,
@@ -133,6 +136,7 @@ function recoverBrandsFromBusinessCardDrafts(workspace: BrandWorkspace): BrandWo
     if (existingBrand) {
       brandsById.set(brandId, {
         ...existingBrand,
+        slogan: existingBrand.slogan || draft.slogan,
         logoIds: Array.from(new Set([...existingBrand.logoIds, draft.selectedLogoId])),
         members: memberExists ? existingBrand.members : [...existingBrand.members, draft.member],
       });
@@ -142,6 +146,7 @@ function recoverBrandsFromBusinessCardDrafts(workspace: BrandWorkspace): BrandWo
     brandsById.set(brandId, {
       id: brandId,
       name: draft.brandName,
+      slogan: draft.slogan ?? "",
       category: draft.category,
       designRequest: draft.designRequest,
       selectedLogoId: draft.selectedLogoId,
@@ -165,7 +170,7 @@ async function loadBrandWorkspaceWithClient(client: PoolClient, userId: string):
   const [brandResult, logoResult, draftResult, printProductDraftResult, orderResult, assetResult] = await Promise.all([
     client.query<BrandRow>(
       `
-        select id, name, category, design_request, selected_logo_id, members, assets, created_label
+        select id, name, slogan, category, design_request, selected_logo_id, members, assets, created_label
         from brands
         where user_id = $1
         order by updated_at desc, created_at desc
@@ -371,11 +376,12 @@ export async function saveBrandWorkspace(userId: string, workspace: BrandWorkspa
       for (const brand of validWorkspace.brands) {
         await client.query(
           `
-            insert into brands (user_id, id, name, category, design_request, selected_logo_id, members, assets, created_label)
-            values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9)
+            insert into brands (user_id, id, name, slogan, category, design_request, selected_logo_id, members, assets, created_label)
+            values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10)
             on conflict (user_id, id)
             do update set
               name = excluded.name,
+              slogan = excluded.slogan,
               category = excluded.category,
               design_request = excluded.design_request,
               selected_logo_id = excluded.selected_logo_id,
@@ -384,7 +390,7 @@ export async function saveBrandWorkspace(userId: string, workspace: BrandWorkspa
               created_label = excluded.created_label,
               updated_at = now()
           `,
-          [userId, brand.id, brand.name, brand.category, brand.designRequest, brand.selectedLogoId, JSON.stringify(brand.members), brand.assets, brand.createdAt],
+          [userId, brand.id, brand.name, brand.slogan ?? "", brand.category, brand.designRequest, brand.selectedLogoId, JSON.stringify(brand.members), brand.assets, brand.createdAt],
         );
       }
 
@@ -517,11 +523,12 @@ export async function saveBrandWorkspacePatch(userId: string, patch: BrandWorksp
       for (const brand of validPatch.brands ?? []) {
         await client.query(
           `
-            insert into brands (user_id, id, name, category, design_request, selected_logo_id, members, assets, created_label)
-            values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9)
+            insert into brands (user_id, id, name, slogan, category, design_request, selected_logo_id, members, assets, created_label)
+            values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10)
             on conflict (user_id, id)
             do update set
               name = excluded.name,
+              slogan = excluded.slogan,
               category = excluded.category,
               design_request = excluded.design_request,
               selected_logo_id = excluded.selected_logo_id,
@@ -530,7 +537,7 @@ export async function saveBrandWorkspacePatch(userId: string, patch: BrandWorksp
               created_label = excluded.created_label,
               updated_at = now()
           `,
-          [userId, brand.id, brand.name, brand.category, brand.designRequest, brand.selectedLogoId, JSON.stringify(brand.members), brand.assets, brand.createdAt],
+          [userId, brand.id, brand.name, brand.slogan ?? "", brand.category, brand.designRequest, brand.selectedLogoId, JSON.stringify(brand.members), brand.assets, brand.createdAt],
         );
       }
 

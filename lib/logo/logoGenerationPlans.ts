@@ -57,8 +57,9 @@ function compact(value: string) {
 
 function makeAutoRequest(input: LogoGenerationInput, styleProfile: IndustryStyleProfile) {
   const brandContext = `${input.brandName}(${input.industry})`;
+  const slogan = input.slogan?.trim();
 
-  return `${brandContext} 업종의 ${styleProfile.visualCues[0]}을 살려 첫눈에 업종이 이해되는 로고로 해석해 주세요. ${styleProfile.symbols[0]} 같은 상징은 은근하게만 사용하고 브랜드명 가독성을 우선해 주세요.`;
+  return `${brandContext} 업종의 ${styleProfile.visualCues[0]}을 살려 첫눈에 업종이 이해되는 로고로 해석해 주세요. ${styleProfile.symbols[0]} 같은 상징은 은근하게만 사용하고 브랜드명 가독성을 우선해 주세요.${slogan ? ` 슬로건 "${slogan}"은 브랜드명 아래 작은 보조 문구로 읽히게 넣어 주세요.` : ""}`;
 }
 
 function getRequest(input: LogoGenerationInput, request: string, styleProfile: IndustryStyleProfile) {
@@ -71,8 +72,9 @@ function getRequest(input: LogoGenerationInput, request: string, styleProfile: I
 
 function makeSummary(input: LogoGenerationInput, lens: InterpretationLens, designRequest: string, source: LogoPlanSource) {
   const prefix = source === "user" ? "입력 해석" : "Printy 작성";
+  const slogan = input.slogan?.trim();
 
-  return `${prefix}: ${input.brandName}의 ${input.industry} 로고를 '${lens.lens}' 렌즈로 해석합니다. 요청 요약: ${designRequest}`;
+  return `${prefix}: ${input.brandName}의 ${input.industry} 로고를 '${lens.lens}' 렌즈로 해석합니다.${slogan ? ` 슬로건: ${slogan}.` : ""} 요청 요약: ${designRequest}`;
 }
 
 function toPlan(input: LogoGenerationInput, mode: LogoGenerationMode, lens: InterpretationLens, designRequest: string, source: LogoPlanSource, styleProfile: IndustryStyleProfile): LogoGenerationPlan {

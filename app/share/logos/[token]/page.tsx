@@ -29,6 +29,7 @@ export default async function ShareLogoPage({ params }: ShareLogoPageProps) {
           <div className="mt-6 rounded-2xl border border-white/80 bg-white/84 p-5 shadow-card backdrop-blur">
             <p className="text-xs font-black text-primary-strong">공유받은 브랜드 로고</p>
             <h1 className="mt-2 text-3xl font-black tracking-[-0.06em] text-ink">{share.brandName}</h1>
+            {share.slogan ? <p className="mt-1 text-sm font-extrabold leading-5 text-primary-strong">{share.slogan}</p> : null}
             <p className="mt-2 text-sm font-bold text-muted">{share.category}</p>
             <p className="mt-4 text-sm font-medium leading-6 text-muted">{share.logo.description}</p>
           </div>

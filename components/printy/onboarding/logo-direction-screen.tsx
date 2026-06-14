@@ -5,7 +5,7 @@ import Image from "next/image";
 import { DesignRequestField } from "@/components/printy/onboarding/design-request-field";
 import { GenerationModeSelector } from "@/components/printy/onboarding/selectors";
 import { onboardingTotalSteps, stepNumbers } from "@/components/printy/shared/onboarding-progress";
-import { AppButton, ProgressHeader, Screen, SoftCard } from "@/components/ui";
+import { AppButton, ProgressHeader, Screen, SoftCard, TextField } from "@/components/ui";
 import type { LogoReferenceImage } from "@/lib/types";
 import { usePrintyStore } from "@/store/use-printy-store";
 import { HomeExitAction } from "./home-exit-action";
@@ -116,6 +116,7 @@ export function LogoDirectionScreen() {
       <ProgressHeader eyebrow="디자인 요청" title="친구에게 말하듯 자유롭게 적기" description={`${brandDraft.name}의 이름과 ${brandDraft.category} 업종은 고정하고, 원하는 로고를 자연스러운 문장으로 알려주세요. 비워두면 Printy가 업종 기반 요청을 직접 씁니다.`} step={stepNumbers.logoDirection} total={onboardingTotalSteps} action={<HomeExitAction />} />
       <div className="grid gap-5">
         <GenerationModeSelector selected={logoGenerationMode} onSelect={setLogoGenerationMode} />
+        <TextField label="슬로건" placeholder="예: 빠르게 만드는 우리 브랜드" value={brandDraft.slogan} onChange={(value) => updateBrandDraft("slogan", value)} />
         {showManualFields ? (
           <DesignRequestField value={brandDraft.designRequest} onChange={(value) => updateBrandDraft("designRequest", value)} />
         ) : showReferenceFields ? (

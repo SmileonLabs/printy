@@ -340,6 +340,7 @@ export function BrandDetail() {
           <div className="min-w-0">
             <p className="text-xs font-black text-primary-strong">브랜드 관리</p>
             <h1 className="mt-1 text-2xl font-black tracking-[-0.05em] text-ink">{brand.name}</h1>
+            {brand.slogan ? <p className="mt-1 text-sm font-extrabold leading-5 text-primary-strong">{brand.slogan}</p> : null}
             <p className="mt-1 text-xs font-bold text-muted">{brand.category} · {brand.designRequest ? "자유 요청 저장" : "자동 요청"}</p>
           </div>
         </SoftCard>

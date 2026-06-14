@@ -2,7 +2,7 @@
 
 import { IndustrySelector } from "@/components/printy/onboarding/selectors";
 import { onboardingTotalSteps, stepNumbers } from "@/components/printy/shared/onboarding-progress";
-import { AppButton, ProgressHeader, Screen, SoftCard, TextField } from "@/components/ui";
+import { AppButton, ProgressHeader, Screen, TextField } from "@/components/ui";
 import { usePrintyStore } from "@/store/use-printy-store";
 import { HomeExitAction } from "./home-exit-action";
 
@@ -16,6 +16,7 @@ export function BrandCreationScreen() {
       <ProgressHeader eyebrow="브랜드 기본" title="브랜드를 소개해 주세요" description="브랜드 이름과 업종은 모든 로고 시안에서 바뀌지 않는 핵심 정보예요. 정확한 이름과 업종을 먼저 알려주세요." step={stepNumbers.brandCreation} total={onboardingTotalSteps} action={<HomeExitAction />} />
       <div className="grid gap-5">
         <TextField label="브랜드 이름" placeholder="예: 프린티 스튜디오" value={brandDraft.name} onChange={(value) => updateBrandDraft("name", value)} />
+        <TextField label="슬로건" placeholder="예: 빠르게 만드는 우리 브랜드" value={brandDraft.slogan} onChange={(value) => updateBrandDraft("slogan", value)} />
         <IndustrySelector selected={brandDraft.category} onSelect={(value) => updateBrandDraft("category", value)} />
       </div>
     </Screen>

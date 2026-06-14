@@ -12,16 +12,41 @@ export const logoAvoidRules = [
   "no watermark",
   "no stock icon look",
   "no busy background",
-  "no extra words beyond the brand name",
   "no misspelled lettering",
   "no tiny unreadable details",
 ];
 
-function exactBrandNameRule(brandName: string) {
+function cleanSlogan(input: { slogan?: string }) {
+  return input.slogan?.trim();
+}
+
+function textAvoidRule(input: { slogan?: string }) {
+  const slogan = cleanSlogan(input);
+
+  return slogan ? "no extra words beyond the exact brand name and exact slogan" : "no extra words beyond the brand name";
+}
+
+function avoidRules(input: { slogan?: string }) {
+  return [...logoAvoidRules, textAvoidRule(input)];
+}
+
+function exactBrandNameRule(brandName: string, slogan?: string) {
+  const clean = slogan?.trim();
+
+  if (clean) {
+    return `Mandatory visible text rule: this logo MUST include the main brand text exactly "${brandName}" and MUST include the tagline/slogan exactly "${clean}". Place the slogan as a smaller secondary line directly below the main logo/brand name. Do not translate, abbreviate, rename, rewrite, omit, or invent different lettering. Avoid all placeholder or generic lettering.`;
+  }
+
   return `Visible brand text rule: if the logo contains text, the text must be exactly "${brandName}". Do not translate, abbreviate, rename, or invent different lettering. Avoid all placeholder or generic lettering.`;
 }
 
-function revisionTextRule(brandName: string) {
+function revisionTextRule(brandName: string, slogan?: string) {
+  const clean = slogan?.trim();
+
+  if (clean) {
+    return `Mandatory visible text rule: preserve the source logo text by default and include the tagline/slogan exactly "${clean}" as a smaller line below the main brand text "${brandName}" unless the user explicitly asks to remove text. If the user explicitly asks to change, remove, replace, or rewrite text, follow that text-edit request exactly. Do not add generic placeholder lettering.`;
+  }
+
   return `Visible text rule: preserve the source logo text by default. If the user explicitly asks to change, remove, replace, or rewrite text, follow that text-edit request exactly. Do not add generic placeholder lettering. Brand context: "${brandName}".`;
 }
 
@@ -48,10 +73,12 @@ export function isSymbolOnlyRevisionRequest(revisionRequest: string) {
 
 export function buildLogoPrompt(input: LogoGenerationInput, variation: LogoVariationDraft, styleProfile: IndustryStyleProfile) {
   const userRequest = input.designRequest.trim() || "No user-written request was provided. Create a thoughtful interpretation from the brand name and industry.";
+  const slogan = cleanSlogan(input);
 
   return [
     `Create a professional logo for brand name "${input.brandName}".`,
-    exactBrandNameRule(input.brandName),
+    exactBrandNameRule(input.brandName, slogan),
+    slogan ? `Slogan/tagline lockup requirement: MANDATORY. The final image must visibly show the exact slogan "${slogan}" as a second text line below the main wordmark. Use a stacked logo lockup with a dedicated lower text zone. Do not output a symbol-only logo. Do not omit the slogan.` : "No slogan was provided; do not invent a tagline.",
     `Industry: ${input.industry}. Interpreted category: ${styleProfile.category}.`,
     `User design request: ${userRequest}`,
     `Interpretation lens: ${variation.lens ?? variation.label}.`,
@@ -62,26 +89,28 @@ export function buildLogoPrompt(input: LogoGenerationInput, variation: LogoVaria
     `Color palette: ${variation.colorPalette}.`,
     `Concept: ${variation.concept}. Connect the mark to these business cues: ${styleProfile.visualCues.join(", ")}. Suggested symbolic language: ${styleProfile.symbols.join(", ")}.`,
     `Complexity: ${variation.complexity}. Keep it scalable, vector-like, balanced, and readable at business-card size.`,
-    `Output: centered logo, strong silhouette, clean edges, print-ready composition, readable on business cards and small printed materials.`,
-    `Avoid: ${logoAvoidRules.join(", ")}.`,
+    `Output: centered logo, strong silhouette, clean edges, print-ready composition, readable on business cards and small printed materials${slogan ? ", with the slogan visible under the main logo" : ""}.`,
+    `Avoid: ${avoidRules(input).join(", ")}.`,
     hiddenQualityPrompt,
   ].join(" ");
 }
 
 export function buildReferenceLogoPrompt(input: LogoGenerationInput, variation: LogoVariationDraft) {
   const userRequest = input.designRequest.trim();
+  const slogan = cleanSlogan(input);
 
   return [
     `Create a new original logo for brand name "${input.brandName}" using the attached reference image as the dominant visual direction.`,
-    exactBrandNameRule(input.brandName),
+    exactBrandNameRule(input.brandName, slogan),
+    slogan ? `Slogan/tagline lockup requirement: MANDATORY. The final image must visibly show the exact slogan "${slogan}" as a second text line below the main wordmark, while matching the reference image's visual language. Use a stacked logo lockup with a dedicated lower text zone. Do not output a symbol-only logo. Do not omit the slogan.` : "No slogan was provided; do not invent a tagline.",
     `Industry context only: ${input.industry}. Do not let industry defaults override the reference image style.`,
     userRequest ? `One-time user requirements for this generation: ${userRequest}` : "No extra one-time user requirements were provided; follow the reference image style closely.",
     `Reference priority contract: the reference image must dominate style, composition, color mood, line quality, texture impression, visual density, ornament level, and typography mood.`,
     `Do not normalize the result into Printy's default modern, minimal, clean-vector, premium-branding, or generic industry-symbol style when the reference image shows a different visual language.`,
     `Only adapt broad style, form language, color mood, and composition principles. Do not copy protected logos, exact marks, characters, exact text, or distinctive artwork from the reference image.`,
-    `Brand text rule: if text appears, use only the exact brand name "${input.brandName}" and keep it readable, but match the reference image's lettering mood rather than a generic font style.`,
-    `Output: centered standalone logo suitable for print and business-card use, while preserving the reference-led visual character.`,
-    `Avoid: ${logoAvoidRules.join(", ")}.`,
+    `Brand text rule: use only the exact brand name "${input.brandName}"${slogan ? ` and exact slogan "${slogan}"` : ""}; keep all visible text readable, but match the reference image's lettering mood rather than a generic font style.`,
+    `Output: centered standalone logo suitable for print and business-card use, while preserving the reference-led visual character${slogan ? ", with the slogan visible under the main logo" : ""}.`,
+    `Avoid: ${avoidRules(input).join(", ")}.`,
   ].join(" ");
 }
 
@@ -98,7 +127,7 @@ export function buildLogoRevisionPrompt(input: LogoRevisionGenerationInput, vari
   return [
     `Edit the attached source logo image for brand name "${input.brandName}". The attached image is the source of truth, not a loose style reference.`,
     `Do not create a fresh logo from scratch. Start from the attached image and make only the user's requested change.`,
-    revisionTextRule(input.brandName),
+    revisionTextRule(input.brandName, input.slogan),
     `Industry context only: ${input.industry}. Interpreted category: ${styleProfile.category}. Do not let industry defaults override the attached source logo.`,
     `Source logo metadata: ${sourceDetails || "source image was provided as a data PNG; preserve its established identity."}`,
     `User revision request: ${input.revisionRequest.trim()}.`,
@@ -116,7 +145,7 @@ export function buildLogoRevisionPrompt(input: LogoRevisionGenerationInput, vari
     `Concept: ${variation.concept}. Preserve source-logo cues first; use these business cues only when they do not conflict with the attached image: ${styleProfile.visualCues.join(", ")}.`,
     `Complexity: ${variation.complexity}. Keep it scalable, vector-like, balanced, and readable at business-card size.`,
     `Output: centered revised logo, strong silhouette, clean edges, print-ready composition, readable on business cards and small printed materials.`,
-    `Avoid: ${logoAvoidRules.join(", ")}.`,
+    `Avoid: ${avoidRules(input).join(", ")}.`,
     hiddenQualityPrompt,
   ].join(" ");
 }

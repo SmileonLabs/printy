@@ -132,7 +132,7 @@ export function createPrintyLogoActions(set: PrintyStoreSet, get: PrintyStoreGet
           selectedBrandId: brandId,
           activeBrandSection: "style",
           logoGenerationTargetBrandId: brandId,
-          brandDraft: brand ? { name: brand.name, category: brand.category, designRequest: brand.designRequest } : state.brandDraft,
+          brandDraft: brand ? { name: brand.name, slogan: brand.slogan ?? "", category: brand.category, designRequest: brand.designRequest } : state.brandDraft,
           backgroundLogoGenerationNotice: {
             brandId,
             status: "generating",
@@ -250,13 +250,14 @@ export function createPrintyLogoActions(set: PrintyStoreSet, get: PrintyStoreGet
 
         const logoContext = readGeneratedLogoBrandContext(sourceLogo);
         const brandName = targetBrand && !isPlaceholderBrandName(targetBrand.name) ? targetBrand.name : logoContext.name ?? targetBrand?.name ?? state.brandDraft.name;
+        const slogan = targetBrand?.slogan ?? state.brandDraft.slogan;
         const category = targetBrand?.category.trim() ? targetBrand.category : logoContext.category ?? state.brandDraft.category;
         const designRequest = targetBrand?.designRequest.trim() ? targetBrand.designRequest : sourceLogo.designRequest ?? state.brandDraft.designRequest;
 
         return {
           onboardingComplete: false,
           currentStep: "logoRevision",
-          brandDraft: { name: brandName, category, designRequest },
+          brandDraft: { name: brandName, slogan, category, designRequest },
           selectedLogoId: sourceLogoId,
           selectedBrandId: targetBrand?.id ?? state.selectedBrandId,
           brands: targetBrand
@@ -327,7 +328,7 @@ export function createPrintyLogoActions(set: PrintyStoreSet, get: PrintyStoreGet
       set({
         onboardingComplete: false,
         currentStep: "logoDirection",
-        brandDraft: { name: brand.name, category: brand.category, designRequest: brand.designRequest },
+        brandDraft: { name: brand.name, slogan: brand.slogan ?? "", category: brand.category, designRequest: brand.designRequest },
         selectedBrandId: brand.id,
         logoGenerationTargetBrandId: brand.id,
         generatedLogoOptions: [],
@@ -363,7 +364,7 @@ export function createPrintyLogoActions(set: PrintyStoreSet, get: PrintyStoreGet
         onboardingComplete: false,
         currentStep: "logoUpload",
         brandLogoSetupMode: "upload",
-        brandDraft: { name: brand.name, category: brand.category, designRequest: brand.designRequest },
+        brandDraft: { name: brand.name, slogan: brand.slogan ?? "", category: brand.category, designRequest: brand.designRequest },
         selectedBrandId: brand.id,
         logoGenerationTargetBrandId: brand.id,
         generatedLogoOptions: [],

@@ -33,6 +33,7 @@ export type LogoShape = "circle" | "square" | "pill" | "diamond" | "arch" | "spa
 
 export type LogoGenerationInput = {
   brandName: string;
+  slogan?: string;
   industry: string;
   designRequest: string;
   referenceImageId?: string;
@@ -80,6 +81,7 @@ export type LogoRevisionSourceLogo = {
 
 export type LogoRevisionGenerationInput = {
   brandName: string;
+  slogan?: string;
   industry: string;
   revisionRequest: string;
   sourceLogo: LogoRevisionSourceLogo;
@@ -203,6 +205,7 @@ export type Member = {
 export type Brand = {
   id: string;
   name: string;
+  slogan?: string;
   category: string;
   designRequest: string;
   selectedLogoId: string;
@@ -216,6 +219,7 @@ export type BusinessCardDraft = {
   id: string;
   brandId?: string;
   brandName: string;
+  slogan?: string;
   category: string;
   designRequest: string;
   selectedLogoId: string;

@@ -70,6 +70,7 @@ export function isBrand(value: unknown): value is Brand {
   return (
     isNonEmptyString(value.id) &&
     isString(value.name) &&
+    (value.slogan === undefined || isString(value.slogan)) &&
     isString(value.category) &&
     isString(value.designRequest) &&
     isString(value.selectedLogoId) &&
@@ -91,6 +92,7 @@ export function isBusinessCardDraft(value: unknown): value is BusinessCardDraft 
     isNonEmptyString(value.id) &&
     (value.brandId === undefined || isString(value.brandId)) &&
     isString(value.brandName) &&
+    (value.slogan === undefined || isString(value.slogan)) &&
     isString(value.category) &&
     isString(value.designRequest) &&
     isString(value.selectedLogoId) &&
@@ -170,6 +172,7 @@ export function readBrandWorkspace(value: unknown): BrandWorkspace | undefined {
 
   const brands = value.brands.filter(isBrand).map((brand) => normalizeBrandContacts({
     ...brand,
+    slogan: brand.slogan ?? "",
     logoIds: Array.from(new Set([brand.selectedLogoId, ...(Array.isArray(brand.logoIds) ? brand.logoIds : [])])),
   }));
   const savedGeneratedLogoOptions = value.savedGeneratedLogoOptions.filter(isGeneratedLogoOption);
@@ -226,6 +229,7 @@ export function readBrandWorkspacePatch(value: unknown): BrandWorkspacePatch | u
 
   const brands = rawBrands?.filter(isBrand).map((brand) => normalizeBrandContacts({
     ...brand,
+    slogan: brand.slogan ?? "",
     logoIds: Array.from(new Set([brand.selectedLogoId, ...(Array.isArray(brand.logoIds) ? brand.logoIds : [])])),
   }));
   if (rawBrands && (!brands || brands.length !== rawBrands.length)) {

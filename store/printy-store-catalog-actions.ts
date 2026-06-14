@@ -51,7 +51,7 @@ export function createPrintyCatalogActions(set: PrintyStoreSet, get: PrintyStore
       set({
         onboardingComplete: false,
         currentStep: draft ? "orderOptions" : "memberInput",
-        brandDraft: { name: brand.name, category: brand.category, designRequest: brand.designRequest },
+        brandDraft: { name: brand.name, slogan: brand.slogan ?? "", category: brand.category, designRequest: brand.designRequest },
         memberDraft: brand.members[0] ?? defaultMember,
         selectedLogoId: brand.selectedLogoId,
         selectedBrandId: brand.id,
@@ -115,7 +115,7 @@ export function createPrintyCatalogActions(set: PrintyStoreSet, get: PrintyStore
       set({
         onboardingComplete: false,
         currentStep: selectedMemberIds.length > 0 ? "businessCardPreview" : draft ? "orderOptions" : "memberInput",
-        brandDraft: { name: brand.name, category: brand.category, designRequest: brand.designRequest },
+        brandDraft: { name: brand.name, slogan: brand.slogan ?? "", category: brand.category, designRequest: brand.designRequest },
         memberDraft: selectedMember ?? brand.members[0] ?? defaultMember,
         selectedLogoId,
         selectedBrandId: brand.id,

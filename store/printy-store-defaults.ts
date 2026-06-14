@@ -2,6 +2,7 @@ import type { Member, OrderOptions, PaymentMethod, ShippingInfo } from "@/lib/ty
 
 export type BrandDraft = {
   name: string;
+  slogan: string;
   category: string;
   designRequest: string;
 };
@@ -23,6 +24,7 @@ export const defaultMember: Member = {
 
 export const defaultBrandDraft: BrandDraft = {
   name: "",
+  slogan: "",
   category: "",
   designRequest: "",
 };
